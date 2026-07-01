@@ -25,7 +25,13 @@ behave the same way:
   `import("WifPmcInterior")`.
 - **`GetAvailableCostumes()`** — also reachable the same way. Returns how many of the current hero's
   outfits are currently unlocked. This turns out to be the actual gate limiting the wardrobe menu to only
-  a few entries early in the game.
+  a few entries early in the game. It's a tiny function, just a fallback default over one internal counter:
+
+  ```lua
+  function GetAvailableCostumes()
+    return _nAvailableCostumes or 1
+  end
+  ```
 - **`_SelectOutfit(uGuid)`** — the function that builds and shows the wardrobe menu itself. Reachable too,
   but far riskier to touch than the first two (see below).
 
@@ -33,8 +39,16 @@ Two more functions matter, both triggered once the player picks something from t
 state-machine transition, and the other is where the actual costume swap happens. The detail that ends up
 mattering most, found by reading that second function closely: it takes a **numeric index**, not an
 outfit table, and resolves the outfit list **fresh, by that index, every single time it runs** — never a
-cached copy. Whatever is sitting in the live table *at the moment the player picks something* is what
-gets applied.
+cached copy:
+
+```lua
+local sHero = MrxUtil.GetCharacterIdentity(uGuid)
+local tOutfits = _tOutfits[sHero]
+local sModelName = tOutfits[iIndex].Model
+```
+
+Whatever is sitting in `_tOutfits[sHero]` *at the moment the player picks something* is what gets
+applied — not whatever was there when the file first loaded.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>
