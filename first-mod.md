@@ -2,7 +2,8 @@
 title: Your First Mod
 nav_order: 3
 layout: verified_page
-verified: false
+verified: true
+verified_note: all 3 steps live-tested (console hello-world, OnLoad, OnKey + MrxPmc.AddCashQty fix)
 ---
 
 # Your First Mod
@@ -78,14 +79,22 @@ Create `scripts/OnKey/give_cash.lua`:
 ```lua
 local KEYVAL = "insert"  -- must be in the first 10 lines -- this is how the script declares its own default key
 
-Player.SetCash(Player.GetCash() + 10000)
+import("MrxPmc")         -- MrxPmc is a resident module, not an engine namespace -- needs its own import
+MrxPmc.AddCashQty(10000)
 Loader.Printf("[give_cash] +10000 cash")
 ```
 
 That `local KEYVAL = "insert"` line is doing real work: the loader reads the first 10 lines of every
 `OnKey` script looking for it, and uses it as that script's default hotkey binding — you don't have to
 touch any config file for the common case. Load into a level and press **Insert**; you should see cash
-increase and the debug message appear.
+increase on-screen and the debug message appear.
+
+Two things worth knowing here, both confirmed by live testing: `MrxPmc.AddCashQty` is used (instead of
+the lower-level `Player.SetCash`/`Player.AddCash`) specifically because it also refreshes the HUD —
+calling `Player.SetCash` directly *does* change your actual cash, but the on-screen number won't update
+to show it. And `MrxPmc` needs that `import("MrxPmc")` line because it's a `resident/` module, not a
+built-in engine namespace like `Player` — see the [Glossary](glossary#importname) if you want the full
+explanation of why.
 
 A few things worth knowing about how `OnKey` actually behaves, since it's easy to assume it works like a
 normal event handler and get confused when it doesn't:

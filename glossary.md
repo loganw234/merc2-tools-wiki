@@ -19,16 +19,27 @@ Not stable across game sessions — it's a runtime handle, not a permanent ID.
 `inherit`/`import`.
 
 **engine namespace**
-: A built-in table like `Object`, `Event`, `Player`, `MrxPmc` — these are provided by the engine itself,
-not defined by any `.lua` module in this corpus. You call into them (`Object.GetPosition(...)`) but
-won't find their implementation in `resident/`.
+: A built-in table like `Object`, `Event`, `Player`, `Marker`, `Sound` — these are provided by the
+engine itself, not defined by any `.lua` module in this corpus. You call into them
+(`Object.GetPosition(...)`) but won't find their implementation in `resident/`, and they're **always**
+globally callable — no `import()` needed, from anywhere. Don't confuse these with resident-module
+namespaces like `MrxPmc` (see below) — the two look identical to call, but behave very differently
+outside a module's own file.
 
 **`inherit("Name")`**
 : Declared at the top of a module, makes it prototype-inherit from another module's table. See the
 [Resident Modules](resident/) landing page for the full explanation with examples.
 
 **`import("Name")`**
-: Pulls another module in as a callable namespace, without inheriting from it.
+: Pulls another module in as a callable namespace, without inheriting from it. **Important, confirmed by
+live testing:** this only populates *the importing file's own environment*. A `resident/` module that
+does `import("MrxPmc")` can then call `MrxPmc.Whatever(...)` freely inside its own functions — but a
+console chunk or `OnBoot`/`OnLoad`/`OnKey` script has no such import, so `MrxPmc.AddCashQty(...)` from
+one of those fails with `attempt to index global 'MrxPmc' (a nil value)`. Fix: call `import("MrxPmc")`
+yourself, at the top of the script, before using it. This does **not** apply to functions a module
+explicitly publishes with `_G.Name = ...` (e.g. `_G.Cheat.DisplayOptions`, `_G.DebugTeleport`) — those
+are real globals and work from anywhere, because the *function itself* was defined inside its module and
+carries that module's environment with it as a closure, even though its *name* is reachable globally.
 
 **`getfenv()`**
 : Stock Lua 5.1 built-in returning the calling function's environment table — in this codebase, that's
@@ -71,7 +82,14 @@ base game's noisy shared log. Use this, not the engine's `Debug.Printf`, for you
 [Getting Started](getting-started#loaderprintf-debug-output-that-doesnt-get-lost).
 
 **`MrxPmc`**
-: The engine namespace for player-economy state — cash, fuel, fuel capacity.
+: A **resident module** (`resident/mrxpmc.lua`), not an engine namespace — despite reading like one.
+Tracks player-economy state (cash, fuel, fuel capacity) as a thin wrapper around the lower-level
+`Player.*` primitives (`Player.SetCash`, `Player.AddFuel`, ...), adding capacity clamping, HUD-refresh
+events, and stats tracking on top. Needs `import("MrxPmc")` before use outside a module file — see the
+`import("Name")` entry above. Confirmed by live testing: calling `Player.SetCash(...)` directly *does*
+change the underlying value, but skips the HUD refresh `MrxPmc.AddCashQty(...)` triggers — the number
+won't visibly update on-screen even though it changed. Use `MrxPmc.AddCashQty`/`AddFuelQty` if you want
+the displayed value to update too.
 
 **`Pg`**
 : Broad world/level-state queries — landing zones, spawn points, contract state, achievements, "collect

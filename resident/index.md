@@ -39,6 +39,13 @@ its filename — `crate.lua` defines module `Crate`. Two built-ins glue modules 
   E.g. `airplane.lua` starts with `inherit("VehicleBlippable")`, so `Airplane` reuses (and can override)
   everything `VehicleBlippable` defines. Chains can run several modules deep.
 - **`import("Name")`** pulls another module in as a callable namespace without inheriting from it.
+  **Confirmed by live testing:** this only affects *the importing file's own environment* — it doesn't
+  make the namespace available anywhere else. A console chunk or `OnBoot`/`OnLoad`/`OnKey` script that
+  wants to call e.g. `MrxPmc.AddCashQty(...)` directly needs to `import("MrxPmc")` itself first, or it
+  fails with `attempt to index global 'MrxPmc' (a nil value)`. This does *not* apply to functions a
+  module publishes with `_G.Name = ...` (like `MrxCheatBootstrap`'s `_G.Cheat` and `_G.DebugTeleport`) —
+  those work from anywhere, since the function itself is a closure carrying its module's environment with
+  it, even though its name is reachable globally. See the [Glossary](../glossary#importname) for more.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>

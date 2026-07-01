@@ -25,18 +25,30 @@ Loader.Printf("[mymod] cash = " .. Player.GetCash())
 
 ## Read / give cash
 
+`MrxPmc` is a `resident/` module, not an engine namespace, so it isn't automatically visible from a
+console chunk or `OnLoad`/`OnKey` script — `import()` it yourself first (confirmed by live testing: skip
+this and you get `attempt to index global 'MrxPmc' (a nil value)`). See the
+[Glossary](glossary#importname) if that's surprising.
+
 ```lua
+import("MrxPmc")
 local nCurrent = MrxPmc.GetCashQty()
 MrxPmc.AddCashQty(10000)              -- relative: add 10,000
 -- MrxPmc.AddCashQty(nCurrent * -1)   -- zero it out, if you ever need to
 ```
 
+Confirmed by live testing: the lower-level `Player.SetCash(...)`/`Player.AddCash(...)` also genuinely
+change the balance, but skip the HUD refresh `MrxPmc.AddCashQty` triggers — the on-screen number won't
+visibly update even though the value changed. Use `MrxPmc.AddCashQty`/`AddFuelQty`, not the raw
+`Player.*` setters, if you want what's displayed to actually update.
+
 ## Read / give fuel
 
 Fuel has both a current quantity and a capacity — raising the quantity past the capacity does nothing
-until you raise the capacity too:
+until you raise the capacity too. Same `import()` requirement as cash above:
 
 ```lua
+import("MrxPmc")
 local nFuel = MrxPmc.GetFuelQty()
 local nCap  = MrxPmc.GetFuelCapacity()
 MrxPmc.SetFuelCapacity(9999, true)    -- raise the cap first
