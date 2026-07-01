@@ -1,7 +1,7 @@
 title: Mercenaries 2 Modding Wiki
 description: Community reference for modding Mercenaries 2 (PC) — the lua-bridge injection tool and a per-module Lua API reference.
-baseurl: "/merc2-tools-wiki"
-url: "https://loganw234.github.io"
+baseurl: ""
+url: "https://wiki.mercs2.tools"
 
 # Pages under wiki/resident/ (the module reference, LLM-drafted) default to the
 # "not yet verified in-game" layout/banner. Individual pages override this once
