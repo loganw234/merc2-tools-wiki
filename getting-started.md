@@ -87,6 +87,27 @@ tables as `<table>`, functions as `<function>`. Anything else shows as `<tt=N va
 looking at a raw engine type the formatter doesn't special-case, use `type()` /
 `Loader.Printf(tostring(...))` from within your chunk if you need more detail on it.
 
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+That list (`nil`, `true`/`false`, numbers, strings, tables, functions) is the *entire* set of value types
+in Lua — there's nothing else. A few that trip people up coming from other languages:
+
+- **`nil` isn't the same as `false`.** `nil` means "nothing here" (an unset variable, a missing table
+  field); `false` is a real boolean value. Both make an `if` statement take the "else" branch, which is
+  why they're easy to conflate, but `type(nil)` and `type(false)` are different strings.
+- **Numbers are just "numbers."** No separate `int` vs `float` types to worry about — see the
+  float-vs-double gotcha below for how *this specific game* stores them internally, but at the Lua
+  language level, `5` and `5.0` are the same kind of thing.
+- **A table can hold anything, including functions.** That's *why* `MrxPmc.AddCashQty(...)` works the way
+  it does — `MrxPmc` is a table, `AddCashQty` is a function stored as one of its fields, and `.` reads
+  that field before calling it.
+
+If a chunk you write returns a table and you want to see what's actually in it (not just the useless
+`<table>` the REPL shows), loop over it yourself: `for k, v in pairs(t) do Loader.Printf(tostring(k) .. " = " .. tostring(v)) end`.
+
+</details>
+
 **One gotcha worth knowing:** this build of the engine's Lua uses **`float`, not `double`**, for
 `lua_Number`. Precision-sensitive math (large integers, tight epsilon comparisons) can behave
 differently than you'd expect from a stock Lua 5.1 interpreter. If a number "should" be exact but isn't,
@@ -158,10 +179,12 @@ building that plumbing into the engine hook itself.
 
 Once you can get code running, the next question is *what's there to call*. That's what the rest of
 this wiki is for — reference docs for the game's own Lua modules (`resident/`), covering the object
-model, lifecycle hooks, and the engine's built-in namespaces (`Object`, `Event`, `Player`, `MrxPmc`,
-etc.). Start with [Resident Modules](resident/) — its landing page explains the game's
-module/inheritance pattern before you hit the per-module pages — or jump straight to a specific module
-if you already know what you're looking for.
+model, lifecycle hooks, and the engine's built-in namespaces (`Object`, `Event`, `Player`, `Marker`,
+etc. — always global, no setup needed) as well as the `resident/` modules themselves (`MrxPmc`,
+`MrxTransit`, and 226 others — these need an `import("Name")` call before use outside their own file, see
+the [Glossary](glossary#importname)). Start with [Resident Modules](resident/) — its landing page
+explains the game's module/inheritance pattern before you hit the per-module pages — or jump straight to
+a specific module if you already know what you're looking for.
 
 ## Troubleshooting checklist
 

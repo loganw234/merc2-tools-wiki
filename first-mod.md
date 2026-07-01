@@ -36,6 +36,23 @@ should show your returned string, cash value included. If you see a red `[bridge
 check the troubleshooting list at the bottom of [Getting Started](getting-started) — most commonly it
 means the bridge hasn't captured a live Lua state yet.
 
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Three things in that four-line starter script, if none of this is familiar yet:
+
+- **Lines starting with `--` are comments.** Lua ignores everything from `--` to the end of that line —
+  they're notes for a human reader, not instructions. The first two lines of the starter script are
+  entirely comments; the actual code is just the one `return` line.
+- **`return` sends a value back to whoever ran the chunk.** Here, that's the console — whatever follows
+  `return` is what shows up in the output panel. A script doesn't have to `return` anything at all; plenty
+  of scripts later in this guide just *do* something (add cash, print a message) with nothing to return.
+- **`..` joins strings together.** `"Hello, " .. "world"` produces `"Hello, world"`. `Player.GetCash()`
+  returns a number, not a string, so it gets silently converted to text for the join — Lua does that
+  automatically for `..`, but not for most other operations.
+
+</details>
+
 This console is where you'll iterate on almost everything — write a chunk, run it, see the result,
 adjust. Once something works here, *then* decide whether it belongs in a loader script (below).
 

@@ -120,6 +120,23 @@ end, {})
 **Confirmed working by live testing** — fires exactly once, at the correct delay. Tested at 2s, 5s, and
 20s, all reliable.
 
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+That `function() ... end` sitting *inside* the `Event.Create(...)` call, with no name of its own, is
+called an **anonymous function** — a function defined right where it's used instead of with
+`function Foo() ... end` somewhere else. `Event.Create` takes it as an argument and calls it later,
+once the timer fires, exactly like `MrxMultiPageMenu.AddOption("Add cash", function(nCash) ... end, ...)`
+does elsewhere in this wiki. This is an extremely common pattern in this codebase: "here's some code to
+run later, when X happens" — the callback function *is* the "later."
+
+You'll also see `local KEYVAL = "insert"` and `local nCurrent = ...` elsewhere on this page.
+`local` limits where a name is visible — leave it off and the name becomes global (visible from
+anywhere), which is almost never what you want for a throwaway variable inside one script. See
+[Your First Mod](first-mod) and the [Resident Modules](resident/) landing page for more on this.
+
+</details>
+
 For a real per-object hook (the pattern every world-object script uses to defer setup until the object
 is actually live), see the `OnActivate` / `Awake` explanation on the
 [Resident Modules](resident/) landing page.
