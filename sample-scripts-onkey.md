@@ -18,7 +18,7 @@ The whole entry point of [`MrxCheatBootstrap`](resident/mrxcheatbootstrap) is on
 time.
 
 ```lua
-local KEYVAL = "f1"  -- must be in the first 10 lines -- pick any key you like, see the note below
+local KEYVAL = "f2"  -- must be in the first 10 lines -- pick any key you like, see the note below
 
 _G.Cheat.DisplayOptions()
 ```
@@ -26,6 +26,8 @@ _G.Cheat.DisplayOptions()
 **Confirmed working** — this reuses the exact `_G.Cheat.DisplayOptions()` call already live-tested on the
 [`MrxCheatBootstrap`](resident/mrxcheatbootstrap) page; wiring it to `OnKey` doesn't change its behavior,
 just when it fires.
+
+![The in-game cheat menu opened via the hotkey — "Welcome to the Cheat Menu." with options Add cash, Add fuel, Add support, Modify attitude, Unlock all landing zones, Dispense all rewards, and Close this menu, with the player character standing in the HQ courtyard behind the dialog.](img/cheatmenu.png)
 
 Picking a different key: `KEYVAL` (or the matching entry in `lua_loader.ini`'s `[OnKey]` section) needs a
 recognized key name — see [Your First Mod](first-mod) for the mechanics of how `KEYVAL` gets picked up.
