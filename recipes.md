@@ -141,6 +141,77 @@ For a real per-object hook (the pattern every world-object script uses to defer 
 is actually live), see the `OnActivate` / `Awake` explanation on the
 [Resident Modules](resident/) landing page.
 
+## Dump any table's contents to the log
+
+Useful any time you want to know what's actually inside a data table (`tSupportData`, `_tFactions`,
+whatever) instead of guessing from source — some tables (like `MrxSupportData.tSupportData`) start empty
+in source and only get populated at runtime, so reading the file doesn't tell you the final shape.
+
+Drop this as `scripts/OnBoot/dump_helper.lua` so `DumpTable` stays callable for the rest of the session:
+
+```lua
+function DumpTable(t, sName, nMaxDepth, nDepth, tSeen)
+  nDepth = nDepth or 0
+  nMaxDepth = nMaxDepth or 3
+  tSeen = tSeen or {}
+  local sIndent = string.rep("  ", nDepth)
+  if type(t) ~= "table" then
+    Loader.Printf(sIndent .. tostring(sName) .. " = " .. tostring(t) .. " (" .. type(t) .. ")")
+    return
+  end
+  if tSeen[t] then
+    Loader.Printf(sIndent .. tostring(sName) .. " = <already dumped, cyclic/shared reference>")
+    return
+  end
+  tSeen[t] = true
+  if nDepth > nMaxDepth then
+    Loader.Printf(sIndent .. tostring(sName) .. " = <table, max depth reached>")
+    return
+  end
+  Loader.Printf(sIndent .. tostring(sName) .. " = {")
+  local tKeys = {}
+  for k in pairs(t) do table.insert(tKeys, k) end
+  table.sort(tKeys, function(a, b) return tostring(a) < tostring(b) end)
+  for _, k in ipairs(tKeys) do
+    local v = t[k]
+    if type(v) == "table" then
+      DumpTable(v, tostring(k), nMaxDepth, nDepth + 1, tSeen)
+    elseif type(v) == "function" then
+      Loader.Printf(sIndent .. "  " .. tostring(k) .. " = <function>")
+    else
+      Loader.Printf(sIndent .. "  " .. tostring(k) .. " = " .. tostring(v) .. " (" .. type(v) .. ")")
+    end
+  end
+  Loader.Printf(sIndent .. "}")
+end
+```
+
+Then, from the console:
+
+```lua
+import("MrxSupportData")
+DumpTable(MrxSupportData.tSupportData, "MrxSupportData.tSupportData", 2)
+```
+
+**Confirmed working by live testing** — an early version of this is exactly how the
+[support item catalog](resident/mrxsupportdata#support-item-catalog) was first explored. Fully recursive
+dumps get verbose fast (one real table produced ~3000 log lines) — for building a clean reference table,
+skip `DumpTable` and write a narrower one-line-per-entry loop instead, printing only the specific fields
+you care about:
+
+```lua
+local tKeys = {}
+for k in pairs(MrxSupportData.tSupportData) do table.insert(tKeys, k) end
+table.sort(tKeys)
+for _, k in ipairs(tKeys) do
+  local d = MrxSupportData.tSupportData[k]
+  Loader.Printf(string.format("%s | %s | cash=%s | fuel=%s | max=%s | type=%s",
+    k, tostring(d.sName), tostring(d.nCashCost), tostring(d.nFuelCost), tostring(d.nMaxStock), tostring(d.sType)))
+end
+```
+
+That's the actual script the support catalog was built from — one line per item instead of ~20.
+
 ## Something not here?
 
 If you worked out a useful snippet that isn't listed, it's worth adding — this page is meant to grow.
