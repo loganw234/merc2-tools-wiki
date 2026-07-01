@@ -212,6 +212,12 @@ end
 
 That's the actual script the support catalog was built from — one line per item instead of ~20.
 
+## Ready for something more involved?
+
+Everything above reads or writes a value. [Case Study: Overriding a Function](case-study-function-override)
+walks through the next step up — replacing a piece of the game's own logic — end to end, including the
+wrong turns along the way.
+
 ## Something not here?
 
 If you worked out a useful snippet that isn't listed, it's worth adding — this page is meant to grow.
