@@ -221,7 +221,7 @@ That's the actual script the support catalog was built from — one line per ite
 Everything above reads or writes a value. [Case Study: Overriding a Function](case-study-function-override)
 walks through the next step up — replacing a piece of the game's own logic — end to end, including the
 wrong turns along the way. The result of that case study is also available as a ready-to-use script under
-[Sample Scripts](sample-scripts).
+[OnLoad Scripts](sample-scripts-onload).
 
 ## Something not here?
 

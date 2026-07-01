@@ -9,7 +9,7 @@ Everything in [Snippets](snippets) either reads a value or writes one field. Thi
 walks through **replacing a piece of the game's own logic** with your own, end to end: what the original
 approach was, three attempts that turned out to be wrong (and why), the one that actually worked,
 confirmed in-game, and the general lesson underneath all of it. Just want the finished result as a
-drop-in file? It's on [Sample Scripts](sample-scripts) as `WardrobeUnlocker.lua`.
+drop-in file? It's on [OnLoad Scripts](sample-scripts-onload) as `WardrobeUnlocker.lua`.
 
 The example: the HQ wardrobe normally only lets a character wear outfits from their own small, curated
 list. The goal — make every outfit, for every character, available from any character's wardrobe menu,
