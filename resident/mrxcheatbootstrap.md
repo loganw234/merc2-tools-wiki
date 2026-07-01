@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [cheats, menu, beginner-friendly]
 verified: true
-verified_note: core claims live-tested: DisplayOptions, MrxPmc cash, MrxTransit LZ unlock, MrxRewardData rewards, MrxFactionManager relation (via SetAttitudeMutable), DebugTeleport (outdoor-only, crashes indoors)
+verified_note: fully live-tested -- every direct-call row (cash, fuel, LZ unlock, rewards, support item, faction relation via SetAttitudeMutable, DebugTeleport outdoor-only) plus the full "The Works!" snippet
 ---
 
 # MrxCheatBootstrap
@@ -52,10 +52,10 @@ for why.
 | Want to... | Call this |
 |---|---|
 | Add cash | `import("MrxPmc"); MrxPmc.AddCashQty(100000)` — the menu offers 1000 / 10000 / 100000 / 1000000 / 10000000 / 100000000 as preset buttons, but any number works. **Confirmed working, HUD updates.** |
-| Add fuel | `import("MrxPmc"); MrxPmc.AddFuelQty(1000)` — if the amount would exceed the current capacity, raise it first: `MrxPmc.SetFuelCapacity(9999, true)` |
+| Add fuel | `import("MrxPmc"); MrxPmc.AddFuelQty(1000)` — if the amount would exceed the current capacity, raise it first: `MrxPmc.SetFuelCapacity(9999, true)`. **Confirmed working, HUD updates.** |
 | Unlock every landing zone | `import("MrxTransit"); MrxTransit.UnlockAllLandingZones()` — **confirmed working**, but runs silently: no on-screen confirmation, check the map/travel menu to see the effect |
 | Dispense every reward | `import("MrxRewardData"); MrxRewardData.DispenseAllRewards()` — **confirmed working**: grants a large amount of cash, fuel, faction reputation, and shop-item unlocks all at once |
-| Give one support item | `import("MrxPmc"); MrxPmc.AddSupportQty(sSupportKey, 1)` — keys come from `MrxSupportData.tSupportData` |
+| Give one support item | `import("MrxPmc"); MrxPmc.AddSupportQty(sSupportKey, 1)` — keys come from `MrxSupportData.tSupportData`. **Confirmed working.** |
 | Change a faction relationship | `import("MrxFactionManager"); MrxFactionManager.SetRelation(sSubjectAbbrev, sObjectAbbrev, nRelation)` — **read the caveat below before using this one** |
 | Teleport all players | `_G.DebugTeleport(x, y, z)` — no import needed, see below (and read the warning first) |
 
@@ -122,6 +122,10 @@ MrxSupportData.SetIgnoreRequirements(true)  -- bypasses whatever prerequisites n
 
 Note the last line: `MrxSupportData.SetIgnoreRequirements(true)` is a global switch, not scoped to this
 menu session — once set, support-item prerequisite checks stay bypassed.
+
+**Confirmed working by live testing** — ran the full snippet as-is, no errors. Correctly triggered the
+same UI feedback as the individual cash/support calls, and maxed out at 99 of every support item plus
+the cash/fuel amounts specified.
 
 ## `_G.DebugTeleport(x, y, z)`
 
