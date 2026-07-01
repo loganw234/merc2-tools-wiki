@@ -1,0 +1,46 @@
+<style>
+/* "Lua Beginners" callout -- a themed, collapsible (closed by default) box for
+   dropping plain-English explanations near jargon, without cluttering the page
+   for readers who don't need it. Light green is used consistently sitewide so
+   readers learn to associate the color with "safe to skip if you already know
+   this." Usage:
+
+   <details class="lua101" markdown="1">
+   <summary>New to Lua? Click to expand</summary>
+
+   Markdown *works* inside here -- but only because of that markdown="1" attribute above.
+   Kramdown treats raw HTML blocks as literal HTML by default; without markdown="1" your
+   bullet lists and **bold** text render as plain literal text instead of formatted markdown.
+
+   </details>
+*/
+details.lua101 {
+  background: #eaf7ea;
+  border: 1px solid #a8d8a8;
+  border-left: 4px solid #4caf50;
+  border-radius: 6px;
+  padding: 0.6em 1em;
+  margin: 1em 0;
+}
+details.lua101 summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #2e7d32;
+  list-style: none;
+}
+details.lua101 summary::-webkit-details-marker {
+  display: none;
+}
+details.lua101 summary::before {
+  content: "🌱 ";
+}
+details.lua101 summary:hover {
+  color: #1b5e20;
+}
+details.lua101[open] summary {
+  margin-bottom: 0.6em;
+}
+details.lua101 > *:last-child {
+  margin-bottom: 0;
+}
+</style>

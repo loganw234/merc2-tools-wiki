@@ -65,6 +65,11 @@ table in [Getting Started](getting-started)).
 would use. Numbers can lose precision you wouldn't expect from "normal" Lua — see
 [Getting Started](getting-started) for details.
 
+**`Loader.Printf`**
+: lua-bridge's own debug-print function, writing to its dedicated `lua_loader_print.log` instead of the
+base game's noisy shared log. Use this, not the engine's `Debug.Printf`, for your own debug output — see
+[Getting Started](getting-started#loaderprintf-debug-output-that-doesnt-get-lost).
+
 **`MrxPmc`**
 : The engine namespace for player-economy state — cash, fuel, fuel capacity.
 

@@ -9,6 +9,28 @@ This wiki documents the Lua scripting surface of **Mercenaries 2: World in Flame
 you're new here, start on this page — it covers the *only* supported way to get your own Lua code
 running in the live game right now: **lua-bridge**.
 
+## Rapid overview
+
+Already comfortable installing ASI mods and don't need the walkthrough? Here's the whole thing:
+
+1. **Get lua-bridge.** No stable release exists yet — `lua-bridge-DEV` in
+   [github.com/loganw234/Merc2-Mods-Exp](https://github.com/loganw234/Merc2-Mods-Exp) is the current
+   active build. Either install it manually (drop the built `.asi`/`.ini` into `scripts/`, see [Install](#install)
+   below), or install through the community
+   [mercs2-modkit](https://github.com/Mercenaries-Fan-Build/mercs2-modkit) mod manager, which can pull it
+   for you — see that repo for its own setup instructions.
+2. **Launch the game via `pmc_bb.dll`** (the Fan Build ASI loader). lua-bridge doesn't run standalone.
+3. **Run code one of two ways:**
+   - Interactively: `py tools/lua_console.py`, a small GUI REPL client — write Lua, hit F5, see the
+     result. Fastest way to poke at game state.
+   - Automatically: drop a `.lua` file into `scripts/OnLoad/` (runs once per level load — use this for
+     almost everything) or `scripts/OnKey/` (runs on a hotkey press — declare the key with
+     `local KEYVAL = "insert"` in the script's first 10 lines).
+4. That's it — no compilation step, no ASI-mod boilerplate. If something's not working, jump to
+   [Troubleshooting](#troubleshooting-checklist) at the bottom of this page.
+
+New to this entirely, or want the reasoning behind each step? Keep reading below.
+
 ## Why lua-bridge
 
 Mercenaries 2 ships with a statically-linked Lua 5.1.2 runtime driving nearly everything — world
@@ -63,7 +85,7 @@ tooling (e.g. driving the game from a build script or a bot).
 Return values are formatted per-type: `nil`, `true`/`false`, numbers via `%g`, strings in `"quotes"`,
 tables as `<table>`, functions as `<function>`. Anything else shows as `<tt=N val=0xADDRESS>` — you're
 looking at a raw engine type the formatter doesn't special-case, use `type()` /
-`Debug.Printf(tostring(...))` from within your chunk if you need more detail on it.
+`Loader.Printf(tostring(...))` from within your chunk if you need more detail on it.
 
 **One gotcha worth knowing:** this build of the engine's Lua uses **`float`, not `double`**, for
 `lua_Number`. Precision-sensitive math (large integers, tight epsilon comparisons) can behave
@@ -100,6 +122,24 @@ script can also declare its own default by putting `local KEYVAL = "keyname"` so
 
 `OnKey` scripts are re-read from disk on every keypress (via a dedicated background thread polling at
 30Hz, so it doesn't stall the game's main thread) — edit-and-repress works without restarting.
+
+### `Loader.Printf` — debug output that doesn't get lost
+
+Don't reach for the engine's own `Debug.Printf` to print your own debug messages. It's the game's
+original debug-print function, called thousands of times a second from all over the base game's own
+scripts — and it's also the exact function lua-bridge itself hooks into as one of its capture points.
+Anything you print through it is buried in that noise with no clean way to filter it back out.
+
+Every script instead has access to a global:
+
+```lua
+Loader.Printf(message)
+```
+
+Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_print.log`, next
+to the game exe — instead of the shared, noisy engine log. Everything in that file is something a script
+explicitly asked to log; nothing from the base game leaks in. Use this for anything you actually want to
+find again later.
 
 ### `Tcp.Send` — fire-and-forget telemetry
 

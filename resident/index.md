@@ -26,8 +26,9 @@ Each category page has its own short intro explaining what's in it and where to 
 bar (top of the page) to jump straight to a module by name if you already know what you're looking for.
 
 Every module page follows the same layout: Overview, Inheritance, Instance pattern, Functions, Events,
-and Notes for modders — and links back to the exact source file so you can verify anything that looks
-off.
+and Notes for modders. Each page names its source `.lua` file so you know what you're reading about, but
+doesn't link to or reproduce the file itself — the decompiled source isn't republished here, only
+descriptions of what it does.
 
 ## How these modules actually work
 
@@ -38,6 +39,45 @@ its filename — `crate.lua` defines module `Crate`. Two built-ins glue modules 
   E.g. `airplane.lua` starts with `inherit("VehicleBlippable")`, so `Airplane` reuses (and can override)
   everything `VehicleBlippable` defines. Chains can run several modules deep.
 - **`import("Name")`** pulls another module in as a callable namespace without inheriting from it.
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Everything below assumes you already know what a function, a table, and a variable are. If you've never
+programmed before, or never used Lua specifically, here's the minimum vocabulary to get through this
+page — skip this box entirely if any of it is already familiar.
+
+- **A function is a named, reusable chunk of code.** `function Foo(x) ... end` defines one called `Foo`
+  that takes one input (`x`). You run it later by writing `Foo(5)`. Nothing inside a function happens
+  until something actually calls it by name.
+- **A table is Lua's one and only data structure.** Other languages have separate "array" and "object"/
+  "dictionary" types; Lua has just tables, and they do both jobs. `{1, 2, 3}` is a table used as a list.
+  `{x = 1, y = 2}` is the same kind of table used as a set of named fields, accessed as `t.x` / `t.y`.
+  Every "object" you'll see in this wiki (a player, a support item, a menu option) is really just a
+  table with some fields and functions attached to it.
+- **`local` limits where a name is visible.** `local nCash = 100` creates a variable that only exists
+  inside the current function/file. Leave off `local` and the name becomes *global* — visible from any
+  script, which is how e.g. `_G.Cheat` in [`MrxCheatBootstrap`](mrxcheatbootstrap) ends up callable from
+  anywhere.
+- **`self` and the colon (`:`) are a shortcut for "the table this function was called on."** Writing
+  `oInstance:Create(uGuid)` is Lua sugar for `Inheritable.Create(oInstance, uGuid)` — the thing before
+  the colon gets silently passed as the function's first argument, conventionally named `self` inside
+  the function body. You'll see this constantly: `:GetParent()`, `:IsActive()`, `:Complete()` are all
+  "call this function, passing the table on my left as the first argument."
+  - Naming note: Lua itself doesn't require the parameter to be called `self` — it's purely a
+    convention. `oPrototype:Create(uGuid, iArg)` below expands to a function whose *first* parameter
+    receives `oPrototype`, and that file happens to name it `oPrototype` instead of `self`. Same
+    mechanism, different chosen name.
+- **A metatable is a fallback lookup.** `setmetatable(oInstance, {__index = oPrototype})` means: "if
+  something asks `oInstance` for a field it doesn't have, go check `oPrototype` instead." That single
+  line is the entire mechanism behind "inheritance" in this codebase — an instance only stores what
+  makes it unique, and silently falls back to its class/prototype table for everything else.
+
+With that vocabulary, the code below reads as: "make a new empty table, tell it to fall back to
+`oPrototype` for anything it doesn't have itself, tag it with which world object it belongs to, remember
+it in a lookup table by that tag, and hand it back."
+
+</details>
 
 The root of most inheritance chains is [`Inheritable`](inheritable), which defines the actual
 per-instance pattern:

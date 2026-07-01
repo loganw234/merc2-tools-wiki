@@ -20,7 +20,7 @@ call pattern" isn't the same as "tested by a human in-game." Check the banner at
 The simplest possible thing — confirms your script is running and lets you inspect a value:
 
 ```lua
-Debug.Printf("[mymod] cash = " .. Player.GetCash())
+Loader.Printf("[mymod] cash = " .. Player.GetCash())
 ```
 
 ## Read / give cash
@@ -59,7 +59,7 @@ Useful for debugging, or as a building block for anything that needs to know whe
 
 ```lua
 local x, y, z = Object.GetPosition(Player.GetLocalCharacter())
-Debug.Printf(string.format("[mymod] pos = %.1f, %.1f, %.1f", x, y, z))
+Loader.Printf(string.format("[mymod] pos = %.1f, %.1f, %.1f", x, y, z))
 ```
 
 ## Put a marker/blip on an object
@@ -85,7 +85,7 @@ a condition every frame:
 
 ```lua
 Event.Create(Event.TimerRelative, {2}, function()
-  Debug.Printf("[mymod] two seconds later")
+  Loader.Printf("[mymod] two seconds later")
 end, {})
 ```
 

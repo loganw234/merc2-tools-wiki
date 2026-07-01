@@ -53,7 +53,7 @@ certainly belongs in `OnLoad`.
 Create `scripts/OnLoad/hello_load.lua`:
 
 ```lua
-Debug.Printf("[hello_load] level ready, cash = " .. Player.GetCash())
+Loader.Printf("[hello_load] level ready, cash = " .. Player.GetCash())
 ```
 
 Load into a level. You should see the message in the game's log. Because this runs on *every* level
@@ -79,7 +79,7 @@ Create `scripts/OnKey/give_cash.lua`:
 local KEYVAL = "insert"  -- must be in the first 10 lines -- this is how the script declares its own default key
 
 Player.SetCash(Player.GetCash() + 10000)
-Debug.Printf("[give_cash] +10000 cash")
+Loader.Printf("[give_cash] +10000 cash")
 ```
 
 That `local KEYVAL = "insert"` line is doing real work: the loader reads the first 10 lines of every
