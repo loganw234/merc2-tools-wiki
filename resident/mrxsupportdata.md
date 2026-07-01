@@ -40,7 +40,7 @@ instead of per-object instances:
 
 ## Support item catalog
 
-**Captured by live runtime dump**, not read from source — see [Recipes](../recipes) for the `DumpTable`
+**Captured by live runtime dump**, not read from source — see [Snippets](../snippets) for the `DumpTable`
 tool this was captured with. 134 items across 7 types. "Loc key" is the untranslated localization string
 key (e.g. `[vehicle.ah1z]`) `sName` actually holds — this wiki doesn't have the string-table lookup, so
 these are shown as-is rather than resolved to display text; most are still readable enough to identify

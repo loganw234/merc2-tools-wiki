@@ -143,7 +143,7 @@ end
 Registered globally (not just inside this module), so it's callable any time this module has loaded:
 `_G.DebugTeleport(100, 0, 250)`. Moves *every* player to the same coordinates — there's no per-player
 targeting here, it builds one location per player but always the same `x, y, z`. Pair this with
-[`Object.GetPosition(...)`](../recipes#get-your-current-position) to first read a known-good location
+[`Object.GetPosition(...)`](../snippets#get-your-current-position) to first read a known-good location
 before jumping somewhere new.
 
 **Confirmed by live testing — crashes to desktop if used while inside an interior cell** (e.g. the PMC
