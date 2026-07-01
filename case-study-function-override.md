@@ -7,98 +7,107 @@ nav_order: 5
 
 Everything in [Recipes](recipes) either reads a value or writes one field. This page is different — it
 walks through **replacing a piece of the game's own logic** with your own, end to end: what the original
-code does, three approaches that turned out to be wrong (and why), the one that actually worked,
+approach was, three attempts that turned out to be wrong (and why), the one that actually worked,
 confirmed in-game, and the general lesson underneath all of it.
 
 The example: the HQ wardrobe normally only lets a character wear outfits from their own small, curated
 list. The goal — make every outfit, for every character, available from any character's wardrobe menu,
-**without hand-copying model names into a new table** — if a mod later adds a new outfit to the game's
-own data, this approach should pick it up automatically, with no code changes.
+**without hand-copying model names into a new table** — if the game's own data later gains a new outfit,
+this approach should pick it up automatically, with no code changes.
 
-## The starting point: three real tables/functions, three different rules
+## The starting point: three pieces, three different rules
 
-Three pieces of `vz/wifpmcinterior.lua` matter here, and they don't all behave the same way:
+The wardrobe lives behind `import("WifPmcInterior")`. Three things there matter, and they don't all
+behave the same way:
 
 - **`_tOutfits`** — a hero-keyed table (`chris` / `jennifer` / `mattias`), each holding that hero's own
-  short list of `{Name, Model, PlayerVisibleName}` entries. Declared **without** `local` — genuinely
-  global, reachable from outside the file via `import("WifPmcInterior")`.
-- **`GetAvailableCostumes()`** — also **not** `local`. Returns how many of the current hero's outfits are
-  currently unlocked. This is the gate that limits the wardrobe menu to only a few entries early in the
-  game.
-- **`_SelectOutfit(uGuid)`** — the function that actually builds and shows the wardrobe menu. Also not
-  `local`, but far riskier to touch than the first two (see below).
+  short list of `{Name, Model, PlayerVisibleName}` entries. Genuinely reachable from outside via
+  `import("WifPmcInterior")`.
+- **`GetAvailableCostumes()`** — also reachable the same way. Returns how many of the current hero's
+  outfits are currently unlocked. This turns out to be the actual gate limiting the wardrobe menu to only
+  a few entries early in the game.
+- **`_SelectOutfit(uGuid)`** — the function that builds and shows the wardrobe menu itself. Reachable too,
+  but far riskier to touch than the first two (see below).
 
-Two functions downstream matter too, called once the player picks something:
-
-```lua
-function _ChangeOutfit(uGuid, iIndex, fCallback, tCallbackArgs)
-  if uGuid == Player.GetPrimaryCharacter() then
-    _WardrobeOpen = false
-  end
-  MrxState.Enter(MrxState.STATE_WAITFORGAME, _CompleteChangeOutfit, {uGuid, iIndex, fCallback, tCallbackArgs})
-end
-
-function _CompleteChangeOutfit(uGuid, iIndex, fCallback, tCallbackArgs)
-  local sHero = MrxUtil.GetCharacterIdentity(uGuid)
-  local tOutfits = _tOutfits[sHero]
-  local sModelName = tOutfits[iIndex].Model
-  Player.SetProfileCostume(iIndex - 1)
-  Player.SetOutfit(uGuid, sModelName)
-  -- ...network sync, preening VO, state-machine exit...
-end
-```
-
-The detail that ends up mattering most: `_CompleteChangeOutfit` takes a **numeric index**, not an outfit
-table, and re-reads `_tOutfits[sHero]` **fresh, by index, every time it runs** — it never caches a copy
-anywhere. Whatever is sitting in `_tOutfits[sHero]` *at the moment the player picks something* is what
+Two more functions matter, both triggered once the player picks something from that menu: one arms a
+state-machine transition, and the other is where the actual costume swap happens. The detail that ends up
+mattering most, found by reading that second function closely: it takes a **numeric index**, not an
+outfit table, and resolves the outfit list **fresh, by that index, every single time it runs** — never a
+cached copy. Whatever is sitting in the live table *at the moment the player picks something* is what
 gets applied.
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Lua is a **dynamically typed language** — a variable, table field, or function doesn't have a fixed type
+locked in ahead of time; it's just whatever value was assigned to it most recently. If a function reads a
+table field, it gets whatever's there *right now*, not whatever was there when the game first started.
+That single fact is the reason everything on this page works at all: nothing has to be "unlocked" or
+"declared modifiable" in advance. If you can reach a name, you can reassign it, and every later read of
+that same name sees your new value — because as far as Lua is concerned, there was never an "original"
+value that's somehow more official than yours. Whatever was said last is what's true now.
+
+</details>
 
 ## Three wrong turns first
 
-### Wrong turn 1: "just walk `MrxPlayer._tCharacterMap`"
+### Wrong turn 1: look for a bigger table in `MrxPlayer`
 
-The original idea was to read `mrxplayer.lua`'s full character/model registry (`_tCharacterMap`) instead
-of `_tOutfits`, since it's larger and includes NPC/unlockable models. Checking source first: that table
-is declared `local _tCharacterMap = {...}`. A genuine Lua `local` is invisible outside the file it's
-declared in, **no matter what** — `import()` only exposes a module's non-`local` top-level names, and
-this isn't one. There's no way to read this table from outside at all; `mrxplayer.lua` only exposes two
-narrow functions against it (`GetTemplateAndModelName`, a single-entry lookup, and `SetCharacterMap`, a
-wholesale replace). Neither gives you the live, iterable table the plan needed. Dead end — but a useful
-one, since it's the clearest possible example of what `local` actually means in this module system: not
-"harder to reach," but genuinely unreachable.
+The first idea was to read `MrxPlayer`'s full character/model registry instead of `_tOutfits`, since it's
+larger and includes NPC/unlockable models too. Checking first, rather than assuming: that table turned
+out to be declared as a genuine Lua `local`. A real `local` is invisible outside the file it's declared
+in, **no matter what** — `import()` only exposes a module's non-`local` top-level names, and this wasn't
+one. There was no way to read it from outside at all; `MrxPlayer` only exposes two narrow functions
+against it (one does a single-entry lookup, the other wholesale-replaces the entire table). Neither gives
+you the live, iterable table the plan needed. Dead end — but a useful one, since it's the clearest
+possible example of what `local` actually means in this module system: not "harder to reach," but
+genuinely unreachable, full stop.
 
-`_tOutfits` in `wifpmcinterior.lua`, found while looking for the actual wardrobe code (which turns out to
-live there, not in `mrxhq.lua`), had no such problem — declared without `local`, so it *is* reachable.
+`_tOutfits`, found while looking for the actual wardrobe code (which turns out to live in
+`WifPmcInterior`, not in the HQ-management module the search started with), had no such problem — it's
+reachable.
 
-### Wrong turn 2: replace `_SelectOutfit` entirely
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+This is worth sitting with, because it cuts against the "dynamic language, everything's flexible" point
+above: `local` is the one real exception. It doesn't make a name *harder* to reach from outside its own
+file — it makes it **impossible**, by design. Lua enforces this at the language level, not as a
+convention. If a name matters to your plan, checking whether it's declared `local` before building
+anything around it saves real time.
+
+</details>
+
+### Wrong turn 2: replace the whole menu function
 
 Next attempt: fully rewrite `_SelectOutfit` to skip the availability gate and build the menu directly.
-This actually got as far as being proposed as workable code — but it was wrong in a way that would have
-caused real bugs: it called `_ChangeOutfit(uGuid, tOutfit)`, passing an outfit **table**, when the real
-function expects a numeric **index**. It also quietly dropped the original's co-op branch
-(`Net.IsServer() and uGuid == Player.GetSecondaryCharacter()`, which routes the second player's own
-client to build its own menu instead of having the server do it) and the "fewer than 2 outfits unlocked"
-tutorial-dialog special case. None of that was intentional — it was simply lost by reimplementing instead
-of reading closely enough first. This is the general risk of overriding a function: **you inherit all of
-its responsibilities**, not just the one line you wanted to change, and every one you don't reproduce is
-a silent regression, not an error.
+This got as far as looking like workable code — but it had a real bug: it called the costume-change
+function with an outfit **table**, when — as established above — that function actually expects a
+numeric **index**. It also quietly dropped two things the original handled: a co-op branch (routing the
+second player's own client to build its own menu instead of having the host do it for them), and a
+"fewer than 2 outfits unlocked" tutorial-dialog special case. None of that was intentional — it was simply
+lost by reimplementing instead of reading closely enough first. This is the general risk of overriding a
+function: **you inherit all of its responsibilities**, not just the one line you wanted to change, and
+every responsibility you don't reproduce becomes a silent regression, not an error you'd notice right
+away.
 
 ### Wrong turn 3: hijack the shared menu builder
 
-Pagination in the wardrobe menu comes from `MrxMultiPageMenu`, and the next idea was to intercept
-`MrxMultiPageMenu.AddOption`/`Display` directly to inject extra entries at that layer. Reading
-`mrxmultipagemenu.lua` fully closed this off for two reasons. First, it made the idea unnecessary:
-pagination is already fully automatic (`_knMaxOptionsPerPage = 8`, with "Next page"/"Previous page"
-entries generated for you) — there was never a pagination problem to solve. Second, it made the idea
-actively bad: `MrxMultiPageMenu` is shared by many systems (`MrxCheatBootstrap`'s own menus use the exact
-same module). Wrapping it globally would affect every menu built anywhere in the game, with no clean way
-to tell "this call is from the wardrobe" apart from "this call is from the cheat menu."
+Pagination in the wardrobe menu comes from the game's shared multi-page-menu module, and the next idea
+was to intercept its option-adding/display functions directly, to inject extra entries at that layer.
+Reading that module fully closed this off for two reasons. First, it made the idea unnecessary:
+pagination turned out to already be fully automatic (a fixed number of options per page, with
+"Next page"/"Previous page" entries generated for you) — there was never a pagination problem to solve.
+Second, it made the idea actively bad: that menu module is shared by many systems across the game — the
+in-game cheat menu builds its own menus through the exact same one. Wrapping it globally would affect
+every menu built anywhere in the game, with no clean way to tell "this call is from the wardrobe" apart
+from "this call is from somewhere else entirely."
 
 ## What actually worked
 
-Once `_ChangeOutfit`'s real signature (index into `_tOutfits[sHero]`, re-read live every call) was
-understood, the fix collapsed to two small, additive changes — no rewriting `_SelectOutfit` or anything
-downstream of it at all:
+Once the costume-change function's real signature (index into the live outfit table, re-read fresh every
+call) was understood, the fix collapsed to two small, additive changes — no rewriting the menu function or
+anything downstream of it at all:
 
 ```lua
 import("WifPmcInterior")
@@ -107,8 +116,8 @@ import("MrxUtil")
 local sHero = MrxUtil.GetCharacterIdentity(Player.GetPrimaryCharacter())
 
 -- 1. Merge every hero's outfits into the current hero's own bucket (walks the LIVE table --
---    if a mod adds a new hero or a new outfit to _tOutfits later, this picks it up automatically,
---    since this loop reads the table fresh each time it runs, not a hardcoded copy)
+--    if the game's own data gains a new hero or a new outfit later, this picks it up
+--    automatically, since this loop reads the table fresh each time it runs, not a hardcoded copy)
 local tMerged = {}
 for sOtherHero, tList in pairs(WifPmcInterior._tOutfits) do
   for _, tOutfit in ipairs(tList) do
@@ -124,9 +133,9 @@ end
 ```
 
 **Confirmed working by live testing**, dropped into `scripts/OnLoad/`. The result: a full two-page
-wardrobe menu (all three heroes' outfits merged into one list, auto-paginated at 8 entries per page),
-built entirely by the game's own unmodified `_SelectOutfit`/`_ChangeOutfit`/`_CompleteChangeOutfit` —
-network sync, the `MrxState` transition, and preening VO all still run exactly as they did before, because
+wardrobe menu (all three heroes' outfits merged into one list, auto-paginated for you), built entirely by
+the game's own unmodified menu/costume-change logic — network sync, the state-machine transition, and the
+character voice-line that plays on a costume change all still run exactly as they did before, because
 none of that code was touched:
 
 ![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](img/funcoverride.png)
@@ -136,15 +145,28 @@ none of that code was touched:
 Two mechanisms from earlier in this wiki are doing all the real work here:
 
 - **Tables are references, not copies.** `WifPmcInterior._tOutfits[sHero] = tMerged` doesn't create a
-  parallel "modded" table alongside the original — it *is* the same table `_ChangeOutfit`/
-  `_CompleteChangeOutfit` read from, because there's only ever one `_tOutfits` table in memory, and every
-  piece of code (yours or the game's) that says `_tOutfits` is pointing at that same object.
-- **Global name lookups happen at call time, not at definition time.** `_SelectOutfit` calls the bare
-  name `GetAvailableCostumes()`, which Lua resolves through the file's own environment table *at the
-  moment it's called* — not once, when the file was first loaded. Reassigning
-  `WifPmcInterior.GetAvailableCostumes` from outside changes what that lookup finds on the *next* call,
-  even though the reassignment happened from a completely different script. This was the one genuinely
-  untested assumption going into this — confirmed correct by the result.
+  parallel "modded" table alongside the original — it *is* the same table the game's own
+  costume-change logic reads from, because there's only ever one `_tOutfits` table in memory, and every
+  piece of code (yours or the game's) that touches it is pointing at that same object.
+- **Global name lookups happen at call time, not at definition time** — the dynamic-typing point from
+  above, applied specifically to function calls. The wardrobe-menu function calls the bare name
+  `GetAvailableCostumes()`, which Lua resolves through the file's own environment table *at the moment
+  it's called* — not once, when the file first loaded. Reassigning `WifPmcInterior.GetAvailableCostumes`
+  from outside changes what that lookup finds on the *next* call, even though the reassignment happened
+  from a completely different script. This was the one genuinely untested assumption going into this —
+  confirmed correct by the result.
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+If you're used to languages where functions are compiled once and fixed in place, this is the part that
+feels like magic and isn't. In Lua, a "function call" like `GetAvailableCostumes()` is really just "look
+up this name, right now, in the current environment, and call whatever's there." There's no special
+binding that locks it to one specific piece of code forever — it's exactly as changeable as any other
+table field, because under the hood, that's all it is: a table field that happens to hold a function
+instead of a number or a string.
+
+</details>
 
 ## Known limitations
 
@@ -152,26 +174,24 @@ Two mechanisms from earlier in this wiki are doing all the real work here:
   a session (this override reapplies via `OnLoad`, so it's re-established every level load), but nothing
   here writes to save data — it's purely live, in-memory state, same as everything else in this wiki.
   Not a bug, just worth knowing going in.
-- **Index `2` in the merged list is silently unavailable** through the normal menu — the original
-  `_SelectOutfit` loop always excludes position 2 unless a cheat code was entered (`Net.HasPlayerUnlockedCode()`),
-  and that logic wasn't touched. Whatever outfit happens to land at index 2 after merging (`pairs()`
-  iteration order over `_tOutfits` isn't guaranteed stable) just won't show up.
-- **Untested: true multiplayer, non-host client.** `_SelectOutfit` calls `Player.GetAvailableCostumes()`
-  (a different, native engine function) on the client path and the local `GetAvailableCostumes()` only on
-  the server/host path. This override only touches the local one — a non-host client in a real multiplayer
-  session would likely still see the original, gated list. Untested; flagging honestly rather than
-  guessing.
+- **One merged entry is silently unavailable** through the normal menu — the original menu-building logic
+  always excludes one specific position unless a cheat code was entered, and that logic wasn't touched.
+  Exactly which outfit lands there after merging isn't guaranteed stable, since Lua doesn't guarantee
+  iteration order over this kind of table.
+- **Untested: true multiplayer, non-host client.** The wardrobe-menu function calls a different,
+  native/engine-level availability check on the client path than the one this override replaces (which
+  only applies on the host/server path). A non-host client in a real multiplayer session would likely
+  still see the original, gated list. Untested; flagging honestly rather than guessing.
 
 ## The general pattern
 
 If you want to apply this same technique to a different piece of game logic:
 
 1. **Find the actual gate/data**, not just the function that visibly does the thing. Here, the real
-   obstacle wasn't the menu-building function at all — it was one small accessor (`GetAvailableCostumes`)
-   two calls away.
+   obstacle wasn't the menu-building function at all — it was one small accessor two calls away.
 2. **Prefer merging into existing live tables over replacing functions.** Every function downstream of
-   `_tOutfits` kept working, unmodified, because they all re-read it fresh. Full-function replacement
+   the outfit table kept working, unmodified, because they all re-read it fresh. Full-function replacement
    should be a last resort, not a first attempt — see wrong turn 2.
 3. **Read every function you're *not* changing just as carefully as the one you are.** The co-op branch
-   and the tutorial-dialog special case in `_SelectOutfit` were never touched precisely because they were
-   read and understood well enough to know they didn't need to be.
+   and the tutorial-dialog special case were never touched precisely because they were read and understood
+   well enough to know they didn't need to be.
