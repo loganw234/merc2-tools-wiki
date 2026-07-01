@@ -2,7 +2,8 @@
 title: Recipes
 nav_order: 4
 layout: verified_page
-verified: false
+verified: true
+verified_note: every snippet live-tested (cash/fuel via MrxPmc pattern, infinite ammo, position, marker blip, timer event)
 ---
 
 # Recipes
@@ -62,6 +63,12 @@ Object.SetInfiniteAmmo(Player.GetPrimaryCharacter(), true)   -- on
 -- Object.SetInfiniteAmmo(Player.GetPrimaryCharacter(), false) -- off
 ```
 
+**Confirmed working by live testing** — with one nuance: this doesn't mean "never reload." The magazine
+you're currently firing still empties normally and still needs a reload; what's infinite is your reserve
+ammo count, which stays maxed instead of depleting. Grenades behave the same way (infinite reserve, but
+you still throw them one at a time). If you want the mag itself to never empty, this call alone isn't
+enough — that'd need a different/additional call, not yet identified.
+
 If you're in co-op and want to affect the second player too, there's a matching
 `Player.GetSecondaryCharacter()`.
 
@@ -73,6 +80,9 @@ Useful for debugging, or as a building block for anything that needs to know whe
 local x, y, z = Object.GetPosition(Player.GetLocalCharacter())
 Loader.Printf(string.format("[mymod] pos = %.1f, %.1f, %.1f", x, y, z))
 ```
+
+**Confirmed working by live testing** — returns real, sane coordinates matching the player's actual
+in-world position.
 
 ## Put a marker/blip on an object
 
@@ -90,6 +100,12 @@ hasn't been independently confirmed argument-by-argument, so treat this as "know
 values" rather than a fully documented signature. If you need a different visual result, adjust one
 argument at a time and observe.
 
+**Confirmed working by live testing** — tested with `uGuid = Player.GetLocalCharacter()` (blip on your
+own character). The blip does render, but at ground level under the object — on a character, it can be
+visually obscured by nearby geometry unless you jump or look from above. Don't assume "no icon visible"
+means it failed; check the minimap itself (blips render there even when the in-world icon is hidden by
+geometry) before concluding the call didn't work.
+
 ## React to an event instead of polling
 
 The engine event pattern used throughout `resident/` — fire a callback once, later, instead of checking
@@ -100,6 +116,9 @@ Event.Create(Event.TimerRelative, {2}, function()
   Loader.Printf("[mymod] two seconds later")
 end, {})
 ```
+
+**Confirmed working by live testing** — fires exactly once, at the correct delay. Tested at 2s, 5s, and
+20s, all reliable.
 
 For a real per-object hook (the pattern every world-object script uses to defer setup until the object
 is actually live), see the `OnActivate` / `Awake` explanation on the
