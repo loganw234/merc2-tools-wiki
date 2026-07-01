@@ -1,0 +1,44 @@
+title: Mercenaries 2 Modding Wiki
+description: Community reference for modding Mercenaries 2 (PC) — the lua-bridge injection tool and a per-module Lua API reference.
+baseurl: "/merc2-tools-wiki"
+url: "https://loganw234.github.io"
+
+# Pages under wiki/resident/ (the module reference, LLM-drafted) default to the
+# "not yet verified in-game" layout/banner. Individual pages override this once
+# someone has actually confirmed the page in-game by setting `verified: true`
+# in that page's own front matter -- no site-wide rebuild logic needed, the
+# layout just reads the flag per-page.
+defaults:
+  - scope:
+      path: "resident"
+    values:
+      layout: verified_page
+      verified: false
+
+remote_theme: just-the-docs/just-the-docs
+
+# just-the-docs built-ins we want on for a small, brand-new wiki:
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to top"
+
+nav_sort: case_insensitive
+
+footer_content: "Community-maintained. Not affiliated with Pandemic Studios / EA."
+
+# Aux nav links (top-right). Fill in real URLs once the wiki + lua-bridge repos are public.
+# aux_links:
+#   "lua-bridge on GitHub":
+#     - "https://github.com/<you>/lua-bridge"
+
+callouts:
+  note:
+    title: Note
+    color: blue
+  warning:
+    title: Warning
+    color: red
+
+plugins:
+  - jekyll-remote-theme

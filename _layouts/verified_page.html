@@ -1,0 +1,16 @@
+---
+layout: default
+---
+
+{% if page.verified %}
+<div style="background:#1e7e34;color:#fff;padding:12px 18px;border-radius:6px;margin-bottom:20px;font-weight:600;">
+  &#9989; Verified in-game{% if page.verified_note %} — {{ page.verified_note }}{% endif %}
+</div>
+{% else %}
+<div style="background:#b02a2a;color:#fff;padding:12px 18px;border-radius:6px;margin-bottom:20px;font-weight:600;">
+  &#9888;&#65039; Not yet verified in-game — this page was drafted from source analysis and hasn't been
+  confirmed by actually running it. Treat it as a strong draft, not gospel.
+</div>
+{% endif %}
+
+{{ content }}
