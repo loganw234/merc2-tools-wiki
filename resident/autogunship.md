@@ -33,13 +33,18 @@ Creates a new per-instance table for the gunship using the module's prototype. I
 ### `Salvo(uGuid)`
 Handles the logic for launching a salvo of missiles. It collects ground vehicles within a 200m radius around the player's position, selects a valid target based on faction labels, and fires 4 missiles at 0.25-second intervals. After each salvo, it schedules the next one after another 3 seconds.
 
+Targeting is centered on the **player's** position, not the gunship's own — worth knowing if you're trying
+to predict what it'll shoot at. Read directly from source, a target only qualifies if it's alive and has
+one of these exact labels: `VZ`, `China`, or `Guerilla`.
+
 ### `LaunchMissile(uGuid, uTarget)`
 Fires a single missile towards the specified target. It calculates the normalized direction vector from the gunship to the target with ±5 aim scatter, plays sound and particle effects, and spawns the missile with a speed of 100.
 
 ## Events
 - Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
-- Listens for custom event `Salvo` to handle missile salvo logic.
-- Listens for custom event `LaunchMissile` to fire individual missiles.
+- `Salvo` and `LaunchMissile` aren't event subscriptions in the usual sense — they're scheduled via
+  `Event.TimerRelative` (a 3-second repeating loop for `Salvo`, and four staggered 0.25s-apart one-shots
+  per salvo for `LaunchMissile`), not triggered by any external event source.
 
 ## Notes for modders
 - Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the gunship's lifecycle.

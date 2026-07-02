@@ -31,6 +31,16 @@ Called when the object instance is activated. It logs a debug message and sets u
 ### `Start(uGuid, uRuntimeOwner, iArg)`
 Determines the type of cargo based on labels (`Blueprints`, `Treasure`) and spawns the corresponding supply drop at a position above the copter. Sets up an event to deploy the winch and attach the cargo.
 
+Exact spawn names and logic, read directly from source — checked in this order, first label match wins:
+
+| Label present | `Pg.Spawn(...)` name |
+|---|---|
+| `Blueprints` | `"Supply Drop (Blueprints)"` |
+| `Treasure` | `"Supply Drop (Treasure)"` |
+| *(neither)* | `"Supply Drop (Light MG)"` — the default |
+
+Spawned 200 units above the copter's own position (`y + 200`), then winched down via `_DeployWinch`.
+
 ### `_DeployWinch(uGuid, uCargo)`
 Deploys the winch on the copter and sets up an event to attach the cargo after a short delay.
 

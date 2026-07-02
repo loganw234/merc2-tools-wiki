@@ -27,8 +27,28 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
 Called when the object instance is activated. It creates a new per-instance table for the object using the module's prototype. It then determines the faction of the aircraft and sets its color based on the relation to the PMC. If the aircraft has the "PMC" label, it marks it as unkillable. Finally, it sets the radar blip icon texture based on the aircraft's label and activates the blip.
 
+Exact icon-by-label mapping, read directly from source — `OnActivate` checks `Object.HasLabel(uGuid, ...)`
+against each of these in order and swaps the default `"temp_radar_icon_airplane"` texture accordingly:
+
+| Label | Icon texture |
+|---|---|
+| `C130` | `temp_radar_icon_c130` |
+| `Mig27` | `temp_radar_icon_mig27` |
+| `F35` | `temp_radar_icon_f35` |
+| `b2` | `temp_radar_icon_b2` |
+| `f117` | `temp_radar_icon_f117` |
+| `a10` | `temp_radar_icon_a10` |
+| `ov10` | `temp_radar_icon_ov10` |
+| `cruisemissile` | `temp_radar_icon_cruisemissile` |
+
+Same relation-based coloring as [`VehicleBlippable`](vehicleblippable) (ally/neutral/enemy at the same
+±60 thresholds), plus a PMC-specific green not present on the shared base class, and this module doesn't
+inherit `VehicleBlippable` at all — it reimplements the same color logic locally against
+`OrientedBlippable` directly instead.
+
 ## Events
-- Listens for `Event.ObjectHibernation` (not explicitly shown in this snippet but implied by typical module patterns).
+Doesn't defer to `Event.ObjectHibernation` like most other `Vehicles` pages — `OnActivate` creates the
+instance and configures the blip immediately, with no wait for the object to leave hibernation first.
 
 ## Notes for modders
 - Ensure that `OnActivate` is called appropriately to manage the lifecycle of support aircraft.

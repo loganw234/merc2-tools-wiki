@@ -14,6 +14,24 @@ tags: [anti-air, radar, missile]
 ## Overview
 The `AntiAir` module represents anti-aircraft systems in the game. It manages the activation and deactivation of these systems based on player proximity and handles their radar blips, sound cues, and homing lock-on behavior. The module supports four tiers: basic, medium, advanced, and jammer, each with different properties and behaviors.
 
+The four tiers, read directly from `_tPrototype`:
+
+| Tier (`iArg`) | Level | Range | Radar texture | HUD marker texture |
+|---|---|---:|---|---|
+| 1 | `basic` | 100 | `radar_AA` | `HUD_anti-air` |
+| 2 | `medium` | 200 | `radar_SAM` | `HUD_SAM` |
+| 3 | `advanced` | 200 | `radar_AA` | `HUD_anti-air` |
+| 4 | `jammer` | 200 | `radar_Jammer` | `HUD_jammer` |
+
+Which tier a given placed emplacement uses is set by whoever spawns it (`iArg` passed to `OnActivate`),
+not something this module decides on its own.
+
+Worth noting as a general pattern, not just an AntiAir detail: this module only fully "wakes up"
+(`ActivateAA`) once the player comes within `nAARange` (`CreateNearnessEvent`/`Event.ObjectProximity`) —
+outside that range it just sits idle waiting for a proximity event, rather than running its full
+lock-on/targeting logic constantly. Worth copying if you're building something with a similar
+always-present-but-rarely-relevant world object.
+
 ## Inheritance
 - Inherits from: `EnemyBlippable`
 - Imports: `MrxSupport`, `HomingMissile`

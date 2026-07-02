@@ -19,8 +19,11 @@ The `MoonPatrol` module manages the behavior of a moon patrol vehicle in the gam
 - Imports: `none`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `tEvents`: A table to store event handles for each instance.
+No `inherit()` call and no `getfenv():Create()` anywhere in source — despite tracking per-object state,
+this **isn't** the `Inheritable`-style per-instance pattern used elsewhere in `Vehicles`. It's a flat
+module that manually keys its own state by `uGuid` instead (same style as `alarm.lua`):
+- `tEvents[uGuid]`: A table of event handles per vehicle instance, managed by hand rather than via a
+  prototype-based instance object.
 - `NETEVENT_STARTEMITTERS` and `NETEVENT_STOPEMITTERS`: Constants for network events related to starting and stopping emitters.
 
 ## Functions

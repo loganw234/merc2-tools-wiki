@@ -33,6 +33,12 @@ Creates a new per-instance table for the object using the module's prototype and
 ### `FoundPosition(bFound, x, y, z)`
 A callback function that handles the result of finding a landing zone. If a valid LZ is found, it sets up a landing goal; otherwise, it retries or sends the copter home if too many attempts fail.
 
+Exact retry behavior, read directly from source: **3 attempts**, tracked per-`uGuid` in `tRetries`. Each
+failed attempt also nudges the pilot 50 units toward the player (`Ai.Goal({Goal = "MoveTo", ...})`)
+before trying again 3 seconds later. On both "no LZ found at all" and "3 retries exhausted," it calls
+`MrxSupport.GoHome(self, uGuid)` — the same fallback used elsewhere in the support-delivery system for
+"couldn't complete the delivery, send the vehicle away" (see [Support & Airstrikes](../cat-support-airstrikes)).
+
 ### `AllOut(self, uGuid, nState)`
 Handles the outcome of the landing goal. If successful, it deploys passengers; if not, it sends the copter home.
 

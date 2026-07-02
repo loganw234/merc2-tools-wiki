@@ -41,6 +41,21 @@ Tears down the per-instance table by clearing any active blips and calling the b
 ### `SetBlipped(oSelf, uVehicle)`
 Updates the vehicle's blip color based on the driver's relation to the PMC faction. It also clears the blip if a player is controlling the vehicle.
 
+Exact color/relation thresholds, read directly from source:
+
+| Condition | RGB | Meaning |
+|---|---|---|
+| No driver | `100, 100, 100` (gray) | Empty vehicle |
+| Driver has `"pmc"` label | `0, 255, 0` (green) | Your own faction |
+| Relation to PMC ≥ 60 | `0, 127, 255` (blue) | Ally |
+| Relation to PMC ≤ -60 | `255, 0, 0` (red) | Enemy |
+| -60 < relation < 60 | `230, 230, 255` (near-white) | Neutral |
+| A **player** is driving | — | Blip is cleared entirely — no blip shown for a player-driven vehicle, regardless of faction |
+
+This is the same ally/neutral/enemy/empty/PMC color language used across most of the `Vehicles` category
+(`autogunship`, `supportairplane`, and others reimplement slightly different variants of the same scheme
+locally rather than importing this one).
+
 ## Events
 - Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
 - Listens for `Event.ObjectInSeat` (`DriverEnter`, `DriverExit`) to update the blip color on driver changes.
