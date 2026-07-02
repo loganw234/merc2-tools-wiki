@@ -38,31 +38,43 @@ The `MrxFactionManager` module is responsible for managing faction relations, at
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+Stateless manager module — no `Create`/`uGuid` pattern. Module-level tables hold shared, global state
+instead of per-object instances:
 
 - `_tEvents`: Stores event handles for various faction-related events.
-
 - `_tInvestigatorBlips`: Likely stores investigator blip data.
-
 - `_tTressPassGeneric`: Contains generic trespassing zone identifiers.
-
 - `_tAttitudes`: Defines different attitude levels with their ranges, price scales, and RGB colors.
-
-- `_tFactions`: Maps faction abbreviations to faction data, including templates, markers, PDA icons, initial relations, and various voice-over lists.
-
+- `_tFactions`: Maps faction abbreviations to faction data — see the live-captured catalog below.
 - `_bSetupComplete`: Indicates if the setup is complete.
-
 - `_bVoPlayed`: Likely indicates if a voice-over has been played.
-
 - `bReportingDisabled`: A boolean flag indicating whether reporting is disabled.
-
 - `bActiveReporter`: A variable that holds the active reporter's GUID, if any.
-
 - `tFlybys`: A nested table defining various flyby configurations for different factions.
 
-```
+## Faction catalog
 
+**Captured by live runtime dump** — see [Snippets](../snippets) for the general table-dumping approach.
+All 8 factions that exist in `_tFactions`:
 
+| Abbrev | Template | PDA ID | Dynamic | Can report | Max-relation achievement |
+|---|---|---|---|---|---|
+| `All` | Allied | AN | true | true | `ACHIEVEMENT_STAND_UP_AND_SHOUT` |
+| `Chi` | China | CH | true | true | `ACHIEVEMENT_LONGING_FOR_FIRE` |
+| `Civ` | Civ | — | false | — | — |
+| `Gur` | Guerilla | GR | true | true | `ACHIEVEMENT_FOREVER_FREE` |
+| `Oil` | OC | OC | true | true | `ACHIEVEMENT_DIRTY_DEEDS` |
+| `Pir` | Pirate | PR | true | true | `ACHIEVEMENT_ISLAND_DOMINATION` |
+| `Pmc` | PMC | PMC | false | — | — |
+| `Vza` | VZ | VZ | false | — | — |
+
+`Civ`, `Pmc`, and `Vza` are the three **non-dynamic** factions — `bDynamic` (a static, source-level flag,
+not the runtime `bAttitudeMutable` flag) is `false` for all three, meaning
+[`SetAttitudeMutable`](#setattitudemutablesabbrev-brestorefromsave) can never turn on relation-tracking
+for them at all, by design — see the [`MrxCheatBootstrap`](mrxcheatbootstrap) page's `SetRelation`
+caveat for the full mechanism this gates. `Pmc` is presumably excluded because it's the player's own
+faction; `Civ`/`Vza` (civilians/the setting's neutral wildlife-adjacent faction) apparently aren't meant
+to have a trackable attitude at all.
 
 ## Functions
 
@@ -113,6 +125,10 @@ Initializes client-side faction relations in a staggered manner to avoid perform
 ### SetAttitudeMutable(sAbbrev, bRestoreFromSave)
 
 Sets a faction's attitude as mutable, adds it to the HUD meter, and initializes its relation with PMC. It also sends a network event if the change is made on the server.
+
+**Confirmed working by live testing** — see [`MrxCheatBootstrap`](mrxcheatbootstrap)'s `SetRelation`
+caveat for the full worked example (this is the fix for `SetRelation`'s silent no-op on
+non-mutable factions).
 
 
 
@@ -249,6 +265,10 @@ Checks if a faction's attitude is mutable by returning the boolean value stored 
   - `nRelation` (number): The new relation value to set.
 
   - `bInitialize` (boolean): Whether to initialize related UI elements.
+
+**Confirmed working by live testing** — with a real gotcha: silently no-ops toward `"Pmc"` if the
+subject faction isn't currently mutable. Full explanation and the fix
+(`SetAttitudeMutable` first) on [`MrxCheatBootstrap`](mrxcheatbootstrap).
 
 
 
