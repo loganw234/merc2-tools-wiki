@@ -3,7 +3,7 @@ title: MoonPatrol
 parent: Vehicles
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Inheritable
+inherits: none
 tags: [vehicle, ai]
 ---
 

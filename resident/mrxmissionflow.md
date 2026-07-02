@@ -3,7 +3,7 @@ title: mrxmissionflow
 parent: Missions & Tasks
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Inheritable
+inherits: none
 tags: [mission, flow]
 ---
 

@@ -3,7 +3,7 @@ title: MrxGuiCinematic
 parent: GUI & HUD
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Inheritable
+inherits: none
 tags: [gui, cinematic]
 ---
 

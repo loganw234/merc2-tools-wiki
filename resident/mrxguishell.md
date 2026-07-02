@@ -7,7 +7,7 @@ grand_parent: Resident Modules
 nav_order: 1
 
 
-inherits: MrxGuiShellBootstrap
+inherits: none
 
 tags: [gui, shell]
 

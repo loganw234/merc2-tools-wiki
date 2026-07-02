@@ -3,7 +3,7 @@ title: MrxSupport
 parent: Support & Airstrikes
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Inheritable
+inherits: none
 tags: [support, economy]
 ---
 

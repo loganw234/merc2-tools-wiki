@@ -3,7 +3,7 @@ title: MrxGuiHudFactionGauge
 parent: GUI & HUD
 grand_parent: Resident Modules
 nav_order: 1
-inherits: MrxGuiBase
+inherits: none
 tags: [gui, faction]
 ---
 

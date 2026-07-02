@@ -3,7 +3,7 @@ title: FriendlyGate
 parent: World Objects & Props
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Inheritable
+inherits: none
 tags: [ai, gate]
 ---
 
