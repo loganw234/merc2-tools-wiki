@@ -1,0 +1,27 @@
+<script>
+/* Light/dark toggle button. Theme detection/application happens early in
+   head_custom.html (to avoid a flash of the wrong theme); this just creates
+   the clickable button and wires it up, once the DOM is ready. */
+(function () {
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  function setTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    try { localStorage.setItem("theme", theme); } catch (e) {}
+    var btn = document.getElementById("theme-toggle");
+    if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+  }
+
+  var btn = document.createElement("button");
+  btn.id = "theme-toggle";
+  btn.type = "button";
+  btn.title = "Toggle light/dark mode";
+  btn.setAttribute("aria-label", "Toggle light/dark mode");
+  btn.textContent = currentTheme() === "dark" ? "☀️" : "🌙";
+  btn.addEventListener("click", function () {
+    setTheme(currentTheme() === "dark" ? "light" : "dark");
+  });
+  document.body.appendChild(btn);
+})();
+</script>
