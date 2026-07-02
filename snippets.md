@@ -227,8 +227,11 @@ MrxTutorialManager.ShowMessage("Hello from my mod!")
 ```
 
 **Confirmed working by live testing** — shows your exact text in that same popup widget, complete with
-the usual notification sound cue. **There's no auto-hide timer** — the message stays up until something
-explicitly clears it:
+the usual notification sound cue:
+
+![The tutorial-hint HUD popup showing custom text "Hello from my mod!" with the default book icon, rendered over an outdoor HQ balcony scene.](img/showtutorialmessage.png)
+
+**There's no auto-hide timer** — the message stays up until something explicitly clears it:
 
 ```lua
 MrxTutorialManager.HideMessage()
