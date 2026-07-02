@@ -104,4 +104,36 @@ details.script-entry > *:last-child {
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
+
+/* Dark-mode overrides for the two custom boxes above and the toggle button --
+   these are ours, not part of just-the-docs' own dark scheme, so they need
+   their own dark colors. jtd.setTheme("dark") sets data-theme="dark" on
+   <html>; scope to that so these switch in sync with the rest of the site. */
+html[data-theme="dark"] details.lua101 {
+  background: #17301c;
+  border-color: #2e5c34;
+  color: #d7e8d7;
+}
+html[data-theme="dark"] details.lua101 summary {
+  color: #7fd989;
+}
+html[data-theme="dark"] details.lua101 summary:hover {
+  color: #a3e6ac;
+}
+html[data-theme="dark"] details.script-entry {
+  background: #1b222c;
+  border-color: #33445c;
+  color: #dbe4f0;
+}
+html[data-theme="dark"] details.script-entry summary {
+  color: #a9c3e8;
+}
+html[data-theme="dark"] details.script-entry summary:hover {
+  color: #cddcf2;
+}
+html[data-theme="dark"] #theme-toggle {
+  background: #20232a;
+  color: #e3e3e3;
+  border-color: #33445c;
+}
 </style>
