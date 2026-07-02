@@ -1,107 +1,4 @@
-<script>
-/* Apply saved/system light-dark preference before the page paints, so there's
-   no flash of the wrong theme. The actual toggle button is created later, in
-   footer_custom.html, once the DOM exists -- this part only needs to run
-   early and fast. */
-(function () {
-  try {
-    var saved = localStorage.getItem("theme");
-    var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
-  } catch (e) {}
-})();
-</script>
 <style>
-/* Light/dark toggle. Applied via a `data-theme` attribute on <html>, set by
-   the inline script above (avoids flash-of-wrong-theme) and flipped by the
-   button injected in footer_custom.html. Selectors target just-the-docs'
-   known structural classes plus generic element fallbacks, since we can't
-   locally build/preview this theme to confirm exact class names -- the
-   generic rules keep things readable even if a specific selector misses. */
-html[data-theme="dark"] {
-  color-scheme: dark;
-}
-html[data-theme="dark"] body,
-html[data-theme="dark"] .main-content-wrap,
-html[data-theme="dark"] .main-content {
-  background-color: #14161a;
-  color: #e3e3e3;
-}
-html[data-theme="dark"] .side-bar {
-  background-color: #1b1e24;
-  border-color: #2c2f36;
-}
-html[data-theme="dark"] .site-title,
-html[data-theme="dark"] .nav-list-link,
-html[data-theme="dark"] .site-nav {
-  color: #e3e3e3;
-}
-html[data-theme="dark"] .nav-list-link:hover,
-html[data-theme="dark"] .nav-list-link.active {
-  background-color: #262a32;
-}
-html[data-theme="dark"] a {
-  color: #7ab7ff;
-}
-html[data-theme="dark"] code,
-html[data-theme="dark"] pre,
-html[data-theme="dark"] .highlight {
-  background-color: #20232a;
-  color: #e3e3e3;
-}
-html[data-theme="dark"] table {
-  color: #e3e3e3;
-}
-html[data-theme="dark"] table th,
-html[data-theme="dark"] table td {
-  border-color: #2c2f36;
-}
-html[data-theme="dark"] table tr {
-  background-color: #1b1e24;
-}
-html[data-theme="dark"] table tr:nth-child(2n) {
-  background-color: #20232a;
-}
-html[data-theme="dark"] .search-input {
-  background-color: #1b1e24;
-  color: #e3e3e3;
-}
-html[data-theme="dark"] details.lua101 {
-  background: #17301c;
-  border-color: #2e5c34;
-}
-html[data-theme="dark"] details.lua101 summary {
-  color: #7fd989;
-}
-html[data-theme="dark"] details.script-entry {
-  background: #1b222c;
-  border-color: #33445c;
-}
-html[data-theme="dark"] details.script-entry summary {
-  color: #a9c3e8;
-}
-
-#theme-toggle {
-  position: fixed;
-  bottom: 1.25em;
-  right: 1.25em;
-  z-index: 999;
-  width: 2.6em;
-  height: 2.6em;
-  border-radius: 50%;
-  border: 1px solid #c3ccd6;
-  background: #ffffff;
-  color: #2c3e50;
-  font-size: 1.1em;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-html[data-theme="dark"] #theme-toggle {
-  background: #20232a;
-  color: #e3e3e3;
-  border-color: #33445c;
-}
-
 /* "Lua Beginners" callout -- a themed, collapsible (closed by default) box for
    dropping plain-English explanations near jargon, without cluttering the page
    for readers who don't need it. Light green is used consistently sitewide so
@@ -188,5 +85,23 @@ details.script-entry[open] summary {
 }
 details.script-entry > *:last-child {
   margin-bottom: 0;
+}
+
+/* Floating light/dark toggle button -- see footer_custom.html for the script
+   that wires it up via just-the-docs' own jtd.setTheme()/jtd.getTheme() API. */
+#theme-toggle {
+  position: fixed;
+  bottom: 1.25em;
+  right: 1.25em;
+  z-index: 999;
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  border: 1px solid #c3ccd6;
+  background: #ffffff;
+  color: #2c3e50;
+  font-size: 1.1em;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 </style>
