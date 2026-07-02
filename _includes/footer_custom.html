@@ -6,9 +6,18 @@
    hand-rolled implementation -- this uses the theme's real dark color scheme
    instead of guessed CSS overrides.
 
-   jtd.setTheme() on its own doesn't persist across page loads (the docs'
-   own toggle example is a one-page preview, not a saved preference) -- the
-   localStorage read/write below is what makes the choice stick site-wide.
+   Important: jtd.setTheme() does NOT set any HTML attribute or class -- per
+   the theme's own source, it works by swapping the page's stylesheet <link>
+   href between assets/css/just-the-docs-light.css and .../-dark.css. There's
+   no CSS-visible signal of the current theme at all. Our own custom boxes
+   (lua101/script-entry) live in a separate, always-loaded stylesheet
+   (head_custom.html) that never gets swapped out, so they need their own
+   marker to react to theme changes -- the html.wiki-dark class below is that
+   marker, kept in sync with jtd.getTheme() by us, not by jtd.
+
+   jtd.setTheme() also doesn't persist across page loads on its own (the
+   docs' own toggle example is a one-page preview, not a saved preference) --
+   the localStorage read/write below is what makes the choice stick site-wide.
    This runs from footer_custom.html, which renders late in the page, so
    there's a brief flash of the default scheme on each load before this
    applies the saved choice; a truly flash-free version would need to hook
@@ -18,6 +27,12 @@
   var STORAGE_KEY = "wiki-theme-preference";
   var btn = document.getElementById("theme-toggle");
 
+  function sync() {
+    var isDark = jtd.getTheme() === "dark";
+    document.documentElement.classList.toggle("wiki-dark", isDark);
+    btn.textContent = isDark ? "☀️" : "🌙";
+  }
+
   try {
     var saved = localStorage.getItem(STORAGE_KEY);
     if (saved && jtd.getTheme() !== saved) {
@@ -25,17 +40,13 @@
     }
   } catch (e) {}
 
-  function syncLabel() {
-    btn.textContent = jtd.getTheme() === "dark" ? "☀️" : "🌙";
-  }
-
   jtd.addEvent(btn, "click", function () {
     var next = jtd.getTheme() === "dark" ? "light" : "dark";
     jtd.setTheme(next);
     try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
-    syncLabel();
+    sync();
   });
 
-  syncLabel();
+  sync();
 })();
 </script>

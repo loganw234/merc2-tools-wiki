@@ -106,32 +106,34 @@ details.script-entry > *:last-child {
 }
 
 /* Dark-mode overrides for the two custom boxes above and the toggle button --
-   these are ours, not part of just-the-docs' own dark scheme, so they need
-   their own dark colors. jtd.setTheme("dark") sets data-theme="dark" on
-   <html>; scope to that so these switch in sync with the rest of the site. */
-html[data-theme="dark"] details.lua101 {
+   these are ours, not part of just-the-docs' own dark scheme (which works by
+   swapping the page's stylesheet file, not by setting any HTML attribute/
+   class), so they need their own dark colors and their own signal for when
+   dark mode is active. footer_custom.html's script keeps html.wiki-dark in
+   sync with jtd.getTheme() -- scope to that class here. */
+html.wiki-dark details.lua101 {
   background: #17301c;
   border-color: #2e5c34;
   color: #d7e8d7;
 }
-html[data-theme="dark"] details.lua101 summary {
+html.wiki-dark details.lua101 summary {
   color: #7fd989;
 }
-html[data-theme="dark"] details.lua101 summary:hover {
+html.wiki-dark details.lua101 summary:hover {
   color: #a3e6ac;
 }
-html[data-theme="dark"] details.script-entry {
+html.wiki-dark details.script-entry {
   background: #1b222c;
   border-color: #33445c;
   color: #dbe4f0;
 }
-html[data-theme="dark"] details.script-entry summary {
+html.wiki-dark details.script-entry summary {
   color: #a9c3e8;
 }
-html[data-theme="dark"] details.script-entry summary:hover {
+html.wiki-dark details.script-entry summary:hover {
   color: #cddcf2;
 }
-html[data-theme="dark"] #theme-toggle {
+html.wiki-dark #theme-toggle {
   background: #20232a;
   color: #e3e3e3;
   border-color: #33445c;
