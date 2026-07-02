@@ -1,5 +1,5 @@
 ---
-title: mrxrewarddata
+title: MrxRewardData
 parent: Core Engine & Utilities
 grand_parent: Resident Modules
 nav_order: 1
@@ -7,7 +7,7 @@ inherits: Inheritable
 tags: [reward, economy]
 ---
 
-# mrxrewarddata
+# MrxRewardData
 
 *Module: mrxrewarddata.lua*
 
@@ -28,6 +28,297 @@ This is a stateless utility module (no per-instance pattern). It tracks the foll
 - `gtAllSupport`: Cached lists of potential support items for factions.
 - `gtAllEquipment`: Cached lists of potential equipment items for factions.
 - `_bPrintRewardType`: A boolean flag to control whether reward types are printed in generated strings.
+
+## Reward catalog
+
+**Captured by live runtime dump** -- see [Snippets](../snippets) for the general table-dumping approach. 213 entries in `_tRewards`, grouped by faction prefix and collapsed by default (this page would be enormous otherwise). "Support items" is a count, not a list -- see the source excerpt below for what that field actually looks like for a couple of representative entries. "Custom reward" is a raw localization string key, same convention as everywhere else in this wiki -- unresolved, since there's no string table available.
+
+One thing the live dump surfaces that static source-reading wouldn't make obvious: several `nCash` values (e.g. `AllCon008`'s 1,000,000) are references to a lookup table (`_tCashReward.chapter_two_medium` and similar) in source, not literal numbers -- the table below shows the real, resolved value.
+
+<details markdown="1">
+<summary>All (33 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `AllCon001` | 10,000,000 | 0 | [AllCon001.Terms.reward] |
+| `AllCon002` | 5,000,000 | 0 | - |
+| `AllCon003` | 25,000,000 | 0 | [AllCon003.Terms.Reward] |
+| `AllCon008` | 1,000,000 | 0 | - |
+| `AllCon008_Milestone1` | - | 1 | - |
+| `AllCon008_Milestone2` | - | 1 | - |
+| `AllCon008_Milestone3` | - | 1 | - |
+| `AllCon050` | 1,000,000 | 3 | - |
+| `AllCon052` | 1,000,000 | 2 | - |
+| `AllCon053` | 1,000,000 | 2 | - |
+| `AllJob002_Milestone1` | 1,000,000 | 2 | - |
+| `AllJob002_Milestone10` | 10,000,000 | 1 | - |
+| `AllJob002_Milestone2` | 1,250,000 | 0 | - |
+| `AllJob002_Milestone3` | 1,500,000 | 1 | - |
+| `AllJob002_Milestone4` | 2,000,000 | 0 | - |
+| `AllJob002_Milestone5` | 2,500,000 | 1 | - |
+| `AllJob002_Milestone6` | 3,000,000 | 0 | - |
+| `AllJob002_Milestone7` | 4,000,000 | 0 | - |
+| `AllJob002_Milestone8` | 5,000,000 | 1 | - |
+| `AllJob002_Milestone9` | 7,000,000 | 0 | - |
+| `AllJob003_Milestone1` | - | 1 | - |
+| `AllJob003_Milestone2` | - | 1 | - |
+| `AllJob003_Milestone3` | - | 1 | - |
+| `AllJob003_Milestone4` | - | 1 | - |
+| `AllJob003_PerTarget` | 50,000 | 0 | - |
+| `AllJob020_Milestone1` | - | 1 | - |
+| `AllJob020_Milestone2` | - | 1 | - |
+| `AllJob020_Milestone3` | - | 1 | - |
+| `AllJob020_Milestone4` | - | 1 | - |
+| `AllJob020_Milestone5` | - | 1 | - |
+| `AllJob020_Milestone6` | - | 1 | - |
+| `AllJob020_Milestone7` | - | 1 | - |
+| `AllJob020_PerTarget` | 500,000 | 0 | - |
+
+</details>
+
+<details markdown="1">
+<summary>AllChi (1 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `AllChiIntro` | - | 13 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Chi (34 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `ChiCon001` | 5,000,000 | 0 | - |
+| `ChiCon002` | 10,000,000 | 0 | - |
+| `ChiCon003` | 25,000,000 | 0 | [AllCon003.Terms.Reward] |
+| `ChiCon008` | 1,000,000 | 0 | - |
+| `ChiCon008_Milestone1` | - | 0 | - |
+| `ChiCon008_Milestone2` | - | 1 | - |
+| `ChiCon008_Milestone3` | - | 1 | - |
+| `ChiCon009` | 1,000,000 | 0 | - |
+| `ChiCon009_Milestone1` | - | 1 | - |
+| `ChiCon009_Milestone2` | - | 1 | - |
+| `ChiCon009_Milestone3` | - | 1 | - |
+| `ChiCon050` | 1,000,000 | 3 | - |
+| `ChiCon051` | 1,000,000 | 3 | - |
+| `ChiCon053` | 1,000,000 | 2 | - |
+| `ChiJob002_Milestone1` | 1,000,000 | 1 | - |
+| `ChiJob002_Milestone10` | 10,000,000 | 1 | - |
+| `ChiJob002_Milestone2` | 1,250,000 | 0 | - |
+| `ChiJob002_Milestone3` | 1,500,000 | 0 | - |
+| `ChiJob002_Milestone4` | 2,000,000 | 0 | - |
+| `ChiJob002_Milestone5` | 2,500,000 | 1 | - |
+| `ChiJob002_Milestone6` | 3,000,000 | 0 | - |
+| `ChiJob002_Milestone7` | 4,000,000 | 0 | - |
+| `ChiJob002_Milestone8` | 5,000,000 | 0 | - |
+| `ChiJob002_Milestone9` | 7,000,000 | 0 | - |
+| `ChiJob003_Milestone1` | - | 0 | - |
+| `ChiJob003_Milestone2` | - | 0 | - |
+| `ChiJob003_Milestone3` | - | 1 | - |
+| `ChiJob003_Milestone4` | - | 1 | - |
+| `ChiJob003_PerTarget` | 50,000 | 0 | - |
+| `ChiJob020_Milestone1` | - | 1 | - |
+| `ChiJob020_Milestone2` | - | 1 | - |
+| `ChiJob020_Milestone3` | - | 2 | - |
+| `ChiJob020_Milestone4` | - | 1 | - |
+| `ChiJob020_PerTarget` | 500,000 | 0 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Gur (38 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `GurCon001` | 850,000 | 0 | [GurCon001.Terms.BonusPayment] |
+| `GurCon002` | 750,000 | 0 | [GurCon002.Terms.BonusPayment] |
+| `GurCon003` | 300,000 | 0 | [GurCon003.Objectives.bonus] |
+| `GurCon003_Milestone1` | - | 0 | - |
+| `GurCon003_Milestone2` | - | 1 | - |
+| `GurCon003_Milestone3` | - | 1 | - |
+| `GurCon005` | 300,000 | 1 | - |
+| `GurCon050` | 300,000 | 2 | - |
+| `GurCon052` | 300,000 | 1 | - |
+| `GurCon053` | 300,000 | 3 | - |
+| `GurIntro` | - | 3 | - |
+| `GurJob001_Milestone1` | - | 1 | - |
+| `GurJob001_Milestone2` | - | 1 | - |
+| `GurJob001_Milestone3` | - | 0 | - |
+| `GurJob001_Milestone4` | - | 1 | - |
+| `GurJob001_Milestone5` | - | 1 | - |
+| `GurJob001_PerTarget` | 5,000 | 0 | - |
+| `GurJob002_Milestone1` | 150,000 | 1 | - |
+| `GurJob002_Milestone10` | 1,500,000 | 1 | - |
+| `GurJob002_Milestone2` | 200,000 | 0 | - |
+| `GurJob002_Milestone3` | 250,000 | 0 | - |
+| `GurJob002_Milestone4` | 300,000 | 0 | - |
+| `GurJob002_Milestone5` | 400,000 | 0 | - |
+| `GurJob002_Milestone6` | 500,000 | 0 | - |
+| `GurJob002_Milestone7` | 700,000 | 0 | - |
+| `GurJob002_Milestone8` | 1,000,000 | 1 | - |
+| `GurJob002_Milestone9` | 1,250,000 | 0 | - |
+| `GurJob006_Milestone1` | - | 0 | - |
+| `GurJob006_Milestone2` | - | 0 | - |
+| `GurJob006_Milestone3` | - | 0 | - |
+| `GurJob006_Milestone4` | - | 1 | - |
+| `GurJob006_PerTarget` | 5,000 | 0 | - |
+| `GurJob020_Milestone1` | - | 1 | - |
+| `GurJob020_Milestone2` | - | 1 | - |
+| `GurJob020_Milestone3` | - | 1 | - |
+| `GurJob020_Milestone4` | - | 1 | - |
+| `GurJob020_Milestone5` | - | 1 | - |
+| `GurJob020_PerTarget` | 300,000 | 0 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Mec (1 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `MecCon001` | - | 1 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Oil (36 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `OilCon001` | 995,000 | 0 | - |
+| `OilCon002` | 500,000 | 2 | - |
+| `OilCon003` | 300,000 | 0 | - |
+| `OilCon003_Milestone1` | - | 1 | - |
+| `OilCon003_Milestone2` | - | 1 | - |
+| `OilCon003_Milestone3` | - | 0 | - |
+| `OilCon005` | 300,000 | 0 | - |
+| `OilCon005_Milestone1` | - | 1 | - |
+| `OilCon005_Milestone2` | - | 1 | - |
+| `OilCon005_Milestone3` | - | 1 | - |
+| `OilCon020` | - | 0 | [OilCon020.Objectives.CustomReward] |
+| `OilCon021` | 25,000 | 0 | - |
+| `OilCon050` | 300,000 | 3 | - |
+| `OilCon051` | 300,000 | 2 | - |
+| `OilCon052` | 300,000 | 2 | - |
+| `OilJob004_Milestone1` | - | 0 | - |
+| `OilJob004_Milestone2` | - | 0 | - |
+| `OilJob004_Milestone3` | - | 0 | - |
+| `OilJob004_Milestone4` | - | 1 | - |
+| `OilJob004_PerTarget` | 5,000 | 0 | - |
+| `OilJob008_Milestone1` | - | 0 | - |
+| `OilJob008_Milestone2` | - | 0 | - |
+| `OilJob008_Milestone3` | - | 1 | - |
+| `OilJob008_Milestone4` | - | 1 | - |
+| `OilJob008_Milestone5` | - | 1 | - |
+| `OilJob008_PerTarget` | 100,000 | 0 | - |
+| `OilJob011_Milestone1` | 150,000 | 0 | - |
+| `OilJob011_Milestone10` | 1,500,000 | 1 | - |
+| `OilJob011_Milestone2` | 200,000 | 0 | - |
+| `OilJob011_Milestone3` | 250,000 | 0 | - |
+| `OilJob011_Milestone4` | 300,000 | 0 | - |
+| `OilJob011_Milestone5` | 400,000 | 1 | - |
+| `OilJob011_Milestone6` | 500,000 | 0 | - |
+| `OilJob011_Milestone7` | 700,000 | 0 | - |
+| `OilJob011_Milestone8` | 1,000,000 | 1 | - |
+| `OilJob011_Milestone9` | 1,250,000 | 0 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Pir (35 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `PirCon001` | 100,000 | 0 | - |
+| `PirCon001_Milestone1` | - | 1 | - |
+| `PirCon001_Milestone2` | - | 2 | - |
+| `PirCon001_Milestone3` | - | 2 | - |
+| `PirCon002` | 20,000 | 0 | - |
+| `PirCon002_Milestone1` | - | 1 | - |
+| `PirCon002_Milestone2` | - | 1 | - |
+| `PirCon002_Milestone3` | - | 1 | - |
+| `PirCon003` | 30,000 | 0 | - |
+| `PirCon003_Milestone1` | - | 1 | - |
+| `PirCon003_Milestone2` | - | 1 | - |
+| `PirCon003_Milestone3` | - | 1 | - |
+| `PirCon004` | 300,000 | 0 | - |
+| `PirCon004_Milestone1` | - | 1 | - |
+| `PirCon004_Milestone2` | - | 1 | - |
+| `PirCon004_Milestone3` | - | 1 | - |
+| `PirCon051` | 300,000 | 2 | - |
+| `PirCon052` | 300,000 | 2 | - |
+| `PirIntro` | - | 4 | - |
+| `PirJob012_Milestone1` | 100,000 | 1 | - |
+| `PirJob012_Milestone10` | 1,000,000 | 1 | - |
+| `PirJob012_Milestone2` | 125,000 | 0 | - |
+| `PirJob012_Milestone3` | 150,000 | 1 | - |
+| `PirJob012_Milestone4` | 175,000 | 0 | - |
+| `PirJob012_Milestone5` | 200,000 | 1 | - |
+| `PirJob012_Milestone6` | 250,000 | 0 | - |
+| `PirJob012_Milestone7` | 300,000 | 0 | - |
+| `PirJob012_Milestone8` | 500,000 | 1 | - |
+| `PirJob012_Milestone9` | 750,000 | 0 | - |
+| `PirJob020_Milestone1` | - | 1 | - |
+| `PirJob020_Milestone2` | - | 1 | - |
+| `PirJob020_Milestone3` | - | 1 | - |
+| `PirJob020_Milestone4` | - | 1 | - |
+| `PirJob020_Milestone5` | - | 1 | - |
+| `PirJob020_PerTarget` | 100,000 | 0 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Pmc (34 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `PmcCon001` | 0 | 0 | - |
+| `PmcCon002` | 650,000 | 0 | - |
+| `PmcCon003` | 0 | 0 | - |
+| `PmcCon004` | 25,000,000 | 1 | - |
+| `PmcCon013` | - | 0 | - |
+| `PmcCon015` | - | 0 | - |
+| `PmcCon015_Milestone1` | - | 0 | - |
+| `PmcCon015_Milestone2` | - | 0 | - |
+| `PmcCon015_Milestone3` | - | 0 | - |
+| `PmcCon016` | - | 0 | - |
+| `PmcCon016_Milestone1` | - | 0 | - |
+| `PmcCon016_Milestone2` | - | 0 | - |
+| `PmcCon016_Milestone3` | - | 0 | - |
+| `PmcCon018` | - | 0 | - |
+| `PmcCon018_Milestone1` | - | 0 | - |
+| `PmcCon018_Milestone2` | - | 0 | - |
+| `PmcCon018_Milestone3` | - | 0 | - |
+| `PmcCon031` | - | 0 | - |
+| `PmcCon031_Milestone1` | - | 0 | - |
+| `PmcCon032` | - | 0 | - |
+| `PmcCon032_Milestone1` | - | 0 | - |
+| `PmcCon033` | - | 0 | - |
+| `PmcCon033_Milestone1` | - | 0 | - |
+| `PmcCon034` | - | 0 | - |
+| `PmcCon034_Milestone1` | - | 0 | - |
+| `PmcJob001_Milestone1` | - | 1 | - |
+| `PmcJob001_Milestone2` | - | 1 | - |
+| `PmcJob001_Milestone3` | - | 1 | - |
+| `PmcJob001_Milestone4` | - | 1 | - |
+| `PmcJob001_Milestone5` | - | 1 | - |
+| `PmcJob001_Milestone6` | - | 1 | - |
+| `PmcJob001_Milestone7` | - | 1 | - |
+| `PmcJob001_Milestone8` | - | 1 | - |
+| `PmcJob001_Milestone9` | - | 1 | - |
+
+</details>
+
+<details markdown="1">
+<summary>Vza (1 entries)</summary>
+
+| Key | Cash | Support items | Custom reward |
+|---|---:|---:|---|
+| `VzaCon001` | 0 | 0 | - |
+
+</details>
 
 ## Functions
 
