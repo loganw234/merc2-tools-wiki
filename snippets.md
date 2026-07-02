@@ -216,6 +216,52 @@ end
 
 That's the actual script the support catalog was built from — one line per item instead of ~20.
 
+## Show a custom HUD message (with icon and sound)
+
+The little tutorial-hint popup the game shows for things like "you're swimming" or "you're low on fuel"
+turns out to be a completely generic, reusable primitive — nothing about it is specific to tutorials:
+
+```lua
+import("MrxTutorialManager")
+MrxTutorialManager.ShowMessage("Hello from my mod!")
+```
+
+**Confirmed working by live testing** — shows your exact text in that same popup widget, complete with
+the usual notification sound cue. **There's no auto-hide timer** — the message stays up until something
+explicitly clears it:
+
+```lua
+MrxTutorialManager.HideMessage()
+```
+
+**Confirmed working** — clears it immediately.
+
+Two more arguments exist on both functions — `ShowMessage(sMessage, bDontNetSync, sIdentifierName)` /
+`HideMessage(bDontNetSync, sIdentifierName)`:
+
+- **`sIdentifierName`** — an arbitrary string tag. **Confirmed working by live testing**: if you show a
+  message tagged `"test1"`, a `HideMessage` call with a *different* (or missing) identifier won't clear
+  it — only a matching identifier does. Useful if more than one script might want to show a message
+  around the same time and you don't want them clearing each other's.
+  ```lua
+  MrxTutorialManager.ShowMessage("Message A", false, "test1")
+  MrxTutorialManager.HideMessage(false, "wrong_id")  -- does NOT clear it
+  MrxTutorialManager.HideMessage(false, "test1")     -- clears it
+  ```
+- **`bDontNetSync`** — per source, when this is `false`/omitted and you're the server/host, the message
+  also broadcasts to your co-op partner via a network event; `true` keeps it local-only. **Not tested**
+  — confirming the actual network behavior needs a second player, the same limitation as the
+  [co-op tether snippet idea](sample-scripts-onload). The single-player behavior (shown above) doesn't
+  depend on this argument either way.
+
+One more thing worth knowing about the icon: the built-in tutorials (swimming, low fuel, etc.) each show
+a specific icon — a d-pad, a joystick, a running figure — but that icon isn't a parameter to
+`ShowMessage` at all. Checking one of those tutorials' source directly, its message is just a
+**localization string key** (e.g. `"[Tutorial.Swimming]"`), not raw text — the icon is baked into
+whatever that key resolves to in the string table, which this wiki doesn't have access to. Our plain-text
+test rendered a generic book icon instead, which is presumably the default when no icon tag is present.
+There's no known way to choose a different icon for a custom message.
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Case Study: Overriding a Function](case-study-function-override)
