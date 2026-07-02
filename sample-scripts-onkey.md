@@ -38,7 +38,7 @@ the same link the loader's own auto-generated `lua_loader.ini` points you to).
 </details>
 
 <details class="script-entry" markdown="1">
-<summary><strong>ConsoleCheatsMenu.lua</strong> — A custom menu recreating the classic console-release D-pad cheat codes (fill fuel, give all airstrikes/supplies/vehicles, infinite ammo, invincibility, unlock costumes/grapple) as a single hotkey menu. <strong>Partially unverified — see below.</strong></summary>
+<summary><strong>ConsoleCheatsMenu.lua</strong> — A custom menu recreating the classic console-release D-pad cheat codes (fill fuel, give all airstrikes/supplies/vehicles, infinite ammo, invincibility, unlock costumes/grapple) as a single hotkey menu.</summary>
 
 The original D-pad button-sequence cheat codes from the console releases aren't implemented in Lua
 anywhere in this corpus — they're native/engine code, unreachable from here. Rather than trying to
@@ -104,22 +104,15 @@ MrxMultiPageMenu.AddOption("Close this menu", nil, nil, true, true)
 MrxMultiPageMenu.Display("Console Cheats:")
 ```
 
-**What's confirmed vs. not**, being specific rather than blanket-labeling the whole thing:
+![The in-game Console Cheats menu opened via the F3 hotkey — "Console Cheats: (Page 1/2)", listing Next page, Fill Fuel, Give All Airstrikes (except nuke), Give All Supplies, Give All Vehicles (25 each), Give Nuke (25), Infinite Ammo, Invincibility, and Close this menu, with the player character standing outdoors behind the dialog.](img/consolecheatmenu.png)
 
-- **Confirmed working** (reused directly from already-tested pages): `MrxPmc.AddSupportQty` (give
-  all airstrikes/supplies/vehicles/nuke), `MrxPmc.AddFuelQty`/`GetFuelQty`/`GetFuelCapacity` (fill fuel),
-  `Object.SetInfiniteAmmo`, and the wardrobe-merge logic (unlock all costumes) — see
-  [`MrxCheatBootstrap`](resident/mrxcheatbootstrap) and `WardrobeUnlocker.lua` above.
-- **Not yet individually tested**: `Object.SetInvincible(uGuid, bInvincible, sReason)` and
-  `MrxPmc.AddEquipment(sName)` are both real, confirmed-to-exist functions (verified against source,
-  including that `"GrapplingHook"` is the correct equipment key in `WifEquipmentData._tEquipment`), but
-  neither call has actually been fired and observed in-game yet.
-- **Not yet tested as a whole**: looping over `tSupportData` and calling `AddSupportQty` many times in a
-  row (rather than once, as already confirmed) hasn't been observed end-to-end — should work, since it's
-  the same confirmed call in a loop, but "should" isn't "confirmed."
-- **Known simplification**: the original codes note "executable by either player, only affects the
-  player who executed it." This version always targets `Player.GetPrimaryCharacter()` — resolving "the
-  player who pressed this specific hotkey" in split-screen/co-op hasn't been figured out yet.
+**Confirmed working by live testing** — including `Object.SetInvincible` and `MrxPmc.AddEquipment`
+("Unlock Grappling Hook"), the two calls that were only source-confirmed, not fired in-game, as of the
+first version of this entry.
+
+One known simplification, not a bug: the original codes note "executable by either player, only affects
+the player who executed it." This version always targets `Player.GetPrimaryCharacter()` — resolving
+"the player who pressed this specific hotkey" in split-screen/co-op hasn't been figured out yet.
 
 </details>
 
