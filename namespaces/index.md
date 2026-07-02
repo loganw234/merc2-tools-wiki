@@ -36,8 +36,11 @@ aiming at" was investigated by grepping for every plausible function name (`GetA
 `GetTargetedObject`, `GetLookAt`, `LineOfSight`, and a dozen other guesses) across the whole source
 tree — all came back empty, and the honest conclusion at the time was "not possible from what we have."
 Running `pairs(Player)` live in-game turned up `Player.GetTargetUnderReticle` immediately — a real,
-callable engine function that simply has no caller anywhere in the decompiled scripts. Static analysis
-alone could never have found it; live enumeration did, on the first try.
+callable engine function whose actual name simply wasn't on the guessed-name list. It turns out this one
+**does** have real callers in the decompiled corpus (`mrxguisatellite.lua`, `mrxguisniperscope.lua`, see
+[Player](player)) — the point isn't that the function was never called anywhere, it's that no amount of
+guessing plausible names for "what am I aiming at" would have turned up its actual name. Grepping only
+works once you already know what to grep for; live enumeration doesn't require that guess at all.
 
 That's the case for treating this as its own reference section rather than folding it into existing
 pages: it's a fundamentally different (and more complete) source of truth than everything else in this
@@ -68,12 +71,17 @@ Treat those as real leads worth live-testing, not documentation gaps to be paper
 | [Vehicle](vehicle) | 40 | Seats/riders, doors/turrets, the hijacking state machine, vehicle-specific physics. |
 | [Event](event) | 48 (44 event-type IDs + 4 functions) | The callback-registration pattern (`Event.Create`) used throughout `resident/`. |
 | [Pg](pg) | 80 | Spawning, proximity-based collection (`FastCollect*`), GUID-by-name lookup, the pursuit/wanted system, contracts, achievements, asset streaming. |
+| [Player](player) | 107 | Player/character identity, cash/fuel, camera, boundaries, costumes, satellite scan, PDA map mode — includes `GetTargetUnderReticle`, the function that motivated this section. |
+| [Ai](ai) | 66 | NPC subjects, goals/planning, the faction-relation primitives underneath `MrxFactionManager`, traffic/pedestrian spawn control. |
+| [Net](net) | 92 | Server/client role queries, lobby/matchmaking, and the `SendEvent_*` family of co-op state broadcasts. |
+| [Sound](sound) | 88 | The dynamic music system, direct sound/ambience cueing, sound/wave bank loading, mixing and reverb. |
+| [Sys](sys) | 64 | Time/clock utilities, save/autosave control, asset preloading, level/shell state, platform queries, GUID string conversion. |
 
 ## What's left
 
 A full `pairs(_G)` scan (see [Snippets](../snippets#dump-every-engine-namespace-at-once)) turned up
-roughly two dozen more real engine namespaces beyond the four above — `Ai`, `Net`, `Sound`, `Sys`,
-`Human`, `Gui`, `Hud`, `Controller`, `Camera`, `Graphics`, `Junk`, `Marker`, and others, ranging from a
-single entry up to `Player` itself at 107. Those haven't been mapped into dedicated pages yet. If you've
-run the full dump yourself and want to contribute a page for one of them, following the same
-Overview/Provenance/Functions shape as the four above is the right template to copy.
+several more real engine namespaces beyond the nine above — `Human`, `Gui`, `Hud`, `Controller`,
+`Camera`, `Graphics`, `Junk`, `Marker`, and others, ranging from a single entry up to a few dozen. Those
+haven't been mapped into dedicated pages yet. If you've run the full dump yourself and want to
+contribute a page for one of them, following the same Overview/Provenance/Functions shape as the nine
+above is the right template to copy.
