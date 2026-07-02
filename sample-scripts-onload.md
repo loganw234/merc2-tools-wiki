@@ -49,3 +49,32 @@ persist through a full game restart, since nothing here touches save data.
 ![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](img/funcoverride.png)
 
 </details>
+
+<details class="script-entry" markdown="1">
+<summary><strong>CoopTetherRange.lua</strong> — Widens (or removes) how far apart co-op players can wander before getting pulled back together. <strong>Unverified — needs a real co-op session to confirm.</strong></summary>
+
+The co-op "stay together" mechanic — the boundary that kicks in when the second player wanders too far
+from the host — is driven by two module-level values, a minimum and a maximum distance, and rebuilding
+them is done by re-running the same setup function the game itself uses:
+
+```lua
+import("MrxCoop")
+
+MrxCoop.SetupTether(5, 500)  -- (min, max) -- units and real default values unconfirmed, pick numbers to taste
+```
+
+**Everything about the mechanism itself is confirmed from source** — `SetupTether(aTetherMin, aTetherMax)`
+is a real function, and exceeding the max distance is what actually flips
+`Player.SetOutBoundary(secondaryPlayer, true)` for the trailing player. **What's not confirmed:** the
+real default `(min, max)` values — there are no calls to `SetupTether()` anywhere in the decompiled
+corpus, meaning either the real defaults come from native code, or from one of the handful of files that
+failed to decompile — so this script's `(5, 500)` is a placeholder, not a documented default, and the
+whole thing hasn't been tested in an actual two-player session yet.
+
+One thing worth knowing if you experiment with this yourself: just reassigning
+`MrxCoop.iTetherMax` directly, without calling `SetupTether()` again, won't do anything — the proximity
+watchers that actually enforce the distance are created once via `Event.Create(..., iTetherMax, ...)`,
+which bakes in whatever value it had *at that moment*. Only a fresh `SetupTether()` call tears down the
+old watchers and rebuilds them against the new numbers.
+
+</details>
