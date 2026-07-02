@@ -4,16 +4,38 @@
 /* Sitewide light/dark toggle, using just-the-docs' own documented jtd.setTheme()/
    jtd.getTheme() API (see the theme's Customization page) rather than a
    hand-rolled implementation -- this uses the theme's real dark color scheme
-   instead of guessed CSS overrides. */
+   instead of guessed CSS overrides.
+
+   jtd.setTheme() on its own doesn't persist across page loads (the docs'
+   own toggle example is a one-page preview, not a saved preference) -- the
+   localStorage read/write below is what makes the choice stick site-wide.
+   This runs from footer_custom.html, which renders late in the page, so
+   there's a brief flash of the default scheme on each load before this
+   applies the saved choice; a truly flash-free version would need to hook
+   in earlier, before <body> renders, which isn't available through this
+   include point. */
 (function () {
+  var STORAGE_KEY = "wiki-theme-preference";
   var btn = document.getElementById("theme-toggle");
+
+  try {
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && jtd.getTheme() !== saved) {
+      jtd.setTheme(saved);
+    }
+  } catch (e) {}
+
   function syncLabel() {
     btn.textContent = jtd.getTheme() === "dark" ? "☀️" : "🌙";
   }
+
   jtd.addEvent(btn, "click", function () {
-    jtd.setTheme(jtd.getTheme() === "dark" ? "light" : "dark");
+    var next = jtd.getTheme() === "dark" ? "light" : "dark";
+    jtd.setTheme(next);
+    try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
     syncLabel();
   });
+
   syncLabel();
 })();
 </script>
