@@ -39,6 +39,10 @@ Adds a specified amount of cash to the player's total. It ensures that the cash 
 ### GetCashQty()
 Returns the current amount of cash the player has.
 
+### GetFuelQty()
+Returns the current fuel amount — a thin wrapper over `Player.GetFuel()`. **Confirmed working by live
+testing** (see [Snippets](../snippets#read--give-fuel)).
+
 ### AddFuelQty(nAmt)
 Adds a specified amount of fuel to the player's total. It ensures that the fuel does not exceed the maximum capacity or fall below zero. It also triggers tutorials for low and no fuel conditions.
 
