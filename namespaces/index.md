@@ -76,12 +76,19 @@ Treat those as real leads worth live-testing, not documentation gaps to be paper
 | [Net](net) | 92 | Server/client role queries, lobby/matchmaking, and the `SendEvent_*` family of co-op state broadcasts. |
 | [Sound](sound) | 88 | The dynamic music system, direct sound/ambience cueing, sound/wave bank loading, mixing and reverb. |
 | [Sys](sys) | 64 | Time/clock utilities, save/autosave control, asset preloading, level/shell state, platform queries, GUID string conversion. |
+| [Human](human) | 22 | Weapon equip/inventory, actions/animation, swim/grapple state, ragdoll and corpse cleanup. |
+| [Gui](gui) | 38 | Low-level GUI plumbing — marker-enable toggles, the internal `_Marker*` primitives behind `Marker`, font/texture loading, localization. |
+| [Hud](hud) | 23 sub-namespaces | Nested sub-tables, not flat functions — fanfare popups, the objective radar, resource counters, tutorial messages, the shop UI. |
+| [Controller](controller) | 25 | Gamepad button/axis ID constants — no functions at all, same kind of table as `Event`'s numeric IDs. |
+| [Camera](camera) | 14 | Per-player camera control (orientation, positioning, blending, shake) — distinct from `Graphics.Camera`, see that page's naming-collision note. |
+| [Graphics](graphics) | 21 (mostly nested) | Rendering/visual tuning — atmosphere/weather, bloom, contrast, fuel-trail particles, and `Graphics.Camera` (near/far/FOV/LOD, not the same as `Camera`). |
+| [Junk](junk) | 24 | A dev/debug-tools grab-bag with a few genuinely gameplay-relevant functions (alarms, homing projectiles) mixed in. |
+| [Marker](marker) | 13 | Minimap/radar blips and world markers — `AddBlip` is already live-tested in [Snippets](../snippets#put-a-markerblip-on-an-object). |
 
 ## What's left
 
-A full `pairs(_G)` scan (see [Snippets](../snippets#dump-every-engine-namespace-at-once)) turned up
-several more real engine namespaces beyond the nine above — `Human`, `Gui`, `Hud`, `Controller`,
-`Camera`, `Graphics`, `Junk`, `Marker`, and others, ranging from a single entry up to a few dozen. Those
-haven't been mapped into dedicated pages yet. If you've run the full dump yourself and want to
-contribute a page for one of them, following the same Overview/Provenance/Functions shape as the nine
-above is the right template to copy.
+A full `pairs(_G)` scan (see [Snippets](../snippets#dump-every-engine-namespace-at-once)) turned up a
+handful more real engine namespaces beyond the seventeen above, mostly small (a few entries each) —
+check the scan output if you want to track down what's left. If you've run the full dump yourself and
+want to contribute a page for one of them, following the same Overview/Provenance/Functions shape as
+the pages above is the right template to copy.
