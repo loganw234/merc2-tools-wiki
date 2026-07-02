@@ -216,6 +216,51 @@ end
 
 That's the actual script the support catalog was built from — one line per item instead of ~20.
 
+## Dump every engine namespace at once
+
+The single-table dumper above is great for one table you already know the name of. Sometimes you want a
+complete inventory of *everything* reachable at global scope in one pass — every engine namespace
+(`Player`, `Object`, `Vehicle`, `Event`, ...), every already-loaded `resident/` module, all in one log:
+
+```lua
+local tTopKeys = {}
+for k in pairs(_G) do table.insert(tTopKeys, k) end
+table.sort(tTopKeys, function(a, b) return tostring(a) < tostring(b) end)
+
+local tSeen = {}
+
+for _, sKey in ipairs(tTopKeys) do
+  local v = _G[sKey]
+  if type(v) == "table" and not tSeen[v] then
+    tSeen[v] = true
+    local tSubKeys = {}
+    for k2 in pairs(v) do table.insert(tSubKeys, k2) end
+    table.sort(tSubKeys, function(a, b) return tostring(a) < tostring(b) end)
+    Loader.Printf("=== " .. sKey .. " (" .. #tSubKeys .. " entries) ===")
+    for _, k2 in ipairs(tSubKeys) do
+      Loader.Printf(sKey .. "." .. tostring(k2) .. " = " .. tostring(v[k2]))
+    end
+  else
+    Loader.Printf("=== " .. sKey .. " (" .. type(v) .. ") ===")
+  end
+end
+Loader.Printf("=== DUMP COMPLETE ===")
+```
+
+**Confirmed working by live testing** — but be aware of what you're triggering before you run it:
+
+- **This prints upwards of 12,000 log lines in one go.** Every global table's direct members get their
+  own `Loader.Printf` call, and there are dozens of tables (`Player` alone is 100+ entries; `Net`, `Sound`,
+  `Object`, and `Pg` are all similarly large).
+- **The game will hang for a bit while this runs.** All those log writes happening back-to-back visibly
+  freezes the game for a few moments before control returns — this is expected, not a crash. Don't panic
+  and don't spam re-run it while it's still working.
+- This is one level deep only (each global's *direct* members) — it won't recurse into nested tables, so
+  it stays a manageable size instead of exploding into an unbounded recursive dump.
+- Useful as a one-time "get everything" snapshot to save off and grep through later, rather than something
+  you'd run repeatedly. Save the resulting log somewhere stable (it'll get overwritten/rotated eventually)
+  if you want to keep it around for reference.
+
 ## Show a custom HUD message (with icon and sound)
 
 The little tutorial-hint popup the game shows for things like "you're swimming" or "you're low on fuel"
