@@ -139,7 +139,7 @@ You now have all three ways of running code: interactive (console), automatic (`
 on-demand (`OnKey`). From here:
 
 - [Recipes](recipes) has more copy-pasteable snippets once you know where they'd go.
-- [Deep Dive: Overriding a Function](deep-dives/function-override) goes one level deeper — replacing a
+- [Case Study: Overriding a Function](case-study-function-override) goes one level deeper — replacing a
   piece of the game's own logic instead of just reading/writing a value, worked through end to end.
 - [Resident Modules](resident/) is the reference for what else you can call — start there once "give
   cash" isn't enough anymore.

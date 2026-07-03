@@ -1,16 +1,15 @@
 ---
-title: "Overriding a Function"
-parent: Deep Dives
-nav_order: 2
+title: "Case Study: Overriding a Function"
+nav_order: 5
 ---
 
-# Deep Dive: Safely Overriding a Function
+# Case Study: Safely Overriding a Function
 
-Everything in [Snippets](../snippets) either reads a value or writes one field. This page is different — it
+Everything in [Snippets](snippets) either reads a value or writes one field. This page is different — it
 walks through **replacing a piece of the game's own logic** with your own, end to end: what the original
 approach was, three attempts that turned out to be wrong (and why), the one that actually worked,
 confirmed in-game, and the general lesson underneath all of it. Just want the finished result as a
-drop-in file? It's on [OnLoad Scripts](../sample-scripts-onload) as `WardrobeUnlocker.lua`.
+drop-in file? It's on [OnLoad Scripts](sample-scripts-onload) as `WardrobeUnlocker.lua`.
 
 The example: the HQ wardrobe normally only lets a character wear outfits from their own small, curated
 list. The goal — make every outfit, for every character, available from any character's wardrobe menu,
@@ -154,7 +153,7 @@ the game's own unmodified menu/costume-change logic — network sync, the state-
 character voice-line that plays on a costume change all still run exactly as they did before, because
 none of that code was touched:
 
-![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](../img/funcoverride.png)
+![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](img/funcoverride.png)
 
 ## Why it works
 
