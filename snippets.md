@@ -310,6 +310,48 @@ whatever that key resolves to in the string table, which this wiki doesn't have 
 test rendered a generic book icon instead, which is presumably the default when no icon tag is present.
 There's no known way to choose a different icon for a custom message.
 
+## A dangerous vehicle speed boost (irreversible once started)
+
+A silly one — repeatedly shoves whatever vehicle you're currently riding in forward with a physics
+impulse, scaled to the vehicle's own mass:
+
+```lua
+function StartSpeedBoost()
+  UpdateSpeedBoost()
+end
+
+function UpdateSpeedBoost()
+  local uPlayerChar = Player.GetLocalCharacter()
+  if uPlayerChar then
+    local uVehicle = Vehicle.GetFromRider(uPlayerChar)
+    if uVehicle and Object.IsAlive(uVehicle) then
+      -- Optional: only apply boost if the player is pressing the gas/moving
+      local currentSpeed = Object.GetVelocity(uVehicle)
+      if currentSpeed > 1.0 then
+        -- Apply a forward impulse (adjust the Z component to change the push force)
+        local myMass = Object.GetMass(uVehicle) or 1000
+        Object.ApplyImpulse(uVehicle, 0, 0, 30 * myMass, true)
+      end
+    end
+  end
+  -- Reschedule this update function to run every 200ms (0.2 seconds)
+  Event.Create(Event.TimerRelative, {0.2}, UpdateSpeedBoost)
+end
+
+StartSpeedBoost()
+```
+
+**Warning: you cannot turn this off.** `UpdateSpeedBoost` reschedules itself via `Event.TimerRelative`
+forever, with no active/inactive flag checked anywhere — unlike the toggleable `OnKey` scripts elsewhere
+in this wiki, there's no second button press that cancels it. Once it's running, it keeps shoving
+whatever vehicle you're in every 0.2 seconds for the rest of the session. Running this a second time
+doesn't reset or replace the first loop either — it just adds a *second*, independent boost loop stacking
+on top of the first, making things worse, not better. Short of reloading the level (or the whole game),
+the only way out is getting the vehicle destroyed or getting out of it entirely — and even then, the loop
+keeps running in the background, ready to grab the next vehicle you enter.
+
+Treat this as a joke/stress-test snippet, not something to actually drive with.
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)
