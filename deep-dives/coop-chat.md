@@ -26,87 +26,29 @@ one real native hook that smells like free-text entry, used for profile-name cre
 to be repurposable for arbitrary text, it would make everything below unnecessary. Untested, so this page
 doesn't rely on it.
 
-## Input: one `OnKey` script per character (clunky, but fully buildable today)
+## Input: genuinely unsolved — deliberately not papering over it
 
-`OnKey`'s hotkey binding already resolves individual Windows virtual-key codes — that's confirmed,
-ordinary behavior (see [Your First Mod](../first-mod)), and it's the one piece of "detect this specific
-keypress" machinery this project has never had to guess at. The idea: don't try to capture free-form
-typing at all — instead, give every character its own tiny dedicated `OnKey` script, each one checking a
-shared "am I in chat mode" flag before doing anything.
+`OnKey`'s hotkey binding resolves individual Windows virtual-key codes (confirmed, ordinary behavior —
+see [Your First Mod](../first-mod)), which means a "one tiny dedicated script per character" approach is
+*technically* buildable today. It was cut from this page on purpose: two dozen-plus near-identical files
+just to capture typing is real clutter for a highly speculative feature, and it still wouldn't solve the
+harder half of the problem (nothing stops the normal gameplay action already bound to that same key from
+also firing while "typing" — `Player.SetInputEnabled` is a candidate for suppressing that, untested,
+and might block the chat-input scripts right along with everything else).
 
-Shared state, in `scripts/OnBoot/ChatState.lua` so it exists before any of the per-key scripts need it:
-
-```lua
-_G.ChatState = _G.ChatState or {
-  active = false,
-  buffer = "",
-}
-```
-
-`scripts/OnKey/ChatToggle.lua` — `Enter` both opens chat mode and sends/closes it on a second press:
-
-```lua
-local KEYVAL = "return"  -- must be in the first 10 lines
-
-if not _G.ChatState.active then
-  _G.ChatState.active = true
-  _G.ChatState.buffer = ""
-  Loader.Printf("CHAT: input mode on, start typing")
-else
-  local sMessage = _G.ChatState.buffer
-  _G.ChatState.active = false
-  _G.ChatState.buffer = ""
-  if sMessage ~= "" then
-    import("Alarm")  -- same hijacked module as the networking deep dive's ping-pong test
-    Net.SendCustomEvent("Alarm", 102, {Net.GetHostName(), sMessage}, true)  -- 102: unused by Alarm itself
-    Loader.Printf("CHAT: sent -> " .. sMessage)
-  end
-end
-```
-
-`scripts/OnKey/ChatLetterA.lua` (repeat this exact pattern for every other letter, `0`-`9`, and a couple
-of punctuation keys — tedious, but each file is identical apart from `KEYVAL` and the one character
-appended):
-
-```lua
-local KEYVAL = "a"  -- must be in the first 10 lines
-
-if _G.ChatState.active then
-  _G.ChatState.buffer = _G.ChatState.buffer .. "a"
-end
-```
-
-`scripts/OnKey/ChatSpace.lua` and `scripts/OnKey/ChatBackspace.lua` follow the same shape:
-
-```lua
-local KEYVAL = "space"
-
-if _G.ChatState.active then
-  _G.ChatState.buffer = _G.ChatState.buffer .. " "
-end
-```
-
-```lua
-local KEYVAL = "back"
-
-if _G.ChatState.active then
-  _G.ChatState.buffer = string.sub(_G.ChatState.buffer, 1, string.len(_G.ChatState.buffer) - 1)
-end
-```
-
-**Known rough edge, not fixed here**: every one of these per-letter scripts fires on every press of that
-key regardless of chat mode being the intended context — the `if _G.ChatState.active` guard stops them
-from doing anything while chat is closed, but it does nothing to stop the *normal* gameplay action bound
-to that same key (movement, aiming, whatever) from also firing at the same time while typing. A real
-version of this would need a way to suppress normal input while chat mode is open — `Player.SetInputEnabled`
-(confirmed real, [Player](../namespaces/player#input--control)) is the obvious candidate to try, but
-disabling all input might also block the letter-key `OnKey` scripts themselves, which hasn't been checked.
+**The right first move is testing `LTIStartKeyboardInput`/`LTIEndKeyboardInput`** (`resident/mrxguishell.lua`)
+directly — the one real native text-entry hook already found, currently wired to profile-name creation.
+If it turns out to accept arbitrary text rather than being hardcoded to that one field, it solves input
+outright and this whole section becomes moot. If it doesn't pan out, the next step is looking for *other*
+angles before falling back to anything resembling the per-key-script approach — this page intentionally
+leaves that search undone rather than committing to a clunky answer prematurely.
 
 ## Send: reusing the networking deep dive's mechanism, carrying a string instead of a tag
 
-Already shown above — `Net.SendCustomEvent("Alarm", 102, {Net.GetHostName(), sMessage}, true)`, event ID
-`102` chosen to avoid colliding with `Alarm`'s own real IDs (`0`, `1`) and the ping-pong test's `100`/`101`.
-The receiving side extends the exact same override from the networking deep dive with one more branch:
+Whatever ends up capturing the typed text, sending it is already solved —
+`Net.SendCustomEvent("Alarm", 102, {Net.GetHostName(), sMessage}, true)`, event ID `102` chosen to avoid
+colliding with `Alarm`'s own real IDs (`0`, `1`) and the ping-pong test's `100`/`101`. The receiving side
+extends the exact same override from the networking deep dive with one more branch:
 
 ```lua
 import("Alarm")
@@ -154,11 +96,9 @@ this page and hasn't been attempted here.
 
 ## Known limitations of this whole page
 
-- **Nothing here has been live-tested**, input, send, or display.
+- **Input is genuinely unsolved.** `LTIStartKeyboardInput`/`LTIEndKeyboardInput` is the one real lead and
+  hasn't been tested. This page deliberately doesn't commit to a fallback (like a script per character)
+  until that lead is actually checked and other angles have had a chance first.
+- **Nothing here has been live-tested**, send or display included.
 - **Depends entirely on the networking deep dive's unconfirmed transport claim** — if `SendCustomEvent`
   doesn't actually cross the network symmetrically, this doesn't send anything either.
-- **The per-letter `OnKey` approach doesn't suppress normal gameplay input** while typing — a real version
-  needs that solved first, or every chat message doubles as an accidental input storm.
-- **`LTIStartKeyboardInput`/`LTIEndKeyboardInput` were never tested** as a cleaner alternative to the
-  one-script-per-character approach — if that native hook turns out to accept arbitrary text rather than
-  being hardcoded to the profile-name field, most of the "Input" section above becomes unnecessary.

@@ -25,8 +25,7 @@ different problem instead of just copy-pasting the end result.
   namespace actually exposes: three distinct connection paths, a real direct-IP-connect primitive, the
   native callback-by-convention dispatch behind both server discovery and custom cross-player events, and
   a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
-- **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not live-tested* — a theoretical design built
-  entirely on already-proven pieces from the other Deep Dives: per-character `OnKey` scripts for input,
-  the networking page's hijacked-`NetEventCallback` pattern to send, and the tutorial-hint popup from
-  Snippets to display, plus the one real native lead (`LTIStartKeyboardInput`) that might make most of it
-  unnecessary if it pans out.
+- **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not live-tested* — send and display are solved
+  by reusing the networking page's hijacked-`NetEventCallback` pattern and the tutorial-hint popup from
+  Snippets; input is left deliberately open, pending a test of the one real native lead
+  (`LTIStartKeyboardInput`) before committing to any fallback.
