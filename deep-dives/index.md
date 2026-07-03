@@ -27,5 +27,5 @@ different problem instead of just copy-pasting the end result.
   a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
 - **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not live-tested* — send and display are solved
   by reusing the networking page's hijacked-`NetEventCallback` pattern and the tutorial-hint popup from
-  Snippets; input is left deliberately open, pending a test of the one real native lead
-  (`LTIStartKeyboardInput`) before committing to any fallback.
+  Snippets; input turned out to need a small lua-bridge-side addition (`Loader.GetKeyboardState()`)
+  rather than anything achievable in game Lua alone — the one Deep Dive here that isn't pure-Lua.
