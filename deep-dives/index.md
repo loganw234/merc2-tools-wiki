@@ -25,7 +25,11 @@ different problem instead of just copy-pasting the end result.
   namespace actually exposes: three distinct connection paths, a real direct-IP-connect primitive, the
   native callback-by-convention dispatch behind both server discovery and custom cross-player events, and
   a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
-- **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not fully live-tested* — send reuses the
-  networking page's hijacked-`NetEventCallback` pattern; input is now real, backed by the
+- **[A Basic Co-op Text Chat](coop-chat)** — *send still unproven, input and display are real* — send
+  reuses the networking page's hijacked-`NetEventCallback` pattern; input is backed by the
   [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
   game Lua alone — the one Deep Dive here that depends on a specific lua-bridge build, not just a script.
+- **[Building a Chat/Log UI](coop-chat-ui)** — *confirmed working by live testing* — a real engine crash
+  bug found in `MrxGuiTextBuffer`'s own documented constructor, a scope-sealing dead end while trying to
+  patch around it, and the bug-free internal function that turned out to be the real fix — plus a
+  confirmed static-source-vs-runtime discrepancy in `MrxGui` itself.
