@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: Blippable
 tags: [blip, radar]
+verified: true
+verified_note: read directly from source -- corrects two inaccuracies in the previous version (OnActivate does not defer through Event.ObjectHibernation/Awake here, and bRotate is a module-level constant, not a per-instance field)
 ---
 
 # OrientedBlippable
@@ -12,37 +14,67 @@ tags: [blip, radar]
 *Module: orientedblippable.lua*
 
 ## Overview
-The `OrientedBlippable` module extends the functionality of the `Blippable` module by adding support for oriented blips, which rotate based on the object's orientation. It is used for objects that need to be visually represented with a rotating radar objective.
+`OrientedBlippable` extends [`Blippable`](blippable) with rotation (blips that turn to match the object's
+facing) and optional flashing (a blip that periodically re-adds itself with `bFlash=true`). It's the direct
+parent of [`VehicleBlippable`](vehicleblippable).
+
+**`OnActivate` here does not defer through `Event.ObjectHibernation`/`Awake` like `Blippable`/`Inheritable`
+do** — it calls `oPrototype:Create(uGuid, uRuntimeOwner)` immediately:
+
+```lua
+function OnActivate(uGuid, uRuntimeOwner, iArg)
+  Debug.Printf("OrientedBlippable OnActivate")
+  local oPrototype = getfenv()
+  local oInstance = oPrototype:Create(uGuid, uRuntimeOwner)
+end
+```
+
+No `Awake` function exists anywhere in this file. Whether this is intentional or an inconsistency with the
+rest of the inheritance chain isn't confirmed either way — but a module built on `OrientedBlippable`
+directly (rather than through `VehicleBlippable`, which defines its own `OnActivate`/`Start` and doesn't
+use this one) creates its instance immediately on activation, not after leaving hibernation.
 
 ## Inheritance
-- Inherits from: `Blippable`
-- Imports: `none`
+- Inherits from: [`Blippable`](blippable)
+- Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `bRotate`: Indicates whether the blip should rotate.
-- `bOriented`: Indicates whether the blip is oriented.
-- `TimerEvent`: Handle for the persistent timer event used to flash the blip.
+Per-instance field: `TimerEvent` — the persistent flash-timer handle, set by `SetBlipped` and cleared by
+`ClearBlipped`.
+
+`bRotate = true` is a **module-level constant** (declared once at the top of the file), not a per-instance
+field — every instance reads the same shared value via the prototype-inheritance fallback (same mechanism
+documented on [`Inheritable`](inheritable) and [`VehicleBlippable`](vehicleblippable)). `bOriented` is set
+directly on `self` inside `SetBlipped` (`oSelf.bOriented = true`) — that one genuinely is per-instance,
+though every instance ends up with the same value.
 
 ## Functions
-### `OnActivate(uGuid, uRuntimeOwner, iArg)`
-Called when the object instance is activated. It logs a debug message and sets up an event to call `Awake` once the object leaves hibernation.
 
-### `TimerCallback(oSelf)`
-A helper function that adds an objective with flashing enabled. This is called by the persistent timer event.
+### `OnActivate(uGuid, uRuntimeOwner, iArg)`
+**See the callout above — creates the instance immediately, no hibernation wait.**
 
 ### `SetBlipped(oSelf)`
-Adds a radar objective and marker for the object, setting it as oriented. If flashing is enabled and no timer event is already set, it creates a persistent timer event to flash the blip every 0.05 seconds.
+Sets `oSelf.bOriented = true`, calls `Blippable.SetBlipped(oSelf)` to do the actual radar/marker
+registration, then — only if `oSelf.bFlash` is set and no `TimerEvent` already exists — starts a
+persistent 0.05-second-interval timer (`TimerCallback`) that keeps re-adding the objective with flashing
+enabled.
+
+### `TimerCallback(oSelf)`
+The flash-timer's own callback: just calls `oSelf:AddObjective(oSelf.bFlash)` every tick.
 
 ### `ClearBlipped(oSelf)`
-Removes the radar objective and marker for the object. It also deletes any associated timer event to stop the flashing.
+Deletes the `TimerEvent` if one exists (stopping the flash), then calls `Blippable.ClearBlipped(oSelf)`.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
-- Uses a persistent timer event (`Event.TimerRelative`) to flash the blip every 0.05 seconds if enabled.
+- No `Event.ObjectHibernation` listener in this file — see the `OnActivate` callout above.
+- `TimerEvent` (`Event.TimerRelative`, persistent, 0.05s interval) drives the flashing behavior when
+  `bFlash` is set — created in `SetBlipped`, torn down in `ClearBlipped`.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage blip lifecycle.
-- Use `SetBlipped` and `ClearBlipped` to control the visibility of radar objectives.
-- Customize blip properties by setting fields like `tColor`, `nWidth`, and `sTexture`.
-- Be aware that network synchronization (`bNetSync`) may affect multiplayer behavior.
+- **Set `self.bFlash = true` before calling `SetBlipped`** if you want a flashing blip — flashing isn't
+  automatic just from inheriting this module, it's opt-in per instance via that field.
+- Everything else about configuring the blip itself (`tColor`, `sTexture`, `nSize`, `tMarker`, `bNetSync`)
+  is inherited unchanged from [`Blippable`](blippable) — see that page for the full field list.
+- If you're building something new on this module directly (not through `VehicleBlippable`), remember
+  activation happens immediately, not after an `Event.ObjectHibernation` wait — don't assume the object is
+  necessarily "awake" yet the way the `Inheritable`/`Blippable` pattern elsewhere on this wiki guarantees.

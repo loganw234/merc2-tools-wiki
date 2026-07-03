@@ -11,6 +11,9 @@ inherits: none
 
 tags: [gui, widget]
 
+verified: true
+verified_note: GetControlFocus/ReleaseControlFocus and the ImageWidget/AddWidget runtime-vs-source discrepancy confirmed by live testing via MrxGuiDialogBox and CoopChatUI; instance-pattern claim corrected against source (stateless, not per-uGuid); most of the ~90-function reference below is the original auto-generated pass, not individually re-verified
+
 ---
 
 
@@ -27,6 +30,16 @@ tags: [gui, widget]
 
 The `MrxGuiBase` module is a foundational component for managing graphical user interface (GUI) elements in the game. It provides a comprehensive set of functions and classes to create, manage, and manipulate various types of widgets such as text, images, flash animations, minimaps, sprites, and movies. The module also handles screen resolution changes, input events, and widget lifecycle management.
 
+**This is the module behind every confirmed-working GUI technique documented elsewhere on this wiki**:
+`GetControlFocus`/`ReleaseControlFocus` are what [`MrxGuiDialogBox`](mrxguidialogbox) uses to take/release
+input and optionally pause, confirmed working via [`CommonSpawnMenu.lua`](../sample-scripts-onkey); the
+freecam deep dive's PDA-widget hijack works by calling `SetEventHandler("ControllerInput", ...)` on a
+widget this module manages; and `ImageWidget`/`TextWidget`/`AddWidget`/`RemoveWidget` are the exact
+functions [`CoopChatUI`](../deep-dives/coop-chat-ui) builds its custom widgets with — **confirmed working
+at runtime despite being declared as literal `= 0` in this file's own decompiled source and never visibly
+reassigned**, the clearest example on this whole wiki of decompiled source not reflecting the game's real
+runtime shape. If you're building any custom on-screen UI, this is the module everything else is built on.
+
 
 
 ## Inheritance
@@ -38,7 +51,11 @@ The `MrxGuiBase` module is a foundational component for managing graphical user 
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not a per-`uGuid` instance module** — there's no `Create`/`Awake`/`OnActivate` world-object pattern
+anywhere in this file (confirmed absent from source). `MrxGuiBase` is a stateless foundational module: a
+set of widget *classes* (`Widget`, `TextWidget`, `ImageWidget`, etc. — each individual widget you create
+via `:new()` is its own object, but the module itself isn't instantiated per-object) plus shared
+module-level state. Key module-level fields:
 
 - **Joystick**: A table defining constants for different joystick buttons.
 
@@ -72,8 +89,6 @@ The module also maintains global state related to screen dimensions and resoluti
 
 The module defines several widget classes such as `Widget`, `TextWidget`, `ImageWidget`, `FlashWidget`, `SpriteWidget`, and `MovieWidget`, each with its own set of properties and methods for managing specific types of GUI elements.
 
-```
-
 
 
 ## Functions
@@ -82,13 +97,15 @@ The module defines several widget classes such as `Widget`, `TextWidget`, `Image
 
 ### GetControlFocus(oWidget, bPause, bGlobal)
 
-Manages the focus queue for a given widget. If `bPause` is true, it sets the dialog box mode; otherwise, it sets the support menu mode.
-
-
+Manages the focus queue for a given widget. If `bPause` is true, it sets the dialog box mode; otherwise, it sets the support menu mode. **Confirmed working by live testing** — this is exactly what
+[`MrxGuiDialogBox.DisplayDialogBox`](mrxguidialogbox) calls internally to take input focus and optionally
+pause the game, meaning a menu built on `MrxGuiDialogBox` needs no manual
+`Player.SetInputEnabled`/pause handling of your own — the engine already does it here.
 
 ### ReleaseControlFocus(oWidget, uUseOwnerGuid, bWasGlobal)
 
-Removes a widget from the control focus queue and updates the control mode accordingly.
+Removes a widget from the control focus queue and updates the control mode accordingly. Called by
+`MrxGuiDialogBox.Close`/`_CloseAndCallCallback` to hand control back when a dialog closes.
 
 
 
@@ -130,7 +147,12 @@ Processes an event immediately based on its type.
 
 ### AddWidget(WidgetToAdd)
 
-Adds a widget to the `WidgetManager`.
+Adds a widget to the `WidgetManager`. **Confirmed working at runtime** — along with `RemoveWidget`,
+`ImageWidget`, and `TextWidget`, this is declared as a literal `= 0` in this file's own decompiled source
+and never visibly reassigned, which would suggest (reading source alone) that it isn't callable at all.
+It demonstrably is — see [Building a Chat/Log UI](../deep-dives/coop-chat-ui) for the confirmed working
+pattern (`MrxGui.ImageWidget:new()` / `MrxGui.AddWidget(...)`, reached via the `MrxGui` facade rather than
+this module directly, but resolving to the same underlying functions).
 
 
 
@@ -1098,32 +1120,21 @@ This function is intended for deinitializing the GUI but currently does nothing.
 
 ## Notes for modders
 
-
-
-1. **Call-order requirements**:
-
-   - Ensure that `Init()` is called before using any GUI-related functions to properly initialize widget types and settings.
-
-   - When adding or removing widgets, ensure that the parent-child relationships are maintained to avoid visual glitches or logical errors.
-
-
-
-2. **Pitfalls**:
-
-   - Be cautious when modifying screen resolution or pixel size as it can affect the positioning and scaling of all widgets on the screen.
-
-   - Directly manipulating widget properties (e.g., location, color) without using the provided setter functions may lead to unexpected behavior or inconsistencies.
-
-
-
-3. **Tunables**:
-
-   - Adjusting joystick button mappings in `Init()` allows for customizing input handling based on different controller configurations.
-
-   - The transient state of widgets can be toggled to control their persistence across game sessions or player actions.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Unused local variables or redundant operator groupings are decompiler artifacts and should not be interpreted as intentional logic in the code.
+- **Building a custom widget from scratch? Don't start here from first principles** — three confirmed,
+  working reference implementations already exist on this wiki: [`CoopChatUI`](../deep-dives/coop-chat-ui)
+  (a scrolling text-log widget, plus the real `MrxGuiTextBuffer` constructor bug and its fix),
+  [`MrxGuiDialogBox`](mrxguidialogbox) (a full native menu with keyboard navigation), and the
+  [`CommonSpawnMenu.lua`](../sample-scripts-onkey) sample script (both of the above combined). Copy the
+  pattern that's closest to what you need rather than re-deriving widget construction from this page's raw
+  function list.
+- **`ImageWidget`/`TextWidget`/`AddWidget`/`RemoveWidget` genuinely work despite decompiled source
+  suggesting otherwise** — see the callout in Overview and the `AddWidget` entry above. Trust the
+  confirmed-working examples on this wiki over what a literal reading of `mrxguibase.lua` implies.
+- **`GetControlFocus`/`ReleaseControlFocus` handle input-disable and pause for you** if you build on
+  `MrxGuiDialogBox` — you only need manual `Player.SetInputEnabled` calls for a fully custom widget that
+  doesn't go through this mechanism (see `CoopChatUI`'s and `CommonSpawnMenu`'s input-loop code for that
+  case).
+- Directly manipulating widget properties (location, color) without the provided setter functions may
+  lead to unexpected behavior — use `SetLocation`/`SetColor`/etc. rather than writing fields directly.
+- Unused local variables or redundant operator groupings elsewhere in this file's decompiled source are
+  decompiler artifacts, not intentional logic.

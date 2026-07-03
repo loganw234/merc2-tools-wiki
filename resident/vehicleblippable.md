@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: OrientedBlippable
 tags: [vehicle, blip]
+verified: true
+verified_note: color/relation thresholds and instance-vs-module-level state read directly from source
 ---
 
 # VehicleBlippable
@@ -19,11 +21,20 @@ The `VehicleBlippable` module is responsible for managing radar and off-screen w
 - Imports: `MrxUtil`, `MrxFactionManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `DriverEnter`: Event handle for driver enter events.
-- `DriverExit`: Event handle for driver exit events.
-- `Attitude`: Event handle for faction attitude change events.
-- `tColorAlly`, `tColorNeutral`, `tColorEnemy`, `tColorEmpty`, `tColorPmc`: Color tables for different blip states.
+This is a per-instance object module (keyed by `uGuid`). Genuine per-instance fields, set in `Create`:
+- `DriverEnter` / `DriverExit`: persistent event handles for the driver-seat enter/exit events, cleaned up
+  in `Delete`.
+- `Attitude`: persistent event handle for this vehicle's faction-attitude-change event, also cleaned up in
+  `Delete`.
+- `tColor` (inherited from [`Blippable`](blippable)): the field `SetBlipped` actually writes to
+  (`oSelf.tColor = oSelf.tColorPmc`, etc.) — this is the one that changes per-instance based on who's
+  driving.
+
+`tColorAlly`/`tColorNeutral`/`tColorEnemy`/`tColorEmpty`/`tColorPmc` are **not per-instance state** —
+they're plain module-level constants declared once at the top of `vehicleblippable.lua`. Every instance
+reads the same shared tables (reachable via `self.tColorAlly` etc. through the prototype-inheritance
+fallback, same mechanism as [`Inheritable`](inheritable)); nothing ever writes a different value onto a
+specific instance.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
@@ -62,6 +73,13 @@ locally rather than importing this one).
 - Listens for faction attitude change events to recolor the blip based on updated relations.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage blip lifecycle.
-- Customize blip colors by modifying the `tColorAlly`, `tColorNeutral`, `tColorEnemy`, `tColorEmpty`, and `tColorPmc` fields.
-- Be aware that faction attitude changes will automatically recolor the blips, so ensure that these events are properly handled if custom behavior is needed.
+- **Modifying `tColorAlly`/`tColorNeutral`/`tColorEnemy`/`tColorEmpty`/`tColorPmc` changes the color for
+  every vehicle using this module at once** — they're shared module-level constants, not per-instance
+  settings. `import("VehicleBlippable"); VehicleBlippable.tColorEnemy = {255, 255, 0}` would recolor every
+  enemy vehicle's blip yellow, globally.
+- Faction attitude changes automatically recolor blips already on-screen (via the `Attitude` persistent
+  event) — you don't need to manually refresh vehicle blips after changing a relation with
+  [`MrxFactionManager.SetRelation`](mrxfactionmanager).
+- `autogunship` and `supportairplane` (also in this category) reimplement slightly different variants of
+  the same ally/neutral/enemy/empty/PMC scheme locally rather than importing this module — worth checking
+  if you want a consistent look across custom vehicle types.
