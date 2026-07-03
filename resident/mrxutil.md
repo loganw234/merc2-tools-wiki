@@ -11,6 +11,9 @@ inherits: none
 
 tags: [utility, helper]
 
+verified: true
+verified_note: TeleportHeroesToLocations' indoor-crash caveat confirmed by live testing via MrxCheatBootstrap; GetFaction/GetCharacterIdentity/GetSecondaryObjectiveRgb cross-links confirmed via their real call sites in VehicleBlippable/Blippable/ConsoleCheatsMenu
+
 ---
 
 
@@ -40,8 +43,6 @@ The `MrxUtil` module is a comprehensive utility library providing a wide range o
 ## Instance pattern
 
 This is a stateless manager/utility module without a per-instance pattern. It does not track any persistent state across function calls and relies on global functions and variables for its operations.
-
-```
 
 
 
@@ -100,6 +101,11 @@ Requests a game state change to "waitfortether" for the secondary player. The fu
 ### TeleportHeroesToLocations(tLocations, fCallback, tCallbackArgs, bEnterState, bExitState)
 
 Teleports all heroes to specified locations. If skip mode is enabled, it calls the callback immediately without performing teleportation. It handles network synchronization and player states during teleportation.
+This is what [`MrxCheatBootstrap`](mrxcheatbootstrap)'s `_G.DebugTeleport(x, y, z)` calls under the hood
+(one location per player, always the same `x, y, z` — no per-player targeting). **Confirmed by live
+testing: crashes to desktop if used while inside an interior cell** (e.g. the PMC HQ interior); works fine
+outdoors/in the open world. Root cause not confirmed, but "safe outdoors, unsafe indoors" is the operating
+rule regardless of cause.
 
 
 
@@ -365,13 +371,16 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
 ### GetCharacterIdentity(uChar)
 
-- **Description**: Retrieves the identity label of a character.
+- **Description**: Retrieves the identity label of a character (e.g. which hero — used as a key into
+  faction/outfit data elsewhere in the codebase).
 
 - **Parameters**:
 
   - `uChar`: The GUID of the character.
 
-- **Returns**: The identity label of the character.
+- **Returns**: The identity label of the character. Used by `ConsoleCheatsMenu.lua`'s "Unlock All Costumes"
+  option (see [OnKey Scripts](../sample-scripts-onkey)) to find which hero's outfit list
+  (`WifPmcInterior._tOutfits[sHero]`) to unlock everything into.
 
 
 
@@ -405,7 +414,11 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
   - `uGuid`: The GUID of the object.
 
-- **Returns**: The faction label of the object.
+- **Returns**: The faction label of the object — pass this to
+  [`MrxFactionManager.GetFactionAbbrev`](mrxfactionmanager) to get the short abbreviation
+  (`"All"`/`"Chi"`/`"Gur"`/etc.) used everywhere else on this wiki. Used exactly this way by
+  [`VehicleBlippable`](vehicleblippable)'s `Create` to look up a vehicle's faction for its attitude-change
+  blip-recolor event.
 
 
 
@@ -459,7 +472,9 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
 ### GetSecondaryObjectiveRgb()
 
-- **Description**: Retrieves the RGB values for the secondary objective color.
+- **Description**: Retrieves the RGB values for the secondary objective color. Used by
+  [`Blippable`](blippable)'s `AddObjective` as the default marker color fallback when a `tMarker` config
+  doesn't specify its own `tColor`/`tFlash`.
 
 - **Returns**: The RGB values (51, 204, 153).
 
@@ -577,12 +592,14 @@ This module does not explicitly subscribe to or fire any engine events as listed
 
 ## Notes for modders
 
-
-
-- **Call Order Requirements**: Ensure that functions like `TeleportHeroesToLocations` and `SpawnActor` are called with appropriate parameters to avoid runtime errors.
-
-- **Pitfalls**: Be cautious when using `SetDefault` on variables that might have side effects or dependencies. Ensure that the default value does not conflict with existing logic.
-
-- **Tunables**: The module includes functions like `FormatMoney` and `GetDistanceToObject` which can be tuned for specific game mechanics, such as adjusting money formatting or distance calculations.
-
-- **Decompiler Artifacts**: There are no known decompiler artifacts in this module. All function names and parameters are clear and consistent with their intended use.
+- **`TeleportHeroesToLocations` crashes indoors — confirmed by live testing.** See the callout on that
+  function above before using it (directly or via `_G.DebugTeleport` on
+  [`MrxCheatBootstrap`](mrxcheatbootstrap)) anywhere you're not certain the player is outdoors.
+- **`GetFaction` + [`MrxFactionManager.GetFactionAbbrev`](mrxfactionmanager)** is the standard two-step path
+  from "I have a `uGuid`" to "I have a short faction abbreviation" — used this way by
+  [`VehicleBlippable`](vehicleblippable) and worth reusing rather than re-deriving.
+- Be cautious when using `SetDefault` on variables that might have side effects or dependencies — it just
+  returns the default if the value is `nil`, it doesn't validate that the default is actually safe for
+  whatever comes next.
+- This module doesn't explicitly subscribe to or fire any engine events itself — it's a pure function
+  library other modules call into, not something with its own lifecycle to hook.

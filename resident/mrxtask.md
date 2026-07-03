@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [task, mission]
+verified: true
+verified_note: read directly from source -- corrects the Instance pattern (class-factory identified by name/lineage, not per-uGuid) and a real inaccuracy about _CreatePersistentEvent cleanup (both event kinds are cleaned up identically)
 ---
 
 # MrxTask
@@ -12,164 +14,133 @@ tags: [task, mission]
 *Module: mrxtask.lua*
 
 ## Overview
-The `MrxTask` module is the base class for all mission-related tasks in the game. It manages the lifecycle of tasks, including their configuration, activation, completion, and cancellation. Each task can have child tasks, forming a hierarchical tree structure. The module also handles asset loading, event management, and state transitions.
+`MrxTask` is the base class nearly every mission/contract/objective in the
+[Missions & Tasks](index) category builds on — [`MrxTaskMission`](mrxtaskmission) and
+[`MrxTaskJob`](mrxtaskjob) both build on this directly. It provides a config-driven
+latent→active→(completed|cancelled) state machine, parent/child task trees, dynamic module loading, and
+automatic event cleanup.
+
+**A working, confirmed-live example of using this API from outside a mission script**:
+[`MrxCheatBootstrap`](mrxcheatbootstrap)'s `_DisplayTraverseDialog` walks the live task tree using exactly
+the methods documented below (`:GetParent()`, `:GetChildren()`, `:IsActive()`, `:Complete()`, `:Cancel()`,
+`:GetLineage()`) — read that function if you want to inspect or manipulate real mission state
+programmatically rather than through the menu.
+
+**Not the `Inheritable`/per-`uGuid` pattern** — tasks are identified by name and parent/child lineage
+(`GetName`/`GetLineage`/`GetParent`), not by a world-object GUID. `Create(mModule, self)` is a class-style
+factory: `setmetatable(self, {__index = mModule})`, no `tInstance` registry.
 
 ## Inheritance
 - Inherits from: none — base/utility module
 - Imports: `MrxGui`, `MrxLayerManager`, `MrxTaskState`, `MrxTimer`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `_tChildren`: A table of child tasks, keyed by name.
-- `_tConfig`: Configuration settings for the task.
-- `_bCleanedUp`: Indicates whether the task has been cleaned up.
-- `_oTimer`: A timer associated with the task.
-- `_tEvents`: Handles for events registered by the task.
-- `_nState`: The current state of the task (latent, active, completed, cancelled).
-- `_tSaveData`: Saved data for the task.
+Class-style object (see Overview), not per-`uGuid`. Key fields, all set/managed internally rather than
+meant to be poked directly:
+- `_tConfig` — the task's configuration table, read/written via `Configure`/`GetConfig`, not directly.
+- `_tChildren` — child tasks keyed by name.
+- `_nState` — one of `MrxTaskState`'s latent/active/completed/cancelled constants (default latent if unset).
+- `_tEvents` — handles for **every** event this task registered via `_CreateEvent`/`_CreatePersistentEvent`
+  (see the correction below — both kinds land in the same table).
+- `_oTimer` — an `MrxTimer` instance, only set if the task's config included `tTimerParams`/`nTimeLimit`.
+- `_tSaveData` — whatever was passed to `Activate`/`SaveInstance`, used to restore state across saves.
+- `_bCleanedUp` — set once `Cleanup` has run, gating it from running twice.
 
 ## Functions
+
 ### `Create(mModule, self)`
-Creates a new instance of the `MrxTask` module. Initializes the task's configuration and children map.
-
-### `Cleanup(self)`
-Cleans up the task by removing it from its parent, stopping any associated timers, deleting registered events, and cleaning up child tasks. Marks the task as cleaned up.
-
-### `IsLiveConfigureable(self, sConfigKey)`
-Checks if a given configuration key can be modified while the task is active.
-
-### `ReinterpretConfig(self)`
-Reinterprets the task's configuration after it has been activated.
-
-### `CreateChild(self, tConfig)`
-Creates and configures a new child task under this task. Activates the child task and returns it.
-
-### `Activated(self)`
-Activates the task by setting its state to active and starting any associated timers or time limits.
-
-### `Complete(self)`
-Marks the task as completed, cleans up resources, and issues completion callbacks.
-
-### `Cancel(self)`
-Cancels the task, cleans up resources, and issues cancellation callbacks.
-
-### `_SetState(self, nState)`
-Sets the current state of the task. Propagates the new state to child tasks if the task is completed or cancelled.
-
-### `_IssueStateChangeCallbacks(self)`
-Issues callbacks for state changes based on the current state of the task.
-
-### `_SetChildrenState(self, nState)`
-Recursively sets the state of all child tasks to the specified state.
-
-### `_ResetState(self)`
-Resets the task's state to latent.
-
-### `IsLatent(self)`
-Checks if the task is in a latent (inactive) state.
-
-### `IsActive(self)`
-Checks if the task is active.
-
-### `IsCompleted(self)`
-Checks if the task has been completed.
-
-### `IsCancelled(self)`
-Checks if the task has been cancelled.
-
-### `_GetState(self)`
-Returns the current state of the task.
+Builds a task instance with `mModule` as its metatable `__index` fallback (mirroring the general
+prototype-inheritance pattern used across `resident/`, just without a `uGuid` registry).
 
 ### `Configure(self, tConfig)`
-Configures the task with the provided settings. Allows configuration during both latent and active states, with restrictions on live configuration keys.
+Merges `tConfig` into `self._tConfig`. While the task is **latent**, any key can be set, and
+`tConfig.oParent` (if present) automatically registers this task as that parent's child. While the task is
+**active**, only keys where `IsLiveConfigureable` returns true (`tOnActivate`/`fOnActivate`/
+`tOnComplete`/`fOnComplete`/`tOnCancel`/`fOnCancel`) can be changed — anything else is rejected with a
+debug log message, not a silent no-op.
 
-### `GetConfig(self)`
-Retrieves the current configuration of the task.
+### `Activate(self, tSaveData)` / `Activated(self)`
+`Activate` resets state to latent, optionally restores save data, then either dynamically imports a
+module (`dynamic_import`, if `tConfig.sModuleName` is set) or goes straight to `LoadAssets`.
+`Activated` (called once assets finish loading) is what actually flips the task to the active state,
+issues activate callbacks, and starts a timer if `tTimerParams`/`nTimeLimit` was configured — the timer's
+default behavior on expiry is to call `self:Cancel()`.
+
+### `Complete(self)` / `Cancel(self)`
+Both are no-ops (with a debug log) if the task is already in that state. Otherwise: run `Cleanup`, set the
+new state, and issue the corresponding callbacks (`tOnComplete`/`fOnComplete` or `tOnCancel`/`fOnCancel`).
+Completing or cancelling a task recursively propagates the same state to all its children
+(`_SetChildrenState`).
+
+### `Cleanup(self)`
+Only runs if the task isn't latent and hasn't already been cleaned up. Detaches from its parent, deletes
+**every** event in `_tEvents` (see the correction below), stops any timer, marks configured layers for
+removal, dynamically un-imports the module if one was loaded, then recursively cleans up every child.
+
+### `_CreateEvent(self, nEventId, tEventArgs, fCallback, tCallbackArgs)` / `_CreatePersistentEvent(...)`
+Both register an event (via `Event.Create`/`Event.CreatePersistent` respectively) and **both** insert the
+resulting handle into the same `self._tEvents` table. **A previous version of this page claimed persistent
+events aren't automatically cleaned up — that's incorrect.** `Cleanup` iterates `_tEvents` and calls
+`Event.Delete` on every handle in it regardless of which of these two functions created it, so both kinds
+get torn down together when the task cleans up. Use `_CreatePersistentEvent` for the usual reason
+(something that needs to survive whatever `Event.Create` alone wouldn't — see the
+[Snippets](../snippets)/[Glossary](../glossary) coverage of the persistent/non-persistent distinction
+elsewhere on this wiki), not out of concern for manual cleanup — the task handles that for you either way.
 
 ### `AddCallback(self, sConfigKey, fCallback, tData)`
-Adds a callback to the specified configuration key. The callback is executed when the task's state changes or assets are loaded.
+Appends `{fCallback, tData}` to a config key that holds a *list* of callbacks (`tOnActivate`/`tOnComplete`/
+`tOnCancel`), rather than replacing the single-function `fOnActivate`-style key. Both mechanisms exist
+side-by-side — see `_IssueStateChangeCallbacks` below for how they're both invoked.
 
-### `Activate(self, tSaveData)`
-Activates the task by resetting its state and loading necessary assets. If a module name is provided in the configuration, it dynamically imports the module.
+### `_IssueStateChangeCallbacks(self)`
+On any real state transition (not latent), calls every callback in the matching `tOnActivate`/
+`tOnComplete`/`tOnCancel` list (via `MrxUtil.CallWithOptionalArgs`), then also calls the single
+`fOnActivate`/`fOnComplete`/`fOnCancel` function if one was configured. Both the list-based and
+single-function config keys fire on the same transition, not one or the other.
 
-### `_ModuleLoaded(self, mModule)`
-Handles the dynamic import of a module for the task. Sets the module as the metatable for the task instance and proceeds with asset loading.
+### `GetName(self)` / `GetTitle(self)` / `GetParent(self)` / `GetLineage(self)`
+Read `sName`/`sTitle`/`oParent` from config. `GetLineage` walks up through `GetParent` repeatedly,
+building a dotted string like `"root.child.grandchild"` — this is what shows up in the `Debug.Printf`
+messages throughout this module, and what `MrxCheatBootstrap`'s task-tree browser displays.
 
-### `PreLoadAssets(self)`
-A placeholder function intended for pre-loading assets before full asset loading.
-
-### `LoadAssets(self, tSaveData)`
-Loads necessary assets for the task. Adds layers to the layer manager if specified in the configuration.
-
-### `AssetsLoaded(self)`
-Called when all assets have been loaded. Issues any registered callbacks and activates the task.
-
-### `_IssueAssetsLoadedCallbacks(self)`
-Issues callbacks for asset loading completion.
-
-### `_AddChild(self, oChild)`
-Adds a child task to this task's children map.
-
-### `_RemoveChild(self, sChildName)`
-Removes a child task from this task's children map.
-
-### `GetChild(self, sChildName)`
-Retrieves a child task by name.
-
-### `_AddChildren(self, tChildren)`
-Adds multiple child tasks to this task's children map.
-
-### `GetChildren(self)`
-Retrieves the map of all child tasks.
-
-### `GetName(self)`
-Returns the name of the task as specified in its configuration.
-
-### `GetTitle(self)`
-Returns the title of the task as specified in its configuration.
-
-### `GetParent(self)`
-Retrieves the parent task of this task.
-
-### `GetLineage(self)`
-Generates a lineage string representing the hierarchical path from the root to this task.
-
-### `SaveInstance(self)`
-Saves the current state of the task, including its state and any saved data.
-
-### `_GetSaveData(self)`
-Retrieves the saved data for the task.
-
-### `_SetSaveData(self, tSaveData)`
-Sets the saved data for the task.
+### `CreateChild(self, tConfig)`
+Convenience: creates a new task from the same module (`_THIS:Create()`), configures it with `tConfig`,
+sets its parent to `self`, and activates it immediately — a one-line way to spawn a child task rather than
+doing `Create`/`Configure`/`Activate` yourself.
 
 ### `_GetRewards(self)`
-Returns default rewards (cash and fuel) associated with completing the task. Default values are zero.
+Returns `{nCash = 0, nFuel = 0}` by default — a hook point for subclasses (like
+[`MrxTaskMission`](mrxtaskmission)) to override with real reward values.
 
 ### `_CanCompleteViaCheatMenu()`
-Indicates whether the task can be completed via the cheat menu. Returns true by default.
+Returns `true` by default — a hook a subclass could override to hide itself from
+`MrxCheatBootstrap`'s task-tree "Complete"/"Cancel" options if completing it via the cheat menu wouldn't
+make sense.
 
-### `_CreateEvent(self, nEventId, tEventArgs, fCallback, tCallbackArgs)`
-Creates an event and registers it with the task. The event is automatically cleaned up when the task is cleaned up.
+### `SaveInstance(self)` / `_GetSaveData(self)` / `_SetSaveData(self, tSaveData)`
+Save-game plumbing — `SaveInstance` returns a copy of whatever was last set via `_SetSaveData`, plus the
+current state, ready to be persisted and later handed back to `Activate`.
 
-### `_CreatePersistentEvent(self, nEventId, tEventArgs, fCallback, tCallbackArgs)`
-Creates a persistent event and registers it with the task. Persistent events are not automatically cleaned up.
-
-### `GetStub(self)`
-Returns the task instance itself as a stub.
-
-### `_SetTask(self, oTask)`
-Sets an associated task for this task.
-
-### `GetTask(self)`
-Retrieves the associated task.
+### `GetStub(self)` / `_SetTask(self, oTask)` / `GetTask(self)`
+`GetStub`/`GetTask` both just return `self` by default in this base class — these exist as override points
+for a subclass that wraps or delegates to a *different* underlying task object rather than being one
+itself (`_SetTask` sets what `GetTask` would return, if overridden to do so).
 
 ## Events
-- Listens for custom events to manage task state and asset loading.
-- Issues callbacks for state changes and asset loading completion.
+This file doesn't itself subscribe to persistent engine-level events beyond what `_CreateEvent`/
+`_CreatePersistentEvent` set up on behalf of whoever configures a task with `tTimerParams`. The lifecycle
+here is driven by direct calls (`Activate`/`Complete`/`Cancel`) and the config-driven callback lists
+(`tOnActivate`/`tOnComplete`/`tOnCancel`), not by the task base class listening for anything on its own.
 
 ## Notes for modders
-- Ensure that tasks are properly activated and cleaned up to avoid resource leaks.
-- Use the `Configure` function to set or modify task configurations, especially during development.
-- Be cautious with live configuration keys to avoid unintended behavior while tasks are active.
-- Utilize callbacks to handle state changes and asset loading events for custom task logic.
+- **Read `MrxCheatBootstrap._DisplayTraverseDialog` for a real, confirmed-working example** of walking a
+  live task tree with this exact API — the fastest way to understand this module in practice rather than
+  in the abstract.
+- **`_CreateEvent` vs `_CreatePersistentEvent` doesn't affect cleanup** — both get torn down together by
+  `Cleanup`. Pick based on the actual persistent/non-persistent event semantics you need, not cleanup
+  concerns.
+- **`Configure` silently rejects unknown keys on an active task** (logged, not thrown) — if a live
+  reconfiguration isn't taking effect, check `IsLiveConfigureable` for whether that key is even eligible
+  while active, rather than assuming a bug elsewhere.
+- **`Complete`/`Cancel` cascade to every child task** — cancelling a parent task cancels its whole subtree,
+  not just itself.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, economy]
+verified: true
+verified_note: Instance pattern and Events sections corrected against source -- this is a class-style factory object (Create(self, uPlayerGuid) via setmetatable/__index), not the per-uGuid Inheritable pattern, and several previously-listed events (Event.NetAction, PlayerJoined/PlayerLeft) don't actually appear anywhere in this file
 ---
 
 # MrxSupport
@@ -12,14 +14,29 @@ tags: [support, economy]
 *Module: mrxsupport.lua*
 
 ## Overview
-The `MrxSupport` module is responsible for managing various support operations in the game, including designating targets, handling costs, and coordinating with other systems like anti-air defenses. It provides functionality to create, configure, and execute support actions while ensuring proper resource management and player feedback.
+`MrxSupport` is the shared base every airstrike/supply-drop/vehicle-delivery type in the
+[Support & Airstrikes](index) category builds on — designating targets, handling fuel/cash/stockpile
+costs, anti-air interaction, and player feedback are all defined once here rather than per support type.
+If you want to add a new support type, this (and [`MrxSupportDelivery`](mrxsupportdelivery) for anything
+delivered by a helicopter) is where to start.
+
+**Not the `Inheritable`/per-`uGuid` world-object pattern** — there's no `OnActivate`/`Awake` anywhere in
+this file. `MrxSupport` uses a plain Lua class-factory pattern instead: a support-type module (e.g.
+`MrxCombatAirPatrol`) calls `MrxSupport:Create(uPlayerGuid)` (or, from a further subclass,
+`ParentModule.Create(self, uPlayerGuid)`), which does `setmetatable(oNewSupport, self); self.__index =
+self` and hands back a fresh object that falls back to whichever module actually called `Create` for
+everything it doesn't set itself. There's no `tInstance`-style registry keyed by GUID — a support object's
+identity comes from being held onto directly by whatever created it, not looked up later by a world-object
+GUID.
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxSupportDesignator`, `MrxSupportManager`, `MrxGui`, `MrxPmc`, and others
+- Imports: `MrxSupportDesignator`, `MrxSupportManager`, `MrxGui`, `MrxPmc`, `MrxGuiHudMessage`, `AntiAir`,
+  `MrxAchievements`, `MrxUtil`, `MrxVoSequence`, `MrxFactionManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+Class-style object, not per-`uGuid` — see the callout above. Fields set per-object by `Create`/the
+various `Set*` functions:
 - `oDesignator`: The designator object associated with the support.
 - `sDeliveryVehicle` and `uDeliveryVehicle`: Strings and GUIDs representing the delivery vehicle template name and its corresponding GUID.
 - `sBomb` and `uBomb`: Strings and GUIDs representing the bomb template name and its corresponding GUID.
@@ -304,27 +321,36 @@ Plays a voice-over cue for an incoming airstrike based on the faction of the spe
 Returns the spawn height for a support operation. If the player has a secondary character, the height is set to 250; otherwise, it is set to 50.
 
 ## Events
+Confirmed directly from source — not a general subscription list, these are specific to particular
+functions:
+- **`Event.ObjectHibernation`** — used in `BlipAircraft` (auto-remove a blip once the aircraft hibernates)
+  and `Land`/`GoHome` (remove a landed helicopter/winched object once it hibernates). Not about the support
+  object's own lifecycle.
+- **`Event.ObjectDeath`** — used in `BlipAircraft` (remove blip on death) and `SetupPilotKilledEvent` (calls
+  `Abandon` if the pilot dies).
+- **`Event.TimerRelative`** — used for cooldowns/delays in various support-sequence functions.
 
-- **Event.ObjectHibernation**: Listens for this event to wake up and initialize the support instance.
-- **Event.ObjectDeath**: Listens for this event to handle the death of a support-related object (e.g., helicopter).
-- **Event.PlayerJoined / Event.PlayerLeft**: Listens for these events to manage player-specific state or resources.
-- **Event.TimerRelative**: Used for various timed actions, such as cooldowns or delays in support operations.
-- **Event.NetAction**: Listens for network actions related to support operations and synchronizes them across clients.
+`Event.PlayerJoined`/`Event.PlayerLeft`/`Event.NetAction` do **not** appear anywhere in this file — an
+earlier version of this page listed them incorrectly. `SynchNetAction`/`SynchNetAddItem`/
+`SynchNetRemoveItem` are plain functions, dispatched to by naming convention (the same pattern documented
+on the [networking deep dive](../deep-dives/networking)), not registered engine event listeners.
 
 ## Notes for modders
 
-1. **Call-order requirements**:
-   - Ensure that `OnActivate` is called before any other lifecycle functions like `Awake`, `OnDeactivate`, etc., as it sets up the initial state of the support instance.
-   - The sequence of events (e.g., `BeginSupportSequence`, `Commence`) should be respected to maintain proper operation flow.
-
+1. **This is a class-factory object, not a per-`uGuid` world object** — see the Overview callout. Don't
+   look for `OnActivate`/`Awake` here; a new support-type module built on this calls
+   `MrxSupport:Create(uPlayerGuid)` (or the equivalent through its own parent) to get an instance, then
+   configures it via `Configure(tOptions)` or the individual `Set*` functions before calling
+   `Commence`/`BeginSupportSequence`.
 2. **Pitfalls**:
    - Be cautious with resource management functions like `RefundCosts` and `Abort` to avoid unintended consequences, such as over-refunding or excessive penalties.
-   - Ensure that event listeners are properly removed when they are no longer needed to prevent memory leaks or unexpected behavior.
-
+   - Ensure that event listeners set up per-support-sequence (aircraft hibernation/death, pilot death) are properly cleaned up — they're tied to a specific helicopter GUID, not automatically released.
 3. **Tunables**:
    - The fuel cost (`SetFuelCost`), cash cost (`SetCashCost`), and other resource costs can be adjusted to balance the game economy.
    - Voice-over cues (`SetVOCues`, `PlayRandomVOCue`) can be customized to enhance immersion or localization.
-
-4. **Decompiler artifacts**:
-   - Unused local variables like `oDesignator` in `Create(self, uPlayerGuid)` are decompiler artifacts and should not affect the functionality of the module.
-   - Duplicate table keys in literals (e.g., `tEvents`, `tAA`) are handled correctly by Lua but may appear redundant in the decompiled code.
+4. **Decompiler artifact worth knowing about**: `Create(self, uPlayerGuid)` references a bare global `o`
+   (`local oNewSupport = o or {}`) that's never defined anywhere in this file — almost certainly a lost
+   local-variable name from decompilation. Harmless in practice (`o` is always `nil`/falsy at runtime, so
+   this always evaluates to a fresh `{}`), unlike the genuinely crashing version of this same class of bug
+   documented on [`MrxGuiTextBuffer`](mrxguitextbuffer) — but worth recognizing as the same pattern if you
+   ever see it elsewhere.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTask
 tags: [mission, task]
+verified: true
+verified_note: read directly from source -- corrects Instance pattern (class-factory via MrxTask, not per-uGuid), removes a fabricated bNetSync reference, and clarifies IsContract/IsJob as override points confirmed used by MrxTaskContract/MrxTaskJob
 ---
 
 # MrxTaskMission
@@ -12,53 +14,75 @@ tags: [mission, task]
 *Module: mrxtaskmission.lua*
 
 ## Overview
-The `MrxTaskMission` module is a base class for mission tasks in the game. It extends the functionality of `MrxTask` by adding specific methods and properties related to missions, such as handling voice-over cues, refreshing PDA displays, and managing mission objectives.
+`MrxTaskMission` extends [`MrxTask`](mrxtask) with mission-specific behavior: voice-over cue tracking,
+PDA objective-display refreshing, and mission identity (which mission this is, its faction, its start
+locations). [`MrxTaskContract`](mrxtaskcontract) and [`MrxTaskJob`](mrxtaskjob) both build directly on
+this.
+
+**Not the `Inheritable`/per-`uGuid` pattern** — inherits [`MrxTask`](mrxtask)'s class-factory/lineage-based
+identity, not a world-object GUID.
 
 ## Inheritance
-- Inherits from: `MrxTask`
+- Inherits from: [`MrxTask`](mrxtask)
 - Imports: `MrxSubtitle`, `MrxVoSequence`, `WifMissionData`, `WifMissionFlow`, `MrxTaskObjective`, `MrxFactionManager`, `MrxRewardData`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `_tVo`: A table to store voice-over cues.
-- `_knContract` and `_knJob`: Constants for mission types.
+Class-style object (inherited from [`MrxTask`](mrxtask)), not per-`uGuid`. Per-instance field: `_tVo` — a
+list of `{vSpeaker, sCueHandle}` pairs for every voice-over cue played via `_PlayVo`, cancelled on cleanup.
+
+`_knContract = 0` / `_knJob = 1` are **module-level constants**, not per-instance fields — they don't
+appear to be referenced anywhere else in this file's visible logic; likely used by other mission-flow code
+to classify a mission by type rather than something a mod would set directly.
 
 ## Functions
+
 ### `Activated(self)`
-Called when the object instance is activated. It calls the base class's `Activated` method, initializes tiny geometry, and sets up a table for voice-over cues.
+Calls `MrxTask.Activated(self)`, then `Graphics.InitTinyGeometry()` and initializes `self._tVo = {}`.
 
 ### `Cleanup(self)`
-Cleans up resources associated with the mission task. It removes the mission from the starter if present, cancels any pending voice-over cues, clears pending subtitles, and calls the base class's `Cleanup`.
+Removes this mission from its starter (`tConfig.oStarter:RemoveMission(self)`, if set), cancels every
+pending voice-over cue in `_tVo` (`VO.Cancel`), clears pending subtitles
+(`MrxSubtitle.ClearPending()`), then defers to `MrxTask.Cleanup(self)` for the rest (event/timer/child
+cleanup).
 
 ### `_PlayVo(self, vSpeaker, sCueHandle, fCallback, tCallbackArgs)`
-Plays a voice-over cue for the mission. It inserts the cue into the `_tVo` table and returns whether the cue was successfully played.
+Plays a voice-over cue (`VO.Cue`) and tracks it in `_tVo` so `Cleanup` can cancel it if the mission ends
+before the cue finishes.
 
 ### `RefreshPdaDisplay(self)`
-Refreshes the PDA display with the current mission details. It collects objective descriptions and icons from child objects and adds them to the PDA using `WifMissionFlow.AddPdaMissionDetails`.
+Walks the entire task subtree looking for children that look like objectives (have
+`GetDisplayDescription`/`GetDescription`/`RefreshPdaDisplay` and aren't completed/cancelled), collects
+their description + inline icon, and pushes the list to `WifMissionFlow.AddPdaMissionDetails`. Recurses
+into every descendant, not just direct children.
 
-### `IsContract()`
-Returns false, indicating that this is not a contract type of mission.
-
-### `IsJob()`
-Returns false, indicating that this is not a job type of mission.
+### `IsContract()` / `IsJob()`
+**Override points, not fixed answers.** This base implementation returns `false` for both (mission types
+are neither by default) — [`MrxTaskContract`](mrxtaskcontract) overrides `IsContract()` and
+[`MrxTaskJob`](mrxtaskjob) overrides `IsJob()`, confirmed directly in both files. **Neither function
+declares a `self` parameter here**, so calling them as `self:IsContract()` silently discards the passed
+`self` (Lua doesn't error on unused extra arguments) — harmless in this base implementation since it
+ignores its arguments anyway and just returns a constant, but worth knowing if you're tracing why `self`
+never appears used in these two specific functions while it's used everywhere else in this file.
 
 ### `GetNumCompletions(self)`
-Retrieves the number of completions for the mission using `WifMissionFlow.GetKeyValue`.
+`WifMissionFlow.GetKeyValue(self:GetMissionId()) or 0` — how many times this mission has been completed.
 
 ### `GetMissionId(self)`
-Returns the mission ID by getting the name of the parent object.
+Returns `self:GetParent():GetName()` — a mission's own ID is its parent task's name, not something stored
+on the mission itself.
 
-### `GetFactionId(self)`
-Returns the faction ID from the mission configuration.
-
-### `GetStartLocations(self)`
-Retrieves the start locations for the mission using `WifMissionFlow.GetMissionStartLocations`.
+### `GetFactionId(self)` / `GetStartLocations(self)`
+Read `sFactionId` from config, and delegate to `WifMissionFlow.GetMissionStartLocations` respectively.
 
 ## Events
-- Listens for custom events to handle voice-over cues and PDA display refreshes.
+No direct engine event subscriptions in this file — lifecycle is driven through the inherited
+`MrxTask.Activate`/`Complete`/`Cancel` calls and config-driven callbacks (see [`MrxTask`](mrxtask)).
 
 ## Notes for modders
-- Ensure that `Activated` and `Cleanup` are called appropriately to manage mission lifecycle.
-- Use `_PlayVo` to play voice-over cues for the mission.
-- Customize mission properties by setting fields like `_knContract` and `_knJob`.
-- Be aware of network synchronization (`bNetSync`) may affect multiplayer behavior.
+- **`IsContract`/`IsJob` are meant to be overridden**, not read as fixed facts about "mission-ness" — see
+  above. If you're checking a task's type, prefer calling these methods (which correctly resolve to the
+  actual subclass's override) over assuming every `MrxTaskMission` behaves like this base implementation.
+- **`_PlayVo` self-tracks for cleanup** — prefer it over calling `VO.Cue` directly if you want the voice
+  line properly cancelled should the mission end mid-cue.
+- `RefreshPdaDisplay` recurses the *entire* subtree, not just immediate children — a deeply nested
+  objective structure is all still reflected on the PDA in one call.

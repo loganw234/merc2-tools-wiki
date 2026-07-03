@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskMission
 tags: [mission, task]
+verified: true
+verified_note: read directly from source -- corrects Instance pattern (class-factory via MrxTask/MrxTaskMission, not per-uGuid); rest of this page was already largely accurate
 ---
 
 # MrxTaskJob
@@ -12,14 +14,16 @@ tags: [mission, task]
 *Module: mrxtaskjob.lua*
 
 ## Overview
-The `MrxTaskJob` module is a base class for multi-target mission tasks. It extends the functionality of `MrxTaskMission` to handle multiple targets, manage their completion states, and award rewards accordingly. This module also supports nearby-VO (voice-over) selection based on proximity.
+The `MrxTaskJob` module is a base class for multi-target mission tasks, built on
+[`MrxTaskMission`](mrxtaskmission) (itself built on [`MrxTask`](mrxtask)). It extends the functionality of `MrxTaskMission` to handle multiple targets, manage their completion states, and award rewards accordingly. This module also supports nearby-VO (voice-over) selection based on proximity. [`MrxTaskJobCollectType`](mrxtaskjobcollecttype)/[`MrxTaskJobDestroySet`](mrxtaskjobdestroyset)/[`MrxTaskJobDestroyType`](mrxtaskjobdestroytype)/[`MrxTaskJobVerifySet`](mrxtaskjobverifyset) all build directly on this.
 
 ## Inheritance
-- Inherits from: `MrxTaskMission`
+- Inherits from: [`MrxTaskMission`](mrxtaskmission)
 - Imports: `MrxLayerManager`, `MrxPlayState`, `MrxRewardData`, `MrxVoSequence`, `WifMissionFlow`, `MrxFactionManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+Class-style object, not per-`uGuid` — inherited from [`MrxTask`](mrxtask)'s factory pattern (identity by
+name/lineage, not world-object GUID; see that page for the general mechanism). Key fields:
 - `_tTargets`: A table of target data, including completion status and associated layers.
 - `_nTargetsComplete`: The number of completed targets.
 - `_bTrackOnActivate`: Whether to track targets on activation.
@@ -140,5 +144,10 @@ Marks the end of a nearby VO sequence.
 ## Notes for modders
 - Ensure that targets are correctly added using `_AddTarget` and milestone keys are set using `_SetTargetMilestoneKey`.
 - Customize VO sequences by setting `_tTargetCompleteVo` and `_tTargetNearbyVo`.
-- Adjust proximity radii and autosave settings via `_GetNearRadius`, `_GetFarRadius`, and `_GetAutosaveMode`.
-- Be aware of the default behavior for nearby VO playback, which can be toggled using `_GetNearbyVoPlaybackMode`.
+- **`_GetNearRadius`/`_GetFarRadius`/`_GetAutosaveMode`/`_GetNearbyVoPlaybackMode` are override points, not
+  setters** — each takes no arguments and just returns a fixed value (`30`/`60`/`true`/`false`
+  respectively in this base class). A subclass changes proximity/autosave/VO behavior by redefining the
+  function to return something else, not by calling it with a new value.
+- `_GetMissionType()`/`IsJob()` are the same override-point pattern documented on
+  [`MrxTaskMission`](mrxtaskmission) for `IsContract`/`IsJob` — this file's `IsJob()` is the confirmed
+  override that flips it to `true` for every job-type mission.
