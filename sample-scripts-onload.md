@@ -17,7 +17,7 @@ Normally the HQ wardrobe only offers a character's own small, curated outfit lis
 however many the game has currently unlocked for them. This merges every character's outfits into
 whichever character you're currently playing, and removes that unlock cap — full breakdown of how and
 why this works, including the wrong turns along the way, in
-[Case Study: Overriding a Function](case-study-function-override).
+[Deep Dive: Overriding a Function](deep-dives/function-override).
 
 ```lua
 import("WifPmcInterior")

@@ -18,3 +18,6 @@ different problem instead of just copy-pasting the end result.
 - **[Building a Real Freecam](freecam)** — how to get genuine continuous analog stick and d-pad input
   into a Lua script (something no documented engine API provides), by hijacking the PDA widget's own
   input-handling event, and using it to drive a fully controllable detached flying camera.
+- **[Overriding a Function](function-override)** — replacing a piece of the game's own logic instead of
+  just reading/writing a value, worked through end to end: the original approach, three wrong turns, the
+  fix that actually worked, and the general pattern for applying this technique elsewhere.
