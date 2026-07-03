@@ -4,15 +4,14 @@ parent: Deep Dives
 nav_order: 4
 ---
 
-# Deep Dive: A Theoretical Co-op Text Chat
+# Deep Dive: A Basic Co-op Text Chat
 
-**Less speculative than it was — display is now confirmed, input is implemented, send is the one piece
-still fully unproven.** Display (the [chat/log UI](coop-chat-ui)) has actually been built and run in-game,
-engine bug and all. Input (`Loader.PopKeyEvents` and friends, see [lua-bridge API](../lua-bridge-api/loader))
-is real and shipped, though not independently confirmed here via an actual live keystroke-capture report.
-What's left is send: whether `Net.SendCustomEvent` really crosses the network the way the
-[networking deep dive](networking) hopes it does, and whether all three pieces actually work together
-end-to-end across two real players — neither has been tested yet.
+**Confirmed working end-to-end across two real players** — input, send, and display all fire correctly
+together, including real cross-network delivery. One piece is still being tuned: raw chat text can't be
+sent as a Lua string at all (see the [networking deep dive](networking#two-confirmed-constraints-on-custom-payloads)
+for why), so the message has to be re-encoded as numbers on the way out and decoded back into text on the
+way in. The current encoding works for short messages; the exact safe maximum length hasn't been pinned
+down yet.
 
 ## The problem, broken into three pieces
 
@@ -20,14 +19,15 @@ end-to-end across two real players — neither has been tested yet.
 2. **Send** — getting that text to the other player.
 3. **Display** — showing it on their screen.
 
-Piece 2's mechanism is described by the [networking deep dive](networking#a-concrete-test-ping-pong-via-a-hijacked-neteventcallback) — the same hijacked-`Alarm.NetEventCallback` pattern that carries a ping/pong tag can just as easily carry a
-string message, though whether it actually crosses the network at all remains that page's open question.
-Piece 3 has a real, working answer, detailed on its own page: [Building a Chat/Log UI](coop-chat-ui). Piece
-1 — capturing what's typed — turned out to have no answer anywhere in the *game's* Lua surface at all:
-`LTIStartKeyboardInput`/`LTIEndKeyboardInput` (`resident/mrxguishell.lua`) is the one native hook that
-smells like free-text entry, but it's wired to profile-name creation specifically, and whether it accepts
-arbitrary text was never tested, because the real answer turned out to live one level down, in
-**lua-bridge itself** (the injection tool this whole wiki is built around) — not the game.
+All three are solved and confirmed working together. Piece 2's mechanism is the same hijacked-
+`NetEventCallback` pattern documented on the [networking deep dive](networking) — confirmed live in this
+exact feature, which is also where the event-ID-masking and string-payload constraints described there were
+actually discovered. Piece 3 has a real, working answer, detailed on its own page: [Building a Chat/Log
+UI](coop-chat-ui). Piece 1 — capturing what's typed — turned out to have no answer anywhere in the *game's*
+Lua surface at all: `LTIStartKeyboardInput`/`LTIEndKeyboardInput` (`resident/mrxguishell.lua`) is the one
+native hook that smells like free-text entry, but it's wired to profile-name creation specifically, and
+whether it accepts arbitrary text was never tested, because the real answer turned out to live one level
+down, in **lua-bridge itself** (the injection tool this whole wiki is built around) — not the game.
 
 ## Input: solved — a real lua-bridge addition, not a Lua trick
 
@@ -50,32 +50,67 @@ This is still the one piece of any Deep Dive on this wiki that depends on a spec
 rather than just a dropped-in `.lua` file — worth remembering, since every other page here (including the
 rest of this one) only assumes a stock install.
 
-## Send: reusing the networking deep dive's mechanism, carrying a string instead of a tag
+## Send
 
-Whatever ends up capturing the typed text, sending it uses the same mechanism as the networking deep
-dive's ping-pong test — `Net.SendCustomEvent("Alarm", 102, {Net.GetHostName(), sMessage}, true)`, event ID
-`102` chosen to avoid colliding with `Alarm`'s own real IDs (`0`, `1`) and the ping-pong test's `100`/`101`.
-The receiving side extends the exact same override from the networking deep dive with one more branch,
-now displaying into the real chat UI instead of a placeholder:
+Confirmed working live, in both directions, between two real players — but getting there took two fixes
+past the first working draft:
+
+- **Hijack target**: `Alarm` doesn't work — it's a per-object world script, not always-resident, so
+  `import("Alarm")` throws unless the current level happens to have a real alarm object loaded.
+  `MrxFactionManager` is always-resident and is the actual hijack target used.
+- **The message can't be sent as a string.** The first live test sent `{Net.GetHostName(), sMessage}` and
+  it arrived on the other machine as `userdata: 89C0BD32: userdata: 942328DD` — unreadable handles, not
+  text. See [the networking deep dive](networking#two-confirmed-constraints-on-custom-payloads) for why:
+  strings crossing `SendCustomEvent` become opaque hash handles, not their original content, and there's no
+  way to recover arbitrary text from one. Only numbers survive intact, so the message is sent as an array
+  of raw character codes (`string.byte`/`string.char`) instead of a string. Sender identity was dropped
+  entirely rather than worked around — co-op is capped at 2 players, so whoever receives a message already
+  knows who sent it.
 
 ```lua
-import("Alarm")
+import("MrxFactionManager")
 
-local fOriginalCallback = Alarm.NetEventCallback
+local NETEVENT_CHAT = 5  -- below 8 per the ID-masking constraint; avoids MrxFactionManager's own 0/1/2
 
-Alarm.NetEventCallback = function(nEventType, tArgs)
-  if nEventType == 100 then
-    -- ping-pong test, see the networking deep dive
-  elseif nEventType == 101 then
-    -- ping-pong test, see the networking deep dive
-  elseif nEventType == 102 then
-    local sSender, sMessage = tArgs[1], tArgs[2]
-    CoopChatUI:AddMessage(tostring(sSender) .. ": " .. tostring(sMessage))
-  else
-    fOriginalCallback(nEventType, tArgs)
+if not MrxFactionManager._bChatHijacked then
+  MrxFactionManager._bChatHijacked = true
+  local fOriginalCallback = MrxFactionManager.NetEventCallback
+
+  MrxFactionManager.NetEventCallback = function(nEventType, tArgs)
+    if nEventType == NETEVENT_CHAT then
+      local tChars = {}
+      for i, nByte in ipairs(tArgs) do
+        tChars[i] = string.char(nByte)
+      end
+      CoopChatUI:AddMessage("Partner: " .. table.concat(tChars))
+    else
+      fOriginalCallback(nEventType, tArgs)
+    end
   end
 end
+
+function SendChatMessage(sMessage)
+  CoopChatUI:AddMessage("You: " .. sMessage)
+
+  local tArgs = {}
+  for i = 1, string.len(sMessage) do
+    tArgs[i] = string.byte(sMessage, i)
+  end
+
+  Net.SendCustomEvent("MrxFactionManager", NETEVENT_CHAT, tArgs, true)
+end
 ```
+
+`SendChatMessage` also does the optimistic local echo — adding "You: ..." to your own chat window
+immediately, rather than waiting on any loopback. That's deliberate, not a workaround: a peer never
+receives its own broadcast back (confirmed — this is normal, not a bug), so without the local echo you'd
+never see your own sent messages at all.
+
+**Not yet nailed down**: the real safe maximum message length. One character per `tArgs` slot is simple and
+confirmed working for short test messages, but the largest array size confirmed safe anywhere in the
+decompiled corpus is 5 elements (see the [networking deep dive](networking#status-confirmed-vs-still-open)).
+Whether that's a hard cap or coincidence — and whether longer messages need bit-packing multiple characters
+per slot, or splitting across multiple sequential `SendCustomEvent` calls — is the next thing to test.
 
 ## Display: solved — see its own Deep Dive
 
@@ -84,19 +119,22 @@ Full writeup, including a real confirmed engine bug and the workaround for it, o
 scrolling-message-log widget) has a genuine crash bug in its documented constructor, worked around by
 calling a second, bug-free internal function directly. The result is `CoopChatUI`, a small reusable
 module — `CoopChatUI:AddMessage(sText)` to push a line, `CoopChatUI:Toggle()` to show/hide,
-`CoopChatUI:SetInputText(sText)` for a live-updating "what am I typing" preview — confirmed working by
-live testing as a standalone HUD element.
+`CoopChatUI:SetInputText(sText)` for a live-updating "what am I typing" preview — confirmed working both
+standalone and as part of the full input→send→display pipeline described above.
 
 ## Known limitations of this whole page
 
 - **Requires a lua-bridge build that includes the `Loader` input functions.** Real and implemented, but
   still not part of every lua-bridge install by default — see the
   [lua-bridge API section](../lua-bridge-api/) note on that.
-- **Display is confirmed standalone, not as part of a working chat flow.** `CoopChatUI` was built and run
-  in-game successfully on its own; wiring it up to real keystrokes and a real second player hasn't been
-  tested as one connected pipeline yet.
-- **Send is still the one fully unproven piece.** If `Net.SendCustomEvent` doesn't actually cross the
-  network the way the [networking deep dive](networking) hopes it does, nothing here reaches a second
-  player regardless of how solid input and display are individually.
+- **Character set is limited to uppercase letters, digits, and space.** Input capture reads raw VK codes
+  (see [lua-bridge API: Loader](../lua-bridge-api/loader)), which carry no Shift-state information — no
+  lowercase, no punctuation. A real, current limitation, not yet addressed.
+- **No sender identity is transmitted.** Messages are always labeled "Partner" on receipt, relying on the
+  2-player cap. Would need rework (a numeric role tag, not a string — see Send above) to support more than
+  2 players.
+- **Safe maximum message length is unconfirmed.** See the Send section above — messages longer than
+  whatever the real per-call limit turns out to be will need a different encoding or multiple chunked
+  sends. Not yet tested.
 - **`LTIStartKeyboardInput`/`LTIEndKeyboardInput` remains untested** as a possible game-native alternative —
   moot now that the lua-bridge-side input API is real, but worth remembering it exists.

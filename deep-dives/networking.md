@@ -6,11 +6,14 @@ nav_order: 3
 
 # Deep Dive: Custom Networked Events
 
-**Speculative, not fully live-tested.** This page investigates one specific question: once two players
-are already in a co-op session, can mod-authored Lua scripts exchange their *own* custom data between
-them, riding on the game's existing real-time sync layer? The `Net.SendCustomEvent`/`NetEventCallback`
-mechanism documented below is real and confirmed from source; whether it actually round-trips across two
-real players hasn't been confirmed yet — that's what the ping-pong test near the end is for.
+**Core mechanism confirmed live, with two real constraints discovered along the way.** This page
+investigates one specific question: once two players are already in a co-op session, can mod-authored Lua
+scripts exchange their *own* custom data between them, riding on the game's existing real-time sync layer?
+**Yes** — confirmed by an actual 2-player test while building the [co-op chat feature](coop-chat): a
+hijacked module's `NetEventCallback` really does fire on the *other* player's machine when triggered by
+`Net.SendCustomEvent`, and it works in both directions (host→client and client→host). That test also
+surfaced two real constraints on what you can actually put in the payload — both covered below, and both
+were surprises, not things anyone predicted from reading the source alone.
 
 **Out of scope on purpose**: this page is not about restoring or replacing the game's original online
 matchmaking. That ground has already been covered — an earlier community investigation established that
@@ -48,6 +51,13 @@ objects (see the [Resident Modules](../resident/) landing page). Every `resident
 to sync something across a co-op session defines its own `NetEventCallback` and its own small set of
 numeric event IDs, entirely independently of every other module's.
 
+`Alarm` is shown above purely because it's a short, readable example already in the decompiled corpus —
+don't actually pick it as a hijack target. It's a per-object world-entity script, not an always-resident
+module, so `import("Alarm")` throws `attempt to index global 'Alarm' (a nil value)` unless the current
+level happens to have a real alarm object loaded. `MrxFactionManager` is confirmed always-resident (used
+throughout this wiki already) and is the module the working ping-pong test and the [co-op chat
+feature](coop-chat) both actually hijack.
+
 **This is the interesting part.** If dispatch really is just "look up a global function named
 `NetEventCallback` belonging to the module named by this string," there's no obvious reason custom
 cross-player events couldn't ride on top of it.
@@ -65,38 +75,69 @@ There are two ways to try reaching that dispatch, though, and they carry very di
   registered on both host and client (since it's real game content, loaded normally). This is the
   approach the test below uses.
 
+## Two confirmed constraints on custom payloads
+
+Both of these were discovered live, during the [co-op chat](coop-chat) 2-player test, not predicted from
+source. Anyone hijacking a `NetEventCallback` for their own data needs to know both.
+
+**The event ID gets masked to a small numeric range.** The first live test sent `nEventId = 100` and the
+receiving machine's `NetEventCallback` fired with `nEventType` reported as `4`. That's not corruption —
+`100 mod 8 = 4` (and also `mod 16` and `mod 32`, so the exact bit width isn't pinned down by this one data
+point, only somewhere between 3 and 5 bits). `MrxFactionManager` only ever ships IDs `0`, `1`, `2` in the
+decompiled source, consistent with nobody needing more than a couple of bits for this module. **Safe
+guidance: keep custom event IDs below 8**, and pick one that doesn't collide with the target module's own
+real IDs (check the catalog below).
+
+**String arguments do not survive as text.** Passing a Lua string in `tArgs` (a sender name via
+`Net.GetHostName()`, a chat message, anything) arrives on the other machine as an opaque lightuserdata
+handle — visible as `userdata: 89C0BD32` if you `tostring()` it, not the original text. This isn't a bug in
+any particular script, it's the actual wire format: the decompiled source already shows this everywhere a
+string crosses `SendCustomEvent` — `mrxfactionmanager.lua`'s own `NetEventCallback` receives a
+`uStringHash` for `NETEVENT_SETMUTABLE` and recovers the original faction abbreviation only by iterating
+every abbreviation *it already knows locally* and checking `String.GetHash(sFactionAbbrev) == uStringHash`
+until one matches (same pattern in `mrxbriefing.lua`). There is no reverse function from handle back to
+arbitrary text — every string ever sent this way in the shipped game is from a small closed set the
+receiver already knows in advance (faction codes, achievement names, music-state names), never free text.
+**Numbers don't have this problem** — `uGuid`s, player indices, and quantity counts all cross intact and
+get used directly by the receiving side. Anything that needs to carry arbitrary text (like a chat message)
+has to be encoded as numbers — see [the co-op chat page](coop-chat#send) for the actual encoding used.
+
 ## A concrete test: ping-pong via a hijacked `NetEventCallback`
 
 Two small scripts, meant to be dropped onto **both players'** machines identically. One overrides
-`Alarm`'s callback to also handle two new event IDs `Alarm` itself never uses (its own real ones are `0`
-and `1` — see the catalog below); the other is a hotkey that kicks off the exchange. If this works, a
-single keypress from either player should produce a log line on **both** machines: the sender logs
-"sent PING," the other player logs "received PING ... sending PONG back," and the original sender then
-logs "received PONG ... round trip complete" — a full, observable round trip confirming the override
-fired, the event actually crossed the network, and the reply made it back.
+`MrxFactionManager`'s callback to also handle two new event IDs it never uses natively (its own real ones
+are `0`, `1`, `2` — see the catalog below, and IDs must stay below 8 per the masking constraint above); the
+other is a hotkey that kicks off the exchange. If this works, a single keypress from either player should
+produce a log line on **both** machines: the sender logs "sent PING," the other player logs "received
+PING ... sending PONG back," and the original sender then logs "received PONG ... round trip complete" — a
+full, observable round trip confirming the override fired, the event actually crossed the network, and the
+reply made it back.
 
 `scripts/OnLoad/NetEventPingPongSetup.lua`:
 
 ```lua
-import("Alarm")
+import("MrxFactionManager")
 
-local NETEVENT_PING = 100  -- picked to avoid Alarm's own real IDs (0, 1)
-local NETEVENT_PONG = 101
+local NETEVENT_PING = 3  -- avoids MrxFactionManager's own real IDs (0, 1, 2); stays below the ~8 ceiling
+local NETEVENT_PONG = 4
 
-local fOriginalCallback = Alarm.NetEventCallback  -- preserve Alarm's real behavior
+if not MrxFactionManager._bPingPongHijacked then
+  MrxFactionManager._bPingPongHijacked = true
+  local fOriginalCallback = MrxFactionManager.NetEventCallback  -- preserve the real behavior
 
-Alarm.NetEventCallback = function(nEventType, tArgs)
-  if nEventType == NETEVENT_PING then
-    Loader.Printf("PINGPONG: received PING from " .. tostring(tArgs[1]) .. " -- sending PONG back")
-    Net.SendCustomEvent("Alarm", NETEVENT_PONG, {Net.GetHostName()}, true)
-  elseif nEventType == NETEVENT_PONG then
-    Loader.Printf("PINGPONG: received PONG from " .. tostring(tArgs[1]) .. " -- round trip complete!")
-  else
-    fOriginalCallback(nEventType, tArgs)  -- not our event, let Alarm handle it normally
+  MrxFactionManager.NetEventCallback = function(nEventType, tArgs)
+    if nEventType == NETEVENT_PING then
+      Loader.Printf("PINGPONG: received PING -- sending PONG back")
+      Net.SendCustomEvent("MrxFactionManager", NETEVENT_PONG, {}, true)
+    elseif nEventType == NETEVENT_PONG then
+      Loader.Printf("PINGPONG: received PONG -- round trip complete!")
+    else
+      fOriginalCallback(nEventType, tArgs)  -- not our event, let the module handle it normally
+    end
   end
 end
 
-Loader.Printf("PINGPONG: Alarm.NetEventCallback overridden, ready to test")
+Loader.Printf("PINGPONG: MrxFactionManager.NetEventCallback overridden, ready to test")
 ```
 
 `scripts/OnKey/NetEventPing.lua`:
@@ -104,19 +145,23 @@ Loader.Printf("PINGPONG: Alarm.NetEventCallback overridden, ready to test")
 ```lua
 local KEYVAL = "f6"  -- must be in the first 10 lines
 
-Net.SendCustomEvent("Alarm", 100, {Net.GetHostName()}, true)
+Net.SendCustomEvent("MrxFactionManager", 3, {}, true)
 Loader.Printf("PINGPONG: sent PING")
 ```
 
 **How to run it**: both players load into the same co-op session with both scripts present, then either
-player presses `f6`. `Net.GetHostName()` is used purely as a "who sent this" tag in the log output — its
-exact return value hasn't been independently confirmed beyond its real use as an argument to
-`Net.StartServer`, so treat it as a label, not something to depend on. This is untested end to end; the
-event IDs (`100`/`101`), the assumption that `SendCustomEvent` is symmetric (not host-only — one
-suggestive data point in `alarm.lua` itself: nothing gates its own `SendCustomEvent` call behind
-`Net.IsServer()`, only the decision of *when* to send does), and whether the override even survives
-across a level load on both ends, are all things this test is specifically designed to surface, not
-assumptions it relies on.
+player presses `f6`. No sender-identity tag is sent (dropping the earlier `Net.GetHostName()` label
+deliberately — per the constraints above, that string would arrive as an unreadable userdata handle
+anyway, and with only 2 players in co-op, receiving the event already tells you who it's from). The
+`_bPingPongHijacked` guard exists because `OnLoad` scripts re-run on every level load — without it, loading
+a second level would wrap the callback in another layer each time.
+
+This exact pattern (hijack `MrxFactionManager`, IDs below 8, no string payloads) is confirmed live via the
+[co-op chat feature](coop-chat), which uses the identical mechanism with a real chat message instead of a
+ping/pong tag. `SendCustomEvent` is confirmed symmetric — both directions were exercised in that same test,
+not just one player triggering it. Still genuinely open: whether the override survives a level load
+mid-session on both ends (the guard above defends against it, but that specific scenario — reload after the
+hijack is already installed — hasn't been separately exercised yet).
 
 ## The full `NETEVENT_` catalog
 
@@ -179,20 +224,26 @@ rather than passing the literal number directly. These are not a coordinated ID 
 per-module-private integers whose meaning only makes sense paired with the specific module name string
 you're sending to.
 
-## What a live test would actually need to check
+## Status: confirmed vs still open
 
-- **Does the ping-pong test above actually round-trip?** The single open question this page cares about —
-  confirm a hijacked callback fires on the *other* player's machine, not just locally.
-- **Is `SendCustomEvent` genuinely symmetric** (either player can trigger it) or effectively host-only in
-  practice, regardless of what the lack of an explicit `Net.IsServer()` gate in `alarm.lua` suggests?
-- **Does the override survive a level load on both ends?** If `Alarm`'s module state gets rebuilt on
-  level transition, the hijack may need to be reapplied via `OnLoad` rather than assumed permanent for a
-  session.
+**Confirmed live** (via the co-op chat 2-player test):
+- A hijacked module's `NetEventCallback` really fires on the *other* player's machine — dispatch crosses
+  the network, it's not just a local reassignment.
+- `SendCustomEvent` is genuinely symmetric — both host→client and client→host were exercised, not just one
+  direction.
+- The event ID is masked to a small range (safe below 8) and string arguments arrive as unusable opaque
+  handles, not text — both covered in detail above.
 
-## Known limitations of this whole page
-
-- **Nothing here is live-tested.** Every claim is "the source supports this reading," not "this was
-  confirmed to work." Treat this page as a research starting point, not a working guide.
-- **The actual network wire protocol is invisible to us.** Everything past the Lua call boundary is
-  compiled native code — whether `SendCustomEvent`'s payload delivery has any practical limits (size,
-  rate, reliability under packet loss even with `bReliable = true`) is unknowable from source alone.
+**Still open**:
+- **Whether the override survives a level load *after* it's already installed.** The guard pattern shown
+  above (`if not Module._bXHijacked then`) defends against double-wrapping if `OnLoad` re-runs, but nobody
+  has yet tested loading a second level mid-session with the hijack already active and confirmed it still
+  answers correctly.
+- **The real maximum size of `tArgs` per call.** The largest example anywhere in the decompiled corpus is
+  5 elements (`wifpmcinterior.lua`'s stockpile sync); whether that's an actual engine-enforced cap or just
+  the largest the shipped game happened to need is unconfirmed. Relevant if you need to send more data than
+  fits in a handful of numbers per event — see the [co-op chat page](coop-chat) for where this matters in
+  practice.
+- **The actual network wire protocol is still invisible to us.** Everything past the Lua call boundary is
+  compiled native code — rate limits and behavior under packet loss (even with `bReliable = true`) remain
+  unknowable from source alone.

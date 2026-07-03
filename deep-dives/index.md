@@ -21,14 +21,15 @@ different problem instead of just copy-pasting the end result.
 - **[Overriding a Function](function-override)** — replacing a piece of the game's own logic instead of
   just reading/writing a value, worked through end to end: the original approach, three wrong turns, the
   fix that actually worked, and the general pattern for applying this technique elsewhere.
-- **[Custom Networked Events](networking)** — *speculative, not live-tested* — scoped purely to whether
-  mod-authored Lua scripts can exchange their own custom data across an already-connected co-op session
-  (matchmaking/connection itself is out of scope, already solved elsewhere): the native
-  callback-by-convention dispatch behind `Net.SendCustomEvent`/`NetEventCallback`, a concrete ping-pong
-  test, and a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
-- **[A Basic Co-op Text Chat](coop-chat)** — *send still unproven, input and display are real* — send
-  reuses the networking page's hijacked-`NetEventCallback` pattern; input is backed by the
-  [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
+- **[Custom Networked Events](networking)** — *core dispatch confirmed live* — mod-authored Lua scripts
+  really can exchange their own custom data across an already-connected co-op session (matchmaking/
+  connection itself is out of scope, already solved elsewhere): the native callback-by-convention dispatch
+  behind `Net.SendCustomEvent`/`NetEventCallback`, two real constraints discovered along the way (event IDs
+  get masked to a small range, string arguments arrive unreadable), a ping-pong test, and a full catalog of
+  every `NETEVENT_*` constant in the decompiled corpus.
+- **[A Basic Co-op Text Chat](coop-chat)** — *confirmed working end-to-end across two real players* —
+  input, send, and display all fire correctly together over a real network connection; input is backed by
+  the [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
   game Lua alone — the one Deep Dive here that depends on a specific lua-bridge build, not just a script.
 - **[Building a Chat/Log UI](coop-chat-ui)** — *confirmed working by live testing* — a real engine crash
   bug found in `MrxGuiTextBuffer`'s own documented constructor, a scope-sealing dead end while trying to
