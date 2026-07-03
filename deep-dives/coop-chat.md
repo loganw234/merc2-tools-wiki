@@ -6,11 +6,11 @@ nav_order: 4
 
 # Deep Dive: A Theoretical Co-op Text Chat
 
-**Speculative, not live-tested.** Same framing as the [networking deep dive](networking) this one builds
-directly on: everything below is "the pieces exist and plausibly compose," not "this was confirmed
-working in a real co-op session." It also depends on the transport claims made in that page — if
-`Net.SendCustomEvent` doesn't actually cross the network the way that page hopes it does, none of this
-sends anywhere either.
+**Speculative, not live-tested — but less speculative than it was.** Input and display are now backed by
+real, implemented pieces rather than plans (see below); what's still unproven is assembling them
+end-to-end across two actual players, and that still depends entirely on the transport claims made in the
+[networking deep dive](networking) this page builds on — if `Net.SendCustomEvent` doesn't actually cross
+the network the way that page hopes it does, none of this sends anywhere either.
 
 ## The problem, broken into three pieces
 
@@ -26,41 +26,26 @@ smells like free-text entry, but it's wired to profile-name creation specificall
 arbitrary text is untested. The real answer turned out to live one level down, in **lua-bridge itself**
 (the injection tool this whole wiki is built around) — not the game.
 
-## Input: a lua-bridge-side addition, not a Lua trick
+## Input: solved — a real lua-bridge addition, not a Lua trick
 
-`OnKey`'s hotkey detection isn't happening inside the game's Lua VM at all — it's lua-bridge's own
-background thread (`LoaderKeyThread`, in `lua_bridge_DEV.c`), polling `GetAsyncKeyState()` at 30Hz for
-whatever small set of virtual-key codes have a registered `OnKey` script file bound to them. A "script
-per character" approach (checked and rejected earlier as directory clutter) would have worked, but only
-by working around a limitation that doesn't need to exist in the first place — the game's Lua layer was
-never going to expose text input, because it was never lua-bridge's job to route full keyboard state
-through it as a `KEYVAL` match.
+`OnKey`'s hotkey detection was never happening inside the game's Lua VM at all — it's lua-bridge's own
+background thread, polling for whatever small set of virtual-key codes have a registered `OnKey` script
+file bound to them. The game's Lua layer was never going to expose text input on its own, because routing
+full keyboard state through it was never lua-bridge's job before now.
 
-The actual fix: add one new function to lua-bridge's existing `Loader.*` table —
-`Loader.GetKeyboardState()` — that a script can call **on demand** to get a full snapshot of every key's
-current state, independent of `OnKey`'s one-script-one-key model entirely. Concretely, this is a small,
-well-scoped change given how lua-bridge is already built:
+That's since changed. lua-bridge now ships a real `Loader.*` input API — full documentation on the
+[lua-bridge API: Loader](../lua-bridge-api/loader) page — built specifically to unblock this page:
+`Loader.PopKeyEvents()` returns every keystroke since the last call as a ring-buffered, edge-triggered
+queue (so nothing gets missed to polling timing), gated to the game's own foreground focus so a chat box
+built on it can't accidentally capture keystrokes meant for another window. `Loader.ClearKeyEvents()`
+gives a clean reset point for the moment a chat box opens. This is a strictly better foundation than the
+single on-demand snapshot function originally scoped for this problem — it solves the "don't miss a
+keystroke between polls" problem that a plain snapshot function would have pushed onto every script that
+used it.
 
-- `Loader.*` functions are registered through a small static table, `loader_lib[]` (currently just
-  `{"Printf", LuaLoaderPrintf}`), handed to the game's own `luaL_register` — adding an entry is one line:
-  `{"GetKeyboardState", LuaLoaderGetKeyboardState}`.
-- That new C function loops over the 256 possible virtual-key codes calling `GetAsyncKeyState()` for
-  each — the same underlying call `LoaderKeyThread` already trusts for `OnKey`, **not** the similarly-named
-  `GetKeyboardState()` Win32 API, which reflects a calling thread's message-queue history rather than raw
-  hardware state and could return stale/empty data depending on which thread ends up calling it.
-- The result gets packed into either a raw 256-byte Lua string (cheapest to implement; a script reads it
-  with `string.byte(sState, vk + 1) >= 128`) or a Lua table of 256 booleans (nicer to consume,
-  `if tKeys[65] then`) — either works, the string form is simpler on the C side.
-- `LoaderKeyThread`/`InitializeKeyScripts`/the existing `OnKey` file-matching behavior are **completely
-  untouched** by this — it's a pure addition, not a modification.
-
-Performance is a non-issue either way it's implemented: this only spends any CPU at all in the instant a
-Lua script actually calls it, at whatever cadence that script chooses — genuinely zero idle cost, better
-than even the (already negligible) cost of widening `LoaderKeyThread`'s own poll loop would have been.
-
-This is the one piece of any Deep Dive on this wiki that requires touching lua-bridge's own native source
-rather than dropping in a `.lua` file — worth calling out plainly, since every other page here (including
-the rest of this one) only assumes a stock lua-bridge install.
+This is still the one piece of any Deep Dive on this wiki that depends on a specific lua-bridge build
+rather than just a dropped-in `.lua` file — worth remembering, since every other page here (including the
+rest of this one) only assumes a stock install.
 
 ## Send: reusing the networking deep dive's mechanism, carrying a string instead of a tag
 
@@ -115,12 +100,13 @@ this page and hasn't been attempted here.
 
 ## Known limitations of this whole page
 
-- **The input plan requires a lua-bridge rebuild, not just a script.** `Loader.GetKeyboardState()` doesn't
-  exist in lua-bridge today — this page describes a concretely-scoped addition, not a shipped feature.
-  Until it's actually written and built, this piece is still just a plan.
-- **Nothing here has been live-tested**, input, send, or display.
+- **Requires a lua-bridge build that includes the `Loader` input functions.** Real and implemented, but
+  still not part of every lua-bridge install by default — see the
+  [lua-bridge API section](../lua-bridge-api/) note on that.
+- **Nothing here has been live-tested end-to-end across two players** — input and display are each backed
+  by real implemented pieces individually, but assembling the whole chat flow in an actual co-op session
+  hasn't been reported yet.
 - **Depends entirely on the networking deep dive's unconfirmed transport claim** — if `SendCustomEvent`
   doesn't actually cross the network symmetrically, this doesn't send anything either.
-- **`LTIStartKeyboardInput`/`LTIEndKeyboardInput` remains untested** as a possible game-side alternative —
-  not pursued further once the lua-bridge-side plan above turned out to be the more concrete, controllable
-  option, but worth remembering it exists.
+- **`LTIStartKeyboardInput`/`LTIEndKeyboardInput` remains untested** as a possible game-native alternative —
+  moot now that the lua-bridge-side input API is real, but worth remembering it exists.

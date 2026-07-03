@@ -25,7 +25,7 @@ different problem instead of just copy-pasting the end result.
   namespace actually exposes: three distinct connection paths, a real direct-IP-connect primitive, the
   native callback-by-convention dispatch behind both server discovery and custom cross-player events, and
   a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
-- **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not live-tested* — send and display are solved
-  by reusing the networking page's hijacked-`NetEventCallback` pattern and the tutorial-hint popup from
-  Snippets; input turned out to need a small lua-bridge-side addition (`Loader.GetKeyboardState()`)
-  rather than anything achievable in game Lua alone — the one Deep Dive here that isn't pure-Lua.
+- **[A Basic Co-op Text Chat](coop-chat)** — *speculative, not fully live-tested* — send reuses the
+  networking page's hijacked-`NetEventCallback` pattern; input is now real, backed by the
+  [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
+  game Lua alone — the one Deep Dive here that depends on a specific lua-bridge build, not just a script.

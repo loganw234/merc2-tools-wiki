@@ -143,3 +143,6 @@ on-demand (`OnKey`). From here:
   piece of the game's own logic instead of just reading/writing a value, worked through end to end.
 - [Resident Modules](resident/) is the reference for what else you can call — start there once "give
   cash" isn't enough anymore.
+- [lua-bridge API](lua-bridge-api/) documents globals lua-bridge itself adds on top of the game — not
+  part of Mercenaries 2, only present if your lua-bridge build includes them, but worth knowing about
+  since they cover things (like real keyboard input) the game's own Lua surface never exposes.
