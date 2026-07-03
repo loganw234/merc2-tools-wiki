@@ -76,12 +76,16 @@ From there, the technique is:
    menu behavior with no lingering breakage.
 3. Hide it: `SetVisible(false)` on the `"PDA"` and `"PDA Subtitle Buffer"` widgets is sufficient — the
    two unnamed children hide along with them, no need to target them separately.
+4. The game world visibly pauses while the PDA is open (confirmed: same as normal PDA behavior, not
+   something this technique causes). The 3D view itself returns to normal (not stuck on any PDA-specific
+   camera) once hidden.
+5. Closing/reopening the real PDA afterward works exactly as before — this is fully reversible.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>
 
-Step 2 works because a widget's event handler is just a table field that happens to hold a function —
-`SetEventHandler("ControllerInput", myFunction)` really just does something like
+Step 2 above works because a widget's event handler is just a table field that happens to hold a
+function — `SetEventHandler("ControllerInput", myFunction)` really just does something like
 `self.EventHandlers.ControllerInput = myFunction` under the hood. There's nothing special "wiring" it to
 the PDA's own original logic permanently; overwriting that field is exactly as valid as overwriting a
 number or a string field would be, because in Lua a function is a first-class value like any other. This
@@ -90,11 +94,6 @@ name changes what gets called *the next time* something looks that name up, no m
 originally or who's setting it now.
 
 </details>
-
-4. The game world visibly pauses while the PDA is open (confirmed: same as normal PDA behavior, not
-   something this technique causes). The 3D view itself returns to normal (not stuck on any PDA-specific
-   camera) once hidden.
-5. Closing/reopening the real PDA afterward works exactly as before — this is fully reversible.
 
 ## The bugs that showed up building an actual camera on top of this
 
