@@ -76,6 +76,21 @@ From there, the technique is:
    menu behavior with no lingering breakage.
 3. Hide it: `SetVisible(false)` on the `"PDA"` and `"PDA Subtitle Buffer"` widgets is sufficient — the
    two unnamed children hide along with them, no need to target them separately.
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Step 2 works because a widget's event handler is just a table field that happens to hold a function —
+`SetEventHandler("ControllerInput", myFunction)` really just does something like
+`self.EventHandlers.ControllerInput = myFunction` under the hood. There's nothing special "wiring" it to
+the PDA's own original logic permanently; overwriting that field is exactly as valid as overwriting a
+number or a string field would be, because in Lua a function is a first-class value like any other. This
+is the same fact that makes the [function-override deep dive](function-override) work — reassigning a
+name changes what gets called *the next time* something looks that name up, no matter who set it
+originally or who's setting it now.
+
+</details>
+
 4. The game world visibly pauses while the PDA is open (confirmed: same as normal PDA behavior, not
    something this technique causes). The 3D view itself returns to normal (not stuck on any PDA-specific
    camera) once hidden.
@@ -94,6 +109,21 @@ what's frozen while the PDA has the world paused. Fix: drive movement directly f
 `"ControllerInput"` callback itself (which keeps firing fine — it's UI input, not gameplay simulation),
 using [`Sys.RealTimeStamp()`/`Sys.TimeStampGetElapsed()`](../namespaces/sys#time--clock) for real,
 wall-clock delta time instead.
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+The callback passed to `Event.Create`/`SetEventHandler` in this script is a **closure** — a function that
+was defined *inside* another block of code and can still see (and change) the local variables around it
+even after that outer code has finished running. `OnPdaControllerInput` and `ApplyMovement` both reach
+into `Freecam` — a `local` declared once, near the top of the file — every single time the engine calls
+them, potentially thousands of calls later. Nothing has to be passed back in as an argument to make that
+work; the function just remembers where `Freecam` lives, the same way it would remember any other local
+variable from its surrounding scope. See [Snippets: React to an event instead of polling](../snippets#react-to-an-event-instead-of-polling)
+for a simpler first look at this same idea — a callback function is just "code to run later" that still
+has access to whatever was around it when it was written.
+
+</details>
 
 **Analog axes go stale instead of reporting zero.** The engine only sends `LeftAnalogX`/etc. fields when
 a value is actively changing — once a stick returns to center (or you simply stop moving it), the field
@@ -127,6 +157,28 @@ chase-cam logic no matter what `Hold` flags were tried); and the left stick's fo
 computed from that exact same angle, so they can never drift out of sync.
 
 ## The final script
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Every line below starting `Freecam.X = Freecam.X or default` is doing the same small trick, and it's
+worth understanding why before reading the rest: **`OnKey` scripts re-run their entire file from scratch
+on every keypress.** Any plain `local` declared in the file is gone the instant the script finishes and
+gets rebuilt fresh next time — which is exactly wrong for something like `Freecam.active` or `Freecam.camX`,
+which need to *survive* between the "turn on" press and the "turn off" press, and between every single
+input event in between. `_G` (the global table) is the one thing that genuinely persists across separate
+runs of an `OnKey`/`OnLoad` script within the same play session, so `_G.RealFreecam = _G.RealFreecam or {}`
+means "reuse the existing table if one's already there from last time, otherwise start a fresh one" — and
+then each `Freecam.field = Freecam.field or default` fills in any field that doesn't exist yet, without
+clobbering one that's already mid-flight. This exact pattern is also the fix for a real bug hit while
+building this: an earlier version used one big table literal (`_G.RealFreecam = _G.RealFreecam or { ...all
+fields at once... }`), and once a new field got added to that literal mid-session, `_G.RealFreecam`
+already existed from an older run and the `or` short-circuited — so the new field was just missing,
+producing an `attempt to perform arithmetic on a nil value` error until the whole table was reset by hand.
+Setting each field individually, the way the script below does, means adding one later never breaks an
+already-running session.
+
+</details>
 
 ```lua
 local KEYVAL = "f4"
