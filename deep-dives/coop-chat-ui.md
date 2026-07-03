@@ -13,6 +13,8 @@ tested here is real cross-player sync — this page is purely about getting a pe
 on-screen text log working at all, reusable for chat or anything else (a kill feed, an event log, a debug
 console) that needs more than one line of HUD text at a time.
 
+![The CoopChatUI module rendered in-game — a dark, translucent backdrop box holding three scrolled chat lines ("System: Ingame text chat!", "Player1: With...", "Player2: Networking!") above a yellow input-preview line reading "> With ingame key capture!_" in the reserved bottom gap.](../img/coopchatui.png)
+
 ## Picking a module
 
 Four built-in GUI modules were evaluated for something that could hold a scrolling, multi-message log:
