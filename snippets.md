@@ -312,7 +312,7 @@ There's no known way to choose a different icon for a custom message.
 
 ## Ready for something more involved?
 
-Everything above reads or writes a value. [Case Study: Overriding a Function](case-study-function-override)
+Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)
 walks through the next step up — replacing a piece of the game's own logic — end to end, including the
 wrong turns along the way. The result of that case study is also available as a ready-to-use script under
 [OnLoad Scripts](sample-scripts-onload).
