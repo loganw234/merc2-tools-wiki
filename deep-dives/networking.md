@@ -1,109 +1,26 @@
 ---
-title: "Networking: A Lua-Only Restoration?"
+title: "Custom Networked Events"
 parent: Deep Dives
 nav_order: 3
 ---
 
-# Deep Dive: Is a Lua-Only Multiplayer Restoration Possible?
+# Deep Dive: Custom Networked Events
 
-**This page is different from the other Deep Dives — everything on it is speculative.** The freecam and
-function-override writeups document techniques that were built and live-tested in-game. Nothing here has
-been. This is a source-reading investigation into what the `Net` namespace exposes and what might be
-possible with it, written up because the findings are concrete and interesting enough to be worth
-recording — but every claim below is "the source says this is callable," not "this was confirmed to
-work." Live testing (ideally two machines/instances on a LAN) is the obvious next step, not yet done.
+**Speculative, not fully live-tested.** This page investigates one specific question: once two players
+are already in a co-op session, can mod-authored Lua scripts exchange their *own* custom data between
+them, riding on the game's existing real-time sync layer? The `Net.SendCustomEvent`/`NetEventCallback`
+mechanism documented below is real and confirmed from source; whether it actually round-trips across two
+real players hasn't been confirmed yet — that's what the ping-pong test near the end is for.
 
-## The question
+**Out of scope on purpose**: this page is not about restoring or replacing the game's original online
+matchmaking. That ground has already been covered — an earlier community investigation established that
+the matchmaking backend isn't reachable from Lua at all, and multiplayer has separately been restored
+already via server emulation, entirely outside Lua. Nothing here revisits that. This page only cares about
+what mods can do with a session that's already connected, however that connection came to exist.
 
-Mercenaries 2's online multiplayer depended on a matchmaking backend that's almost certainly long dead —
-this is a ~2008 release. The question worth asking from a modding angle: does the Lua layer expose enough
-of the underlying networking primitives that a script could route around the dead matchmaking service
-entirely, rather than needing it?
+## `Net.SendCustomEvent` and `NetEventCallback`
 
-## Three distinct connection paths, not one
-
-Reading every real call site of the connection-related `Net.*` functions across the whole decompiled
-corpus turns up three architecturally separate systems, all living under the same `Net` namespace:
-
-**LAN/local lobby** — `Net.EnterLobby()`. The game's own debug logging calls this out explicitly:
-`Debug.Printf("Entered lan lobby")` runs immediately after the call, in `resident/mrxguishell.lua`. This
-is the path most likely to still work today, since it doesn't depend on any external service at all —
-just local network discovery.
-
-**Friends lobby** — `Net.EnterFriendsLobby()`, a separate function entirely, almost certainly backed by a
-platform-level friends/identity service (Xbox Live-style, going by the naming and surrounding code). This
-is the path most likely to be permanently dead, since it needs an external identity backend, not just a
-network transport.
-
-**Internet matchmaking** — `Net.ConnectToServer(sServerName, "online")` — note the literal string
-`"online"` as the second argument, distinct from the other calling conventions below. Every real call
-site is guarded by `Net.IsMatchmakingInternet()`. This is the piece almost certainly tied to a defunct
-GameSpy-era matchmaking backend.
-
-## The most important finding: direct IP connect is real
-
-`Net.ConnectToServer` takes a **raw IP address string** as its second argument in its most common real
-usage:
-
-```lua
-local bSuccess = Net.ConnectToServer(tData.sName, tData.sIPAddress)
-```
-
-`tData.sIPAddress` is read directly off a discovered-server entry (`resident/mrxguishell.lua:685`,
-confirmed via `Debug.Printf("joinGame info: " .. tData.sName .. tData.sIPAddress)` printing it right
-before the call). The same function is also called with an empty string (`""`, for friends-lobby joins,
-where presumably the platform layer resolves the connection some other way) and with the literal string
-`"online"` (for matchmaking joins) — three different calling conventions on one function, selected by
-what the second argument actually is.
-
-**What this means**: if `sIPAddress` is a genuine dotted-quad string in the confirmed case, there's no
-apparent reason a script couldn't construct that same call directly —
-`Net.ConnectToServer("SomeName", "192.168.1.50")` — without ever going through the lobby UI, the LAN
-discovery system, or the (dead) matchmaking service at all. This is the single most promising lead on
-this whole page, and also the easiest to test directly.
-
-## Hosting: the one real open question
-
-```lua
-if Net.IsMatchmakingInternet() and Net.IsPlatformConnected() then
-  Net.StartServer(Net.GetHostName(), Sys.GetLevelName(), Sys.GetMasterScriptName())
-else
-  Sys.StartSingleplayer(sLevelName, sMasterScript)
-end
-```
-
-Every real call site of `Net.StartServer` in the entire corpus — three of them, all near-identical — is
-gated behind this exact same check. There is no confirmed example anywhere in source of `StartServer`
-being called *without* that gate. That leaves a genuine unknown, and it's the crux of the whole question:
-is `IsMatchmakingInternet()`/`IsPlatformConnected()` just how *this particular menu flow* happens to be
-wired, with the underlying native `StartServer` perfectly able to host a LAN-only game if called
-directly — or does the native implementation itself refuse to function without a live matchmaking
-handshake, regardless of how it's invoked from Lua? **This cannot be answered from decompiled Lua source
-alone** — the actual network protocol is compiled, native code, invisible to us. It needs a live test:
-call `Net.StartServer(...)` directly from a script, skipping the `IsMatchmakingInternet()` check
-entirely, and see what happens.
-
-## How discovered servers reach Lua at all
-
-Worth understanding before trying any of this: `resident/mrxguishell.lua` defines
-`HandleServerAdd(oWidget, tEvent)`, `HandleServerUpdate(oWidget, tEvent)`, and
-`HandleServerRemove(oWidget, tEvent)` — but **there is no `SetEventHandler` call anywhere in the corpus
-registering them**. Every other widget event in this wiki (`"OpenShell"`, `"CloseShell"`, etc.) is
-explicitly wired with `oWidget:SetEventHandler("EventName", handlerFunction)`. These three aren't. The
-only explanation that fits: the engine's native networking layer calls these global functions directly,
-by exact name, whenever it discovers/updates/loses a server — the same "callback by naming convention"
-pattern used elsewhere in this codebase for `Awake`/`OnActivate` on world objects (see the
-[Resident Modules](../resident/) landing page). Lua doesn't drive discovery here; it only reacts to
-results the native layer hands it. `tEvent` carries `uKey` (an opaque server handle), `sName`, `nStatus`,
-`sMap`, `sContract`, `bFriendlyFire` — notably, **not `sIPAddress`** in the fields actually copied by
-`HandleServerAdd`, which raises its own question about how `tData.sIPAddress` gets onto entries that
-`_JoinGameFlashCallback` later reads. Not resolved by anything found in this pass.
-
-## `Net.SendCustomEvent` and `NetEventCallback` — a second instance of the same pattern
-
-Completely separate from server discovery, there's a second native-dispatch-by-convention mechanism
-already confirmed on the [Net namespace page](../namespaces/net#sendcustomevent-general-purpose-mission-sync):
-`Net.SendCustomEvent`.
+Confirmed on the [Net namespace page](../namespaces/net#sendcustomevent-general-purpose-mission-sync):
 
 ```lua
 Net.SendCustomEvent(sModuleName, nEventId, tArgs, bReliable)
@@ -124,14 +41,15 @@ function NetEventCallback(nEventType, tArgs)
 end
 ```
 
-Again: no explicit registration call anywhere. `NetEventCallback` is just a global function name the
-engine looks up and calls, keyed by the `sModuleName` string passed into `SendCustomEvent`. Every
-`resident/`/`vz/` module that wants to sync something across a co-op session defines its own
-`NetEventCallback` and its own small set of numeric event IDs, entirely independently of every other
-module's.
+There's no explicit registration call anywhere for this. `NetEventCallback` is just a global function name
+the engine looks up and calls, keyed by the `sModuleName` string passed into `SendCustomEvent` — the same
+"callback by naming convention" pattern documented elsewhere on this wiki for `Awake`/`OnActivate` on world
+objects (see the [Resident Modules](../resident/) landing page). Every `resident/`/`vz/` module that wants
+to sync something across a co-op session defines its own `NetEventCallback` and its own small set of
+numeric event IDs, entirely independently of every other module's.
 
-**This is the second-most-interesting lead here.** If dispatch really is just "look up a global function
-named `NetEventCallback` belonging to the module named by this string," there's no obvious reason custom
+**This is the interesting part.** If dispatch really is just "look up a global function named
+`NetEventCallback` belonging to the module named by this string," there's no obvious reason custom
 cross-player events couldn't ride on top of it.
 
 There are two ways to try reaching that dispatch, though, and they carry very different amounts of risk:
@@ -147,7 +65,7 @@ There are two ways to try reaching that dispatch, though, and they carry very di
   registered on both host and client (since it's real game content, loaded normally). This is the
   approach the test below uses.
 
-### A concrete test: ping-pong via a hijacked `NetEventCallback`
+## A concrete test: ping-pong via a hijacked `NetEventCallback`
 
 Two small scripts, meant to be dropped onto **both players'** machines identically. One overrides
 `Alarm`'s callback to also handle two new event IDs `Alarm` itself never uses (its own real ones are `0`
@@ -263,28 +181,18 @@ you're sending to.
 
 ## What a live test would actually need to check
 
-In rough priority order:
-
-1. **Direct IP connect**: `Net.ConnectToServer("Test", "<LAN IP of a second instance>")` from one machine,
-   with the second machine having called `Net.StartServer(...)` (bypassing the `IsMatchmakingInternet()`
-   gate entirely) — does a connection actually establish?
-2. **Custom `NetEventCallback`**: the ping-pong test above — confirm a hijacked callback actually fires on
-   the *other* player's machine, not just locally.
-3. **What `IsPlatformConnected()`/`IsOnlineEnabled()` actually return** with no matchmaking backend
-   reachable — do they fail gracefully (return `false`), or does calling networking functions while
-   they're `false` error out / hang?
+- **Does the ping-pong test above actually round-trip?** The single open question this page cares about —
+  confirm a hijacked callback fires on the *other* player's machine, not just locally.
+- **Is `SendCustomEvent` genuinely symmetric** (either player can trigger it) or effectively host-only in
+  practice, regardless of what the lack of an explicit `Net.IsServer()` gate in `alarm.lua` suggests?
+- **Does the override survive a level load on both ends?** If `Alarm`'s module state gets rebuilt on
+  level transition, the hijack may need to be reapplied via `OnLoad` rather than assumed permanent for a
+  session.
 
 ## Known limitations of this whole page
 
 - **Nothing here is live-tested.** Every claim is "the source supports this reading," not "this was
   confirmed to work." Treat this page as a research starting point, not a working guide.
 - **The actual network wire protocol is invisible to us.** Everything past the Lua call boundary is
-  compiled native code. Lua can call `Net.StartServer`/`Net.ConnectToServer`; whether the underlying
-  implementation still functions without whatever backend it originally talked to is fundamentally
-  unknowable from source alone.
-- **`sIPAddress`'s origin on a discovered-server entry is unresolved** — `HandleServerAdd` doesn't
-  visibly copy it from the native `tEvent`, yet code elsewhere reads it. Either it's set somewhere not
-  found in this pass, or there's a real gap in this analysis.
-- **Friends lobby is almost certainly the deadest of the three paths**, being the most tightly coupled to
-  an external identity service — not a promising restoration target even if the LAN/direct-IP path turns
-  out to work.
+  compiled native code — whether `SendCustomEvent`'s payload delivery has any practical limits (size,
+  rate, reliability under packet loss even with `bReliable = true`) is unknowable from source alone.

@@ -21,10 +21,11 @@ different problem instead of just copy-pasting the end result.
 - **[Overriding a Function](function-override)** — replacing a piece of the game's own logic instead of
   just reading/writing a value, worked through end to end: the original approach, three wrong turns, the
   fix that actually worked, and the general pattern for applying this technique elsewhere.
-- **[Networking: A Lua-Only Restoration?](networking)** — *speculative, not live-tested* — what the `Net`
-  namespace actually exposes: three distinct connection paths, a real direct-IP-connect primitive, the
-  native callback-by-convention dispatch behind both server discovery and custom cross-player events, and
-  a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
+- **[Custom Networked Events](networking)** — *speculative, not live-tested* — scoped purely to whether
+  mod-authored Lua scripts can exchange their own custom data across an already-connected co-op session
+  (matchmaking/connection itself is out of scope, already solved elsewhere): the native
+  callback-by-convention dispatch behind `Net.SendCustomEvent`/`NetEventCallback`, a concrete ping-pong
+  test, and a full catalog of every `NETEVENT_*` constant in the decompiled corpus.
 - **[A Basic Co-op Text Chat](coop-chat)** — *send still unproven, input and display are real* — send
   reuses the networking page's hijacked-`NetEventCallback` pattern; input is backed by the
   [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
