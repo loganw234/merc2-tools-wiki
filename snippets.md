@@ -310,6 +310,31 @@ whatever that key resolves to in the string table, which this wiki doesn't have 
 test rendered a generic book icon instead, which is presumably the default when no icon tag is present.
 There's no known way to choose a different icon for a custom message.
 
+## Show a clean, centered toast notification
+
+A different, simpler-looking popup than the tutorial-hint one above — no icon, no gold header, just
+plain text centered on screen, using the engine's own `EventFanfare` system (see
+[Hud: EventFanfare sType catalog and the custom toast trick](namespaces/hud#eventfanfare-stype-catalog-and-the-custom-toast-trick)
+for the full story of how this was found):
+
+```lua
+import("MrxGuiHudMessage")
+
+MrxGuiHudMessage._tEventTextures.custom = "this_texture_does_not_exist"
+Hud.EventFanfare:Commence({sType = "custom", vText = "Whatever message I want!"})
+```
+
+**Confirmed working by live testing** — the `import`/table-write only needs to happen once (an `OnLoad`
+or `OnBoot` script is a good place for it); after that, any later script can just call
+`Hud.EventFanfare:Commence({sType = "custom", vText = "..."})` on its own. Multiple calls queue up and
+play one after another automatically rather than overlapping — the same fanfare queue every built-in
+fanfare variant shares.
+
+One nuance confirmed while testing this: reusing the exact name of a texture that's already loaded (e.g.
+`"unlockables_newstockpileitem"`) makes a real icon *and* a gold header appear — but the header text shown
+is that texture's own built-in title, not anything customizable from here. Stick to a made-up name that
+doesn't match any real texture if you want the clean, text-only look.
+
 ## A dangerous vehicle speed boost (irreversible once started)
 
 A silly one — repeatedly shoves whatever vehicle you're currently riding in forward with a physics

@@ -75,11 +75,70 @@ differs slightly, exposing `Complete`/`Failed` instead of `Commence`.
 | `SupportFanfare.AddItem` | `Hud.SupportFanfare:AddItem(tArgs)` | Implemented in `resident/mrxguiinterface.lua`; reads `tArgs.sTexture`, `tArgs.sItemName`, `tArgs.sFaction`, `tArgs.sContactName`, `tArgs.sBlipName`. |
 | `SupportFanfare.Commence` | `Hud.SupportFanfare:Commence(tArgs)` | Implemented in `resident/mrxguiinterface.lua`. |
 | `ContactFanfare.Commence` | `Hud.ContactFanfare:Commence(tArgs)` | Confirmed in `vz/meccon001.lua`; implemented in `resident/mrxguiinterface.lua`, which reads `tArgs.fCallback`, `tArgs.tCallbackData`. |
-| `EventFanfare.Commence` | `Hud.EventFanfare:Commence({sType=s, vText=s_or_t})` | Confirmed across many real call sites, e.g. `resident/mrxpmc.lua`, `resident/mrxunlockfanfare.lua`, `resident/mrxtaskjobverifyset.lua`: `Hud.EventFanfare:Commence({sType = sFanfareType, vText = sFanfareText})`. Implementation in `resident/mrxguiinterface.lua` normalizes a legacy `tArgs.sText` field into `tArgs.vText` if the latter is absent. |
+| `EventFanfare.Commence` | `Hud.EventFanfare:Commence({sType=s, vText=s_or_t})` | Confirmed across many real call sites, e.g. `resident/mrxpmc.lua`, `resident/mrxunlockfanfare.lua`, `resident/mrxtaskjobverifyset.lua`: `Hud.EventFanfare:Commence({sType = sFanfareType, vText = sFanfareText})`. Implementation in `resident/mrxguiinterface.lua` normalizes a legacy `tArgs.sText` field into `tArgs.vText` if the latter is absent. **Confirmed working by live testing** — see the `sType` catalog and the "custom toast" trick just below the table. |
 | `CardFanfare.Commence` | `Hud.CardFanfare:Commence({sFaction=s, sTitle=s, sName=s, sJobTitle=s, sPhone1=s, sPhone2=s, sEmail=s, nDisplayTime=n, fCallback=fn, tCallbackData=t})` | Confirmed in `resident/mrxbriefing.lua`; full field list read directly from the `resident/mrxguiinterface.lua` implementation, which forwards those fields to `MrxGuiHudMessage.CardFanfareSetParameters`. |
 | `TextFanfare.Commence` | `Hud.TextFanfare:Commence({sLine1=s, sLine2=s, nEntranceTime=n, nDisplayTime=n, nFadeTime=n, fCallback=fn, tCallbackData=t})` | No direct top-level call site found in this pass, but field list confirmed from the `resident/mrxguiinterface.lua` implementation. |
 | `JobFanfare.Complete` | `Hud.JobFanfare:Complete({...})` | No call site checked in this pass — presumed similar table-argument shape to confirmed siblings. |
 | `JobFanfare.Failed` | `Hud.JobFanfare:Failed({...})` | No call site checked in this pass — presumed similar table-argument shape to confirmed siblings. |
+
+#### EventFanfare sType catalog and the custom toast trick
+
+`EventFanfare.Commence`'s implementation, confirmed directly in `resident/mrxguihudmessage.lua`, gates on
+a lookup table before showing anything at all:
+
+```lua
+function ShowEventFanfare(sType, vText, fCallback, tCallbackData)
+  if not sType or not _tEventTextures[sType] then
+    return
+  end
+  ...
+```
+
+`sType` must be a key present in `_tEventTextures` or the call **silently does nothing** — no error, no
+fallback icon, just a no-op. There are exactly 9 real values shipped in the game, each pairing a
+localization-key title, an icon texture, and a sound cue (all confirmed directly from
+`resident/mrxguihudmessage.lua`'s `_tEventTitles`/`_tEventTextures`/`_tEventSounds` tables):
+
+| `sType` | Title key | Texture | Sound |
+|---|---|---|---|
+| `contact` | `[Fanfare.Common.NewContact]` | `unlockables_newcontact` | `ui_signal_ding` |
+| `support` | `[Fanfare.Common.NewShopItem]` | `unlockables_newshopitem` | `ui_signal_ding` |
+| `stockpile` | `[Fanfare.Common.NewStockpileItem]` | `unlockables_newstockpileitem` | `ui_signal_ding` |
+| `landingzone` | `[Fanfare.Common.NewLandingZone]` | `unlockables_landingzone` | `ui_signal_ding` |
+| `hvtcapture` | `[Fanfare.Common.HvtCaptured]` | `unlockables_hvtcaptured` | `ui_signal_generic` |
+| `hvtkill` | `[Fanfare.Common.HvtKilled]` | `unlockables_hvtkilled` | `ui_signal_generic` |
+| `bounty` | `[Fanfare.Common.NewBounties]` | `unlockables_newbounties` | `ui_signal_ding` |
+| `outfit` | `[Fanfare.Common.NewOutfit]` | `unlockables_newoutfit` | `ui_signal_ding` |
+| `highscore` | `[Fanfare.Common.NewHighScore]` | `unlockables_leaderboardupdated` | `ui_signal_ding` |
+
+**Confirmed working by live testing** — cycling all 9 in a loop plays them out one after another
+automatically, since they funnel through the same `_tFanfareQueue` every fanfare variant shares.
+
+**Also confirmed by live testing**: since `_tEventTextures`/`_tEventTitles`/`_tEventSounds` are all
+declared without `local` in source, they're reachable and writable via `import("MrxGuiHudMessage")`,
+which means the no-op gate above can be sidestepped by adding your own key rather than patching
+`ShowEventFanfare` itself:
+
+```lua
+import("MrxGuiHudMessage")
+
+MrxGuiHudMessage._tEventTextures.custom = "this_texture_does_not_exist"
+Hud.EventFanfare:Commence({sType = "custom", vText = "Whatever message I want!"})
+```
+
+Two real, confirmed behaviors from testing this, one of them a genuine surprise:
+
+- **Reusing a real, existing texture name** (e.g. `unlockables_newstockpileitem`) makes the icon *and*
+  the header text both display — but the header shown is that texture's own real title
+  (`"NEW STOCKPILE ITEM"`), **not** whatever was set in `_tEventTitles.custom`. This means the visible
+  on-screen header isn't actually driven by `_tEventTitles[sType]` on this code path at all — that table
+  (and the separate `GetEventFanfareTitle` function) appears to only feed the co-op text-summary event
+  (`Net.SendEvent_Fanfare`'s composed message), a different display surface entirely. Not fully
+  understood, flagged honestly rather than guessed at further.
+- **Using a texture name that doesn't correspond to a real loaded asset** produces a clean result: no
+  icon, no gold header text, just the plain `vText` message centered on screen — confirmed by live
+  testing. This is the simplest, lowest-effort way to print an arbitrary message dead-center on the HUD
+  without building any custom widget at all.
 
 ### Radar
 
