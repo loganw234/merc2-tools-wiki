@@ -329,3 +329,331 @@ five separate engine quirks found and fixed along the way, and why this needs th
 
 </details>
 
+<details class="script-entry" markdown="1">
+<summary><strong>CommonSpawnMenu.lua</strong> — A quick-access picker menu for spawning vehicles and props at your position, plus a free-text option for any <code>Pg.Spawn</code> template name.</summary>
+
+Built on the same [`MrxGuiDialogBox`](resident/mrxguidialogbox) system as `OpenCheatMenu.lua` above — the
+fixed vehicle list is a plain picker menu, rebuilt fresh on every keypress the same way
+`ConsoleCheatsMenu.lua` does above it. The one option that can't work as a native menu item — "Custom
+Name..." — opens a small standalone text-entry widget instead, built from the same `MrxGuiTextBuffer` bug
+workaround detailed in [Building a Chat/Log UI](deep-dives/coop-chat-ui), typed using the
+[lua-bridge `Loader` API](lua-bridge-api/loader)'s keyboard capture — the same input mechanism behind the
+[co-op chat](deep-dives/coop-chat) feature — rather than anything reachable in game Lua alone.
+
+**Prerequisites:** same as [co-op chat](deep-dives/coop-chat) — requires a lua-bridge build that includes
+the `Loader.*` input functions, not just a stock install.
+
+```lua
+local KEYVAL = "f5"  -- must be in the first 10 lines -- f2 (OpenCheatMenu), f3 (ConsoleCheatsMenu), f4 (Freecam) are already taken by the other sample OnKey scripts on this wiki
+
+-- Persistent state and widget module, guarded with "or" -- this whole script re-executes on every
+-- keypress (OnKey scripts are re-read from disk each press), so a plain table literal here would
+-- blow away the console's own widget references and orphan them on screen every time f5 is pressed.
+_G.CommonSpawnState = _G.CommonSpawnState or {
+  active = false,      -- true while the free-text "Custom Name..." input is open
+  buffer = "",
+  loopRunning = false, -- true while a CommonSpawnInputLoop chain is actually ticking
+}
+
+SpawnConsoleUI = SpawnConsoleUI or {
+  logBox = nil,
+  inputPreview = nil,
+  isVisible = false
+}
+
+local VK_BACKSPACE = 0x08
+local VK_RETURN = 0x0D
+local VK_ESCAPE = 0x1B
+local VK_SHIFT = 0x10
+local VK_SPACE = 0x20
+
+local nSpawnHeightOffset = 2  -- how far above your own position things spawn -- raise if things spawn stuck in the ground
+local nPollInterval = 0.01    -- Loader's key-event buffer fills at ~60Hz; poll faster than that so typing doesn't lag
+
+-- ============================================================
+-- VK code -> typed character, shift-aware (template names are case-sensitive
+-- and use punctuation, unlike the co-op chat's uppercase-only input)
+-- ============================================================
+local tShiftedDigits = {
+  [0x30] = ")", [0x31] = "!", [0x32] = "@", [0x33] = "#", [0x34] = "$",
+  [0x35] = "%", [0x36] = "^", [0x37] = "&", [0x38] = "*", [0x39] = "("
+}
+
+local tPunctuation = {
+  [0xBD] = {"-", "_"},  -- hyphen / underscore
+  [0xBE] = {".", ">"},  -- period / greater-than
+  [0xBC] = {",", "<"}   -- comma / less-than
+}
+
+local function VkToChar(nVk, bShift)
+  if nVk >= 0x41 and nVk <= 0x5A then
+    return bShift and string.char(nVk) or string.char(nVk + 32)
+  elseif nVk >= 0x30 and nVk <= 0x39 then
+    return bShift and tShiftedDigits[nVk] or string.char(nVk)
+  elseif nVk == VK_SPACE then
+    return " "
+  elseif tPunctuation[nVk] then
+    return bShift and tPunctuation[nVk][2] or tPunctuation[nVk][1]
+  end
+  return nil
+end
+
+-- ============================================================
+-- Spawn logic
+-- ============================================================
+function DoSpawn(sTemplateName)
+  local uChar = Player.GetLocalCharacter()
+  local x, y, z = Object.GetPosition(uChar)
+
+  local bOk, uSpawned = pcall(Pg.Spawn, sTemplateName, x, y + nSpawnHeightOffset, z)
+  return bOk and uSpawned
+end
+
+-- ============================================================
+-- Display: input line + scrolling log, used only while the free-text console is open
+-- ============================================================
+import("MrxGui")
+import("MrxGuiTextBuffer")
+
+function SpawnConsoleUI:Init(x, y, width, height)
+  if self.logBox then return true end
+
+  x = x or 20
+  y = y or 20
+  width = width or 280
+  height = height or 120
+
+  self.logBox = MrxGui.ImageWidget:new()
+  self.logBox:SetLocation(x, y, x + width, y + height)
+  self.logBox.BasicData = self.logBox.BasicData or {}
+  self.logBox.BasicData.name = "MessageBox"
+
+  local initFunc = _G.HandleInstantiationEventForTextBuffer or (_G.MrxGuiTextBuffer and _G.MrxGuiTextBuffer.HandleInstantiationEventForTextBuffer)
+  if initFunc then
+    initFunc(self.logBox, {})
+  else
+    return false
+  end
+
+  self.logBox:SetColor(24, 24, 24)
+  self.logBox:SetTranslucency(200)
+
+  local inputHeight = 25
+  self.logBox.CustomData.y2 = self.logBox.CustomData.y2 - inputHeight
+  self.logBox.CustomData.nHeight = self.logBox.CustomData.nHeight - inputHeight
+  self.logBox.CustomData.nRemainingSpace = self.logBox.CustomData.nHeight
+
+  self.inputPreview = MrxGui.TextWidget:new()
+  self.inputPreview:SetFont("english_18")
+  self.inputPreview:SetText("> _")
+  self.inputPreview:SetColor(255, 255, 0)
+
+  local inX1 = x + 10
+  local inX2 = x + width - 10
+  local inY1 = (y + height) - inputHeight - 5
+  local inY2 = (y + height) - 5
+  self.inputPreview:SetLocation(inX1, inY1, inX2, inY2)
+
+  if _G.Player and _G.Player.GetLocalPlayer then
+    local p = _G.Player.GetLocalPlayer()
+    self.logBox:SetOwner(p)
+    self.inputPreview:SetOwner(p)
+  end
+
+  MrxGui.AddWidget(self.logBox)
+  MrxGui.AddWidget(self.inputPreview)
+
+  self.logBox:SetVisible(false)
+  self.inputPreview:SetVisible(false)
+  self.isVisible = false
+
+  return true
+end
+
+function SpawnConsoleUI:Show(bVisible)
+  if bVisible and not self.logBox then
+    self:Init()
+  end
+
+  if not self.logBox or not self.inputPreview then return end
+
+  self.isVisible = bVisible
+  self.logBox:SetVisible(bVisible)
+  self.inputPreview:SetVisible(bVisible)
+end
+
+function SpawnConsoleUI:AddMessage(sMessage)
+  if not self.logBox then self:Init() end
+  if not self.logBox or not self.logBox.AddMessage then return end
+
+  self.logBox:AddMessage(sMessage, 5, 15, 1, false, true)
+  self:Show(true)
+end
+
+function SpawnConsoleUI:SetInputText(sText)
+  if not self.inputPreview then return end
+  self.inputPreview:SetText("> " .. (sText or "") .. "_")
+end
+
+function SpawnFromConsole(sTemplateName)
+  local bSuccess = DoSpawn(sTemplateName)
+  SpawnConsoleUI:AddMessage((bSuccess and "Spawned: " or "Failed: ") .. sTemplateName)
+end
+
+-- ============================================================
+-- Free-text console open/close + its polling loop. loopRunning means a chain is
+-- already ticking somewhere -- reuse it instead of starting a second one.
+-- ============================================================
+function OpenCustomSpawnInput()
+  _G.CommonSpawnState.active = true
+  _G.CommonSpawnState.buffer = ""
+  Loader.ClearKeyEvents()
+  Player.SetInputEnabled(Player.GetLocalPlayer(), false)
+  SpawnConsoleUI:Show(true)
+  SpawnConsoleUI:SetInputText("")
+
+  if not _G.CommonSpawnState.loopRunning then
+    _G.CommonSpawnState.loopRunning = true
+    CommonSpawnInputLoop()
+  end
+end
+
+function CloseCustomSpawnInput()
+  _G.CommonSpawnState.active = false
+  Player.SetInputEnabled(Player.GetLocalPlayer(), true)
+  SpawnConsoleUI:Show(false)
+end
+
+function CommonSpawnInputLoop()
+  if not _G.CommonSpawnState.active then
+    _G.CommonSpawnState.loopRunning = false
+    return
+  end
+
+  local sEvents = Loader.PopKeyEvents()
+  local bShift = Loader.IsKeyDown(VK_SHIFT)
+  local bBufferChanged = false
+
+  for i = 1, string.len(sEvents) do
+    local nVk = string.byte(sEvents, i)
+
+    if nVk == VK_RETURN then
+      local sTemplateName = _G.CommonSpawnState.buffer
+      _G.CommonSpawnState.buffer = ""
+      SpawnConsoleUI:SetInputText("")
+      bBufferChanged = false
+      if sTemplateName ~= "" then
+        SpawnFromConsole(sTemplateName)
+      end
+    elseif nVk == VK_ESCAPE then
+      CloseCustomSpawnInput()
+      break  -- state just changed out from under us -- don't keep processing this batch
+    elseif nVk == VK_BACKSPACE then
+      _G.CommonSpawnState.buffer = string.sub(_G.CommonSpawnState.buffer, 1, string.len(_G.CommonSpawnState.buffer) - 1)
+      bBufferChanged = true
+    else
+      local sChar = VkToChar(nVk, bShift)
+      if sChar then
+        _G.CommonSpawnState.buffer = _G.CommonSpawnState.buffer .. sChar
+        bBufferChanged = true
+      end
+    end
+  end
+
+  if bBufferChanged then
+    SpawnConsoleUI:SetInputText(_G.CommonSpawnState.buffer)
+  end
+
+  Event.Create(Event.TimerRelative, {nPollInterval}, CommonSpawnInputLoop)
+end
+
+-- ============================================================
+-- What this specific f5 press does: close the console if it's open, otherwise
+-- show the picker menu (rebuilt fresh each press, same as ConsoleCheatsMenu.lua)
+-- ============================================================
+if _G.CommonSpawnState.active then
+  CloseCustomSpawnInput()
+else
+  import("MrxGuiDialogBox")
+  import("MrxGuiHudMessage")
+
+  MrxGuiHudMessage._tEventTextures.custom = "this_texture_does_not_exist"
+
+  -- Default menu entries. `template` strings are pulled directly from real Pg.Spawn call sites in the
+  -- decompiled corpus. "Ambulance" and "El Grande" are confirmed spawnable bare (empty, no driver) --
+  -- both appear without a "(Driver)" suffix elsewhere in the corpus (resident/mrxsupportdata.lua's
+  -- SetCargo lists, and El Grande also directly in vz/oilcon020.lua's own Pg.Spawn call). "UH1 Transport
+  -- (PMC)" has no confirmed bare call site anywhere -- dropping "(Driver)" there is a guess, not a
+  -- confirmed fact; if it fails to spawn, put "(Driver)" back on that one specifically.
+  local tSpawnMenuOptions = {
+    {label = "Veyron (Sports Car)", action = "spawn", template = "Veyron"},
+    {label = "ZTZ98 (Tank)", action = "spawn", template = "ZTZ98"},
+    {label = "UH1 Transport (Helicopter)", action = "spawn", template = "UH1 Transport (PMC)"},
+    {label = "Ambulance", action = "spawn", template = "Ambulance"},
+    {label = "El Grande (Truck)", action = "spawn", template = "El Grande"},
+    {label = "M35 Cargo Truck", action = "spawn", template = "M35 (Cargo) (VZ)"},
+    {label = "Grenade Explosion", action = "spawn", template = "Explosion (Grenade)"},
+    {label = "Custom Name...", action = "custom"},
+    {label = "Cancel", action = "cancel"},
+  }
+
+  local function OnSpawnMenuSelect(nSelectedIndex)
+    local tEntry = tSpawnMenuOptions[nSelectedIndex]
+    if not tEntry then return end
+
+    if tEntry.action == "spawn" then
+      local bSuccess = DoSpawn(tEntry.template)
+      Hud.EventFanfare:Commence({sType = "custom", vText = (bSuccess and "Spawned: " or "Failed: ") .. tEntry.template})
+    elseif tEntry.action == "custom" then
+      OpenCustomSpawnInput()
+    end
+    -- "cancel" falls through and does nothing
+  end
+
+  local tLabels = {}
+  for i, tEntry in ipairs(tSpawnMenuOptions) do
+    tLabels[i] = tEntry.label
+  end
+
+  -- bPause=true matches how the game's own menus behave; untested whether pausing here
+  -- has any side effect on a connected co-op partner -- flip to false if that matters to you
+  MrxGuiDialogBox.DisplayDialogBox(
+    Player.GetLocalPlayer(),
+    "Common Spawn",
+    tLabels,
+    1,
+    OnSpawnMenuSelect,
+    {},
+    nil, nil, nil, nil,
+    true,
+    #tSpawnMenuOptions
+  )
+end
+```
+
+![The in-game Common Spawn menu opened via the f5 hotkey, titled "Common Spawn" with Veyron (Sports Car) highlighted as the current selection, followed by ZTZ98 (Tank), UH1 Transport (Helicopter), Ambulance, El Grande (Truck), M35 Cargo Truck, Grenade Explosion, Custom Name..., and Cancel, with Move Selection and Confirm button prompts at the bottom and a tank model visible in the background.](img/commonspawnmenu.png)
+
+**Confirmed working by live testing** — every menu option spawns correctly, and the free-text console
+correctly captures typed characters (including shifted/punctuation ones) and spawns whatever template name
+is entered.
+
+A few things worth knowing if you customize this:
+- **Press Escape to exit the free-text console** — pressing `f5` a second time is *supposed* to close it
+  too (checked at the top of the OnKey script), but relying on that alone turned out to be a real bug: it's
+  a second, independent key-observation system (lua-bridge's own 30Hz OnKey polling) firing at the same
+  time as this script's own `Loader.PopKeyEvents()` loop, with no coordination between the two, and it
+  wasn't reliably closing the console while typing was active. Escape is handled directly inside the same
+  polling loop that already reliably captures every other keystroke, so it doesn't depend on that second
+  system at all.
+- The vehicle list is a confirmed-real starting point, not a fixed catalog — swap `tSpawnMenuOptions` for
+  whatever you actually want quick access to. "Ambulance" and "El Grande" are confirmed spawnable bare (no
+  driver); "UH1 Transport (PMC)" dropping its "(Driver)" suffix is a guess, not confirmed — put it back if
+  that entry stops working for you.
+- The free-text input captures uppercase/lowercase letters, digits, space, and a small punctuation set
+  (`- _ . , < >`) — enough for every template name seen in the decompiled corpus, but not necessarily every
+  possible one.
+- `bPause=true` on the menu matches how the game's own menus behave; untested whether pausing here has any
+  side effect on a connected co-op partner.
+
+</details>
+
