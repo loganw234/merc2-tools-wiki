@@ -131,13 +131,74 @@ engine looks up and calls, keyed by the `sModuleName` string passed into `SendCu
 module's.
 
 **This is the second-most-interesting lead here.** If dispatch really is just "look up a global function
-named `NetEventCallback` belonging to the module named by this string," there's no obvious reason that
-lookup couldn't resolve to a modder-authored module too — meaning a custom, host-authoritative networked
-event channel, built entirely from Lua, reusing exactly the machinery the game's own missions already use
-to sync alarm states, atmosphere changes, outfit swaps, and dozens of other things across players. Worth
-testing directly: define a trivial module with its own `NetEventCallback`, call
-`Net.SendCustomEvent("YourModuleName", 0, {"hello"}, true)` from one client, and see whether the other
-side's callback actually fires.
+named `NetEventCallback` belonging to the module named by this string," there's no obvious reason custom
+cross-player events couldn't ride on top of it.
+
+There are two ways to try reaching that dispatch, though, and they carry very different amounts of risk:
+
+- **Register a wholly new module name of your own** — untested, and genuinely uncertain, since the
+  registry backing `sModuleName` resolution (`_MODULES`, presumably) is never touched by any Lua script
+  anywhere in the corpus. Every `import()` call in this entire project has been for a module that's real
+  original game content; whether the native side accepts an invented name it's never seen before is
+  unknown.
+- **Hijack an existing module's `NetEventCallback`** — the safer bet, because it reuses exactly the same
+  "reassign a name, the next call sees your version" mechanism already proven working in the
+  [function-override deep dive](function-override), riding on a module that's *already* genuinely
+  registered on both host and client (since it's real game content, loaded normally). This is the
+  approach the test below uses.
+
+### A concrete test: ping-pong via a hijacked `NetEventCallback`
+
+Two small scripts, meant to be dropped onto **both players'** machines identically. One overrides
+`Alarm`'s callback to also handle two new event IDs `Alarm` itself never uses (its own real ones are `0`
+and `1` — see the catalog below); the other is a hotkey that kicks off the exchange. If this works, a
+single keypress from either player should produce a log line on **both** machines: the sender logs
+"sent PING," the other player logs "received PING ... sending PONG back," and the original sender then
+logs "received PONG ... round trip complete" — a full, observable round trip confirming the override
+fired, the event actually crossed the network, and the reply made it back.
+
+`scripts/OnLoad/NetEventPingPongSetup.lua`:
+
+```lua
+import("Alarm")
+
+local NETEVENT_PING = 100  -- picked to avoid Alarm's own real IDs (0, 1)
+local NETEVENT_PONG = 101
+
+local fOriginalCallback = Alarm.NetEventCallback  -- preserve Alarm's real behavior
+
+Alarm.NetEventCallback = function(nEventType, tArgs)
+  if nEventType == NETEVENT_PING then
+    Loader.Printf("PINGPONG: received PING from " .. tostring(tArgs[1]) .. " -- sending PONG back")
+    Net.SendCustomEvent("Alarm", NETEVENT_PONG, {Net.GetHostName()}, true)
+  elseif nEventType == NETEVENT_PONG then
+    Loader.Printf("PINGPONG: received PONG from " .. tostring(tArgs[1]) .. " -- round trip complete!")
+  else
+    fOriginalCallback(nEventType, tArgs)  -- not our event, let Alarm handle it normally
+  end
+end
+
+Loader.Printf("PINGPONG: Alarm.NetEventCallback overridden, ready to test")
+```
+
+`scripts/OnKey/NetEventPing.lua`:
+
+```lua
+local KEYVAL = "f6"  -- must be in the first 10 lines
+
+Net.SendCustomEvent("Alarm", 100, {Net.GetHostName()}, true)
+Loader.Printf("PINGPONG: sent PING")
+```
+
+**How to run it**: both players load into the same co-op session with both scripts present, then either
+player presses `f6`. `Net.GetHostName()` is used purely as a "who sent this" tag in the log output — its
+exact return value hasn't been independently confirmed beyond its real use as an argument to
+`Net.StartServer`, so treat it as a label, not something to depend on. This is untested end to end; the
+event IDs (`100`/`101`), the assumption that `SendCustomEvent` is symmetric (not host-only — one
+suggestive data point in `alarm.lua` itself: nothing gates its own `SendCustomEvent` call behind
+`Net.IsServer()`, only the decision of *when* to send does), and whether the override even survives
+across a level load on both ends, are all things this test is specifically designed to surface, not
+assumptions it relies on.
 
 ## The full `NETEVENT_` catalog
 
@@ -207,9 +268,8 @@ In rough priority order:
 1. **Direct IP connect**: `Net.ConnectToServer("Test", "<LAN IP of a second instance>")` from one machine,
    with the second machine having called `Net.StartServer(...)` (bypassing the `IsMatchmakingInternet()`
    gate entirely) — does a connection actually establish?
-2. **Custom `NetEventCallback`**: define a throwaway module with its own `NetEventCallback`, call
-   `Net.SendCustomEvent` targeting it from a connected peer, confirm the callback actually fires on the
-   other side.
+2. **Custom `NetEventCallback`**: the ping-pong test above — confirm a hijacked callback actually fires on
+   the *other* player's machine, not just locally.
 3. **What `IsPlatformConnected()`/`IsOnlineEnabled()` actually return** with no matchmaking backend
    reachable — do they fail gracefully (return `false`), or does calling networking functions while
    they're `false` error out / hang?
