@@ -352,6 +352,88 @@ keeps running in the background, ready to grab the next vehicle you enter.
 
 Treat this as a joke/stress-test snippet, not something to actually drive with.
 
+## Gating the speed boost behind a held key
+
+The [`Loader.IsKeyDown(vk)`](lua-bridge-api/loader) function (a lua-bridge addition, not part of the game
+itself — see the [lua-bridge API](lua-bridge-api/) section) turns the joke above into something actually
+controllable: one line makes the boost only apply while a key is physically held down, rather than
+running unconditionally forever.
+
+```lua
+function StartSpeedBoost()
+  UpdateSpeedBoost()
+end
+
+function UpdateSpeedBoost()
+  local uPlayerChar = Player.GetLocalCharacter()
+  if uPlayerChar then
+    local uVehicle = Vehicle.GetFromRider(uPlayerChar)
+    if uVehicle and Object.IsAlive(uVehicle) then
+      local VK_SHIFT = 0x10
+      if Loader.IsKeyDown(VK_SHIFT) then
+        local currentSpeed = Object.GetVelocity(uVehicle)
+        if currentSpeed > 1.0 then
+          local myMass = Object.GetMass(uVehicle) or 1000
+          Object.ApplyImpulse(uVehicle, 0, 0, 30 * myMass, true)
+        end
+      end
+    end
+  end
+  Event.Create(Event.TimerRelative, {0.2}, UpdateSpeedBoost)
+end
+
+StartSpeedBoost()
+```
+
+Only one line changed — `if Loader.IsKeyDown(VK_SHIFT) then` around the impulse. The background loop
+still reschedules itself forever exactly like the unrestricted version above (same caveat: running this
+twice stacks a second independent loop, not a replacement), but its *effect* is now fully in your control —
+release Shift and the pushing stops immediately, because the impulse simply doesn't get applied on ticks
+where the key isn't held.
+
+## A "while key is held" loop template
+
+The same `Loader.IsKeyDown` + self-rescheduling `Event.TimerRelative` combination above is a genuinely
+useful general-purpose building block on its own, worth having as a bare template: "run my code repeatedly,
+for as long as a key stays held" — distinct from `OnKey`, which only fires once per press, not
+continuously while held.
+
+```lua
+local VK_SPACE = 0x20  -- pick any virtual-key code you want to watch
+
+function CheckHeldKeyLoop()
+  if Loader.IsKeyDown(VK_SPACE) then
+    -- Put your code here! This runs repeatedly, on every tick, for as long as
+    -- the key stays held down -- not just once on the initial press.
+    Loader.Printf("[mymod] space is currently held")
+  end
+
+  Event.Create(Event.TimerRelative, {0.2}, CheckHeldKeyLoop)
+end
+
+CheckHeldKeyLoop()
+```
+
+A few things worth understanding about the timing here, since it's easy to get wrong assumptions about:
+
+- **`{0.2}` is how often this loop re-checks the key** — 5 times a second. Lower it (e.g. `{0.05}`) for
+  snappier response, at the cost of more log spam and slightly more CPU use; raise it (e.g. `{0.5}`) if
+  you don't need fast response and want things quieter. There's nothing special about `0.2` — it's a
+  reasonable default, not a required value.
+- **This is deliberately coarser than lua-bridge's own input polling** — `OnKey` itself polls at 30Hz, and
+  `Loader.PopKeyEvents()` (see [lua-bridge API: Loader](lua-bridge-api/loader)) samples at ~60Hz
+  specifically for cases that can't afford to miss a keystroke, like typed text. A plain
+  `Event.TimerRelative` loop like this is the right tool when "check a few times a second" is good enough
+  — true for most simple "while held, do X" effects — not when you need frame-tight timing.
+  `Loader.IsKeyDown` itself is instantaneous (a single, cheap call) — the `0.2` interval is entirely about
+  how often *you* choose to ask, not any limitation of the function being called.
+- **One real caveat carried over from the [freecam deep dive](deep-dives/freecam)**: `Event.TimerRelative`
+  is gated on the game's own simulation time, so a loop built this way stops rescheduling entirely if the
+  world gets paused for any reason. Not a problem for most normal gameplay use, but worth knowing if an
+  effect built this way mysteriously seems to "freeze."
+- **Pick any key you want** — `VK_SPACE` (`0x20`) is just the example here. Swap in any Windows
+  virtual-key code; see [Your First Mod](first-mod)'s link to Microsoft's own reference for the full list.
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)
