@@ -46,9 +46,9 @@ single on-demand snapshot function originally scoped for this problem — it sol
 keystroke between polls" problem that a plain snapshot function would have pushed onto every script that
 used it.
 
-This is still the one piece of any Deep Dive on this wiki that depends on a specific lua-bridge build
-rather than just a dropped-in `.lua` file — worth remembering, since every other page here (including the
-rest of this one) only assumes a stock install.
+This is still the one piece of any Deep Dive on this wiki that depends on lua-bridge itself rather than
+just a dropped-in `.lua` file — it's part of the stock install, but make sure you're on **lua-bridge
+v0.1.6 or later**, since older installs predate it.
 
 ## Send
 
@@ -124,9 +124,8 @@ standalone and as part of the full input→send→display pipeline described abo
 
 ## Known limitations of this whole page
 
-- **Requires a lua-bridge build that includes the `Loader` input functions.** Real and implemented, but
-  still not part of every lua-bridge install by default — see the
-  [lua-bridge API section](../lua-bridge-api/) note on that.
+- **Requires lua-bridge v0.1.6 or later** for the `Loader` input functions — included in the stock install
+  from that version onward; see the [lua-bridge API section](../lua-bridge-api/) for details.
 - **Character set is limited to uppercase letters, digits, and space.** Input capture reads raw VK codes
   (see [lua-bridge API: Loader](../lua-bridge-api/loader)), which carry no Shift-state information — no
   lowercase, no punctuation. A real, current limitation, not yet addressed.

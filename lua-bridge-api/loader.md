@@ -50,6 +50,6 @@ function wouldn't have provided on its own.
   Don't build a text-input loop on repeatedly polling `GetKeyboardState` for edges yourself — the ring
   buffer already solved the "don't miss a keystroke between polls" problem, and hand-rolling it again on
   top would just reintroduce timing gaps the ring buffer exists to avoid.
-- **These are lua-bridge additions, not engine features** — see the [lua-bridge API](./) section landing
-  page for what that distinction means in practice (mainly: don't expect these on a different lua-bridge
-  build unless you've confirmed it includes them).
+- **These are lua-bridge additions, not engine features** — included in the stock install as of
+  **v0.1.6**; see the [lua-bridge API](./) section landing page for what that distinction means in
+  practice otherwise (mainly: make sure you're not on an older build that predates them).

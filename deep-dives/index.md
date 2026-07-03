@@ -30,7 +30,7 @@ different problem instead of just copy-pasting the end result.
 - **[A Basic Co-op Text Chat](coop-chat)** — *confirmed working end-to-end across two real players* —
   input, send, and display all fire correctly together over a real network connection; input is backed by
   the [lua-bridge API](../lua-bridge-api/)'s `Loader` keyboard functions rather than anything achievable in
-  game Lua alone — the one Deep Dive here that depends on a specific lua-bridge build, not just a script.
+  game Lua alone — the one Deep Dive here that depends on lua-bridge itself (v0.1.6+), not just a script.
 - **[Building a Chat/Log UI](coop-chat-ui)** — *confirmed working by live testing* — a real engine crash
   bug found in `MrxGuiTextBuffer`'s own documented constructor, a scope-sealing dead end while trying to
   patch around it, and the bug-free internal function that turned out to be the real fix — plus a

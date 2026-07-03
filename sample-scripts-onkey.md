@@ -340,8 +340,8 @@ workaround detailed in [Building a Chat/Log UI](deep-dives/coop-chat-ui), typed 
 [lua-bridge `Loader` API](lua-bridge-api/loader)'s keyboard capture — the same input mechanism behind the
 [co-op chat](deep-dives/coop-chat) feature — rather than anything reachable in game Lua alone.
 
-**Prerequisites:** same as [co-op chat](deep-dives/coop-chat) — requires a lua-bridge build that includes
-the `Loader.*` input functions, not just a stock install.
+**Prerequisites:** same as [co-op chat](deep-dives/coop-chat) — requires lua-bridge **v0.1.6 or later** for
+the `Loader.*` input functions (included in the stock install from that version onward).
 
 ```lua
 local KEYVAL = "f5"  -- must be in the first 10 lines -- f2 (OpenCheatMenu), f3 (ConsoleCheatsMenu), f4 (Freecam) are already taken by the other sample OnKey scripts on this wiki

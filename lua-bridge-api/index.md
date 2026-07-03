@@ -16,8 +16,9 @@ modding needed something the engine's own Lua surface didn't expose.
 
 That distinction matters for one practical reason: everything in [Engine Namespaces](../namespaces/) is
 guaranteed present in any copy of the game lua-bridge can attach to, regardless of which lua-bridge build
-you're running. Everything here is only present if your lua-bridge build actually includes it — these are
-young, actively-growing additions, not stable engine surface.
+you're running. Everything here ships in the stock lua-bridge install — but make sure you're on
+**lua-bridge v0.1.6 or later** before relying on anything in this section, since older installs predate
+some of these additions.
 
 ## Available namespaces
 
