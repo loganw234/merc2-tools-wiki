@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [reward, economy]
+verified: true
+verified_note: reward catalog captured by live runtime dump; DispenseAllRewards confirmed by live testing via MrxCheatBootstrap; Functions section deduplicated against source (an earlier pass had left in a set of fabricated function signatures alongside the correct ones)
 ---
 
 # MrxRewardData
@@ -323,30 +325,6 @@ One thing the live dump surfaces that static source-reading wouldn't make obviou
 ## Functions
 
 ### Init()
-
-Initializes the reward data by normalizing support/equipment/stockpile item tuples and setting up back-references to missions and factions.
-
-### GetRewards(uMissionId, uFactionId)
-
-Retrieves the rewards for a given mission ID and faction ID. Returns a table containing the cash, fuel, and mood rewards.
-
-### DispenseRewards(uMissionId, uFactionId)
-
-Dispenses the rewards for a given mission ID and faction ID to the player or relevant faction.
-
-### GrantRewardKey(uPlayerGuid, sRewardKey)
-
-Grants a reward key to the specified player GUID. This function is likely used to unlock specific rewards or items.
-
-### NetEventCallback(uEventId, uPlayerGuid, tData)
-
-Handles network events related to rewards. The `uEventId` specifies the type of event, and `tData` contains additional data relevant to the event.
-
-### GetWagerData(iPercentage, iMin, iMax)
-
-Calculates wager data based on a percentage and minimum/maximum values. Rounds the result to the nearest 1000.
-
-### Init()
 Initializes the reward data by iterating through each reward entry in `_tRewards`. For each reward, it sets the mission ID and faction ID based on the reward key. It also processes support, equipment, and stockpile items to ensure they are properly formatted as tables and assigns default values if necessary.
 
 ### GetRewards(sRewardKey)
@@ -360,6 +338,9 @@ Dispenses the rewards specified in `tRewards`. This includes adding cash and fue
 
 ### DispenseAllRewards()
 Dispenses all rewards in `_tRewards` by calling `DispenseRewards` on each entry with fanfares disabled.
+**Confirmed working by live testing** — see [`MrxCheatBootstrap`](mrxcheatbootstrap)'s "Dispense every
+reward" row, which calls this directly: `import("MrxRewardData"); MrxRewardData.DispenseAllRewards()`
+grants a large amount of cash, fuel, faction reputation, and shop-item unlocks all at once.
 
 ### GetRewardKeyFromHash(uNameHash)
 Retrieves the reward key associated with a given hash value from `_tRewards`.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [transit, landing zone]
+verified: true
+verified_note: UnlockAllLandingZones confirmed by live testing via MrxCheatBootstrap; rest read directly from source
 ---
 
 # MrxTransit
@@ -88,7 +90,10 @@ Saves the current state of the transit system, including enabled status and land
 Loads the saved state of the transit system from the provided `tSaveData` table.
 
 ### `UnlockAllLandingZones()`
-Unlocks all landing zones by enabling them for the PMC faction.
+Unlocks all landing zones by enabling them for the PMC faction. **Confirmed working by live testing** —
+see [`MrxCheatBootstrap`](mrxcheatbootstrap)'s "Unlock every landing zone" row:
+`import("MrxTransit"); MrxTransit.UnlockAllLandingZones()`. Runs silently — no on-screen confirmation, check
+the map/travel menu to see the effect.
 
 ### `GetTransitFuelCost()`
 Returns the fuel cost per fast-travel.
@@ -110,7 +115,12 @@ Handles network events related to the transit system. It processes events for en
 - Listens for custom event `NETEVENT_STARTTRANSIT` to start a transit process.
 
 ## Notes for modders
-- Ensure that the transit system is properly initialized and enabled before attempting to use its functions.
-- Use `Transit(nLocation)` to initiate fast-travel to a specific landing zone.
-- Customize landing zone properties by modifying `_tLandingZones` data.
-- Be aware of network synchronization when enabling/disabling the transit system in multiplayer scenarios.
+- **`UnlockAllLandingZones()` is the fastest way to open every fast-travel destination** — confirmed
+  working, one line, see above.
+- Use `Transit(nLocation)` to initiate fast-travel to a specific landing zone by numeric ID; `GetName(nId)`
+  gives you the display name if you need to enumerate options first.
+- Customize landing zone properties by modifying `_tLandingZones` data directly, the same "it's just a
+  plain Lua table" pattern documented on [`MrxSupportData`](mrxsupportdata#overriding-catalog-values-from-your-own-mod).
+- Be aware of network synchronization when enabling/disabling the transit system in multiplayer scenarios —
+  `NETEVENT_CLIENTTRANSIT`/`NETEVENT_STARTTRANSIT` sync state to other players; see the
+  [full `NETEVENT_` catalog](../deep-dives/networking#the-full-netevent_-catalog).

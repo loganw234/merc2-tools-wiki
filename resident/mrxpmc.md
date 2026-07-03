@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [economy, support]
+verified: true
+verified_note: AddCashQty/AddFuelQty/SetFuelCapacity/AddSupportQty/GetSupportQty confirmed by live testing via MrxCheatBootstrap; instance-pattern claim corrected against source (stateless, not per-uGuid)
 ---
 
 # MrxPmc
@@ -19,7 +21,14 @@ The `MrxPmc` module manages the player's economy and support items in Mercenarie
 - Imports: `MrxUtil`, `MrxFactionManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not a per-`uGuid` instance module** — despite that being the default assumption for most `resident/`
+pages, `MrxPmc` has no `Create`/`Awake` pattern anywhere in source. It's a stateless singleton manager
+tracking *the* local player's economy (there's only one), called directly like
+`MrxPmc.AddCashQty(100000)` with no object/instance argument — confirmed by every real call site in this
+corpus, including [`MrxCheatBootstrap`](mrxcheatbootstrap)'s cash/fuel/support dialogs. The `uGuid`
+parameters that do appear in this file (e.g. inside `AddFuelTank`/`_OnFuelTankDeath`) refer to a spawned
+fuel-tank *prop* in the world, not a per-player instance of this module. It tracks the following key
+fields:
 - `_ksFuelTank`: A string representing the fuel tank prop template.
 - `_tFactionToAssociation`: A table mapping factions to their associated names.
 - `_tPluralReasonToSingular`: A table mapping plural reasons to singular reasons for display purposes.
@@ -34,7 +43,12 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 Initializes the player's economy by setting the initial fuel capacity to `_knMinFuelCapacity` and creating a high-score event.
 
 ### AddCashQty(nAmt, bMateriel, sReason, bSuppressDisplay)
-Adds a specified amount of cash to the player's total. It ensures that the cash does not exceed the hard ceiling (`knBillion`). If `bSuppressDisplay` is false, it displays the updated cash amount in the HUD.
+Adds a specified amount of cash to the player's total. It ensures that the cash does not exceed the hard
+ceiling (`knBillion`). If `bSuppressDisplay` is false, it displays the updated cash amount in the HUD.
+**Confirmed working, HUD updates** — see [`MrxCheatBootstrap`](mrxcheatbootstrap): `import("MrxPmc");
+MrxPmc.AddCashQty(100000)`. Prefer this over the lower-level `Player.AddCash(...)`, which changes the real
+value but skips this HUD-refresh trigger, so the on-screen number won't visibly update even though the
+value changed underneath it.
 
 ### GetCashQty()
 Returns the current amount of cash the player has.
@@ -45,9 +59,14 @@ testing** (see [Snippets](../snippets#read--give-fuel)).
 
 ### AddFuelQty(nAmt)
 Adds a specified amount of fuel to the player's total. It ensures that the fuel does not exceed the maximum capacity or fall below zero. It also triggers tutorials for low and no fuel conditions.
+**Confirmed working, HUD updates** — see [`MrxCheatBootstrap`](mrxcheatbootstrap): `import("MrxPmc");
+MrxPmc.AddFuelQty(1000)`. If the amount would exceed the current capacity, raise it first with
+`SetFuelCapacity` (below).
 
 ### SetFuelCapacity(nFuelCapacity, bCheat, bDoNotSyncFuel)
 Sets the player's fuel capacity to a specified value, ensuring it is within the allowed range (`_knMinFuelCapacity` to `_knMaxFuelCapacity`). If `bDoNotSyncFuel` is false and the current fuel exceeds the new capacity, it adjusts the fuel accordingly.
+**Confirmed working by live testing**: `MrxPmc.SetFuelCapacity(9999, true)` raises the cap before adding
+fuel past the default maximum.
 
 ### AddFuelCapacity(nFuelCapacity)
 Adds a specified amount to the player's fuel capacity. If the resulting capacity exceeds the maximum or falls below the minimum, it sets the capacity to the respective limit.
@@ -57,12 +76,17 @@ Returns the current fuel capacity of the player.
 
 ### AddSupportQty(sName, nAmt, bDspFanfare, nCost)
 Adds a specified amount of support items to the stockpile. It updates client-side spending data and triggers fanfare if required. It also checks for support thresholds and refreshes mission details.
+**Confirmed working** — `sName` keys come from [`MrxSupportData.tSupportData`](mrxsupportdata#support-item-catalog);
+see [`MrxCheatBootstrap`](mrxcheatbootstrap)'s "Give one support item" row and "The Works!" snippet (which
+loops every key in the catalog, maxing each one out via this function).
 
 ### SetSupportQty(sName, nAmt)
 Sets the quantity of a specific support item in the stockpile.
 
 ### GetSupportQty(sName)
-Returns the quantity of a specific support item in the stockpile.
+Returns the quantity of a specific support item in the stockpile. Used alongside `AddSupportQty` and
+`tData.nMaxStock` (from `MrxSupportData`) to compute "how much more to add to max this item out" — see
+the "The Works!" snippet linked above.
 
 ### SetSupportNew(sName, bNew)
 Marks a specific support item as new or viewed.
@@ -158,14 +182,14 @@ This module subscribes to and fires several engine events related to player econ
 - **`Event.TimerRelative`**: This event is used for various timed operations, such as triggering tutorials for low or no fuel conditions.
 
 ## Notes for modders
-1. **Call-order requirements**: Ensure that `Init()` is called before any other functions in this module to properly initialize the player's economy.
-  
-2. **Pitfalls**:
-   - Be cautious when modifying the player's fuel capacity directly using `SetFuelCapacity()`, as it can lead to unexpected behavior if not handled correctly.
-   - When adding or removing equipment, ensure that the corresponding world objects are spawned or removed as needed.
-
-3. **Tunables**: The constants `_knMinFuelCapacity` and `_knMaxFuelCapacity` define the minimum and maximum fuel capacities. Modifying these values can affect gameplay balance.
-
-4. **Decompiler artifacts**:
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact.
-   - There might be duplicate table keys in literals, where the last one wins at runtime due to Lua semantics.
+- **This is the go-to module for economy cheats/mods** — `AddCashQty`/`AddFuelQty`/`AddSupportQty` are all
+  confirmed working with correct HUD updates; see [`MrxCheatBootstrap`](mrxcheatbootstrap) for a complete
+  worked example including a "max out everything" snippet.
+- **Prefer the `MrxPmc.*` functions over the lower-level `Player.SetCash`/`Player.AddCash`** — those change
+  the real value but skip the HUD-refresh trigger, so what's displayed won't visibly update.
+- `sName` arguments for support-item functions come from
+  [`MrxSupportData.tSupportData`](mrxsupportdata#support-item-catalog) keys, not free-form strings.
+- When adding or removing equipment (`AddEquipment`/`RemoveEquipment`), fuel tanks specifically also spawn
+  or remove a corresponding world object and adjust fuel capacity — not a pure data change.
+- Some local variables may appear unused or assigned but never read in the decompiled source — a
+  decompiler artifact, not intentional logic.

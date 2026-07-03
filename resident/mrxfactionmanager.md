@@ -11,6 +11,9 @@ inherits: none
 
 tags: [faction, relation, attitude]
 
+verified: true
+verified_note: faction catalog captured by live runtime dump; SetAttitudeMutable/SetRelation confirmed by live testing via MrxCheatBootstrap; always-resident/NetEventCallback hijack safety confirmed via the networking deep dive and co-op chat feature
+
 ---
 
 
@@ -26,6 +29,13 @@ tags: [faction, relation, attitude]
 ## Overview
 
 The `MrxFactionManager` module is responsible for managing faction relations, attitudes, and reporting systems within the game. It handles various aspects such as setting up faction templates, managing mutable attitudes, tracking civilian casualties, and coordinating flybys. This module ensures that factions have appropriate relations with each other and with the player, affecting gameplay dynamics and interactions.
+
+**Confirmed always-resident, and the safe hijack target for custom networked events.** Unlike per-object
+world scripts (e.g. [`Alarm`](alarm)), `import("MrxFactionManager")` works from anywhere, any time — no
+level-specific object needs to exist first. That's exactly why it's the module both the
+[networking deep dive](../deep-dives/networking) and [co-op chat feature](../deep-dives/coop-chat) hijack
+`NetEventCallback` on to send their own custom data: it's guaranteed loaded, and confirmed by live testing
+to actually dispatch a hijacked callback across a real 2-player network connection.
 
 
 
@@ -112,7 +122,14 @@ Retrieves the faction abbreviation based on a string hash. Returns "NO NAME" if 
 
 ### NetEventCallback(eventId, tArgs)
 
-Handles network events related to faction management. It processes mutable factions and civilian casualties based on the event ID.
+Handles network events related to faction management. It processes mutable factions and civilian casualties based on the event ID. Real event IDs: `NETEVENT_SETMUTABLE=0`, `NETEVENT_CIVKILLINIT=1`,
+`NETEVENT_CIVKILL=2` — see the [full `NETEVENT_` catalog](../deep-dives/networking#the-full-netevent_-catalog).
+
+**If you hijack this callback for your own custom event, confirmed by live testing: keep your event ID
+below 8.** The transport masks `nEventId` down to a small numeric range (observed: `100` arrived as `4`) —
+see [Custom Networked Events](../deep-dives/networking#two-confirmed-constraints-on-custom-payloads) for
+the full story, including the same live test's other discovery: string arguments in `tArgs` arrive as
+unusable opaque handles, not their original text, so custom payloads have to be encoded as numbers.
 
 
 
