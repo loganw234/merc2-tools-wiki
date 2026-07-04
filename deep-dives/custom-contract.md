@@ -110,7 +110,7 @@ elseif sType == "table" then
 end
 ```
 
-So `tStartLocations = {{2776.8684, -13.8681, -873.5605}}` on the mission config is a legitimate way to
+So `tStartLocations = { {2776.8684, -13.8681, -873.5605} }` on the mission config is a legitimate way to
 pin the post-accept teleport to a known, open location, without needing a real placed marker. This part
 is source-confirmed but **not yet independently re-verified live** — see below.
 
@@ -377,7 +377,7 @@ local function CustomTest001_OnActivate()
   local uChar = Player.GetLocalCharacter()
   local x, y, z = Object.GetPosition(uChar)
 
-  local tCarOffsets = {{5, 0, 0}, {-5, 0, 0}, {0, 0, 5}}
+  local tCarOffsets = { {5, 0, 0}, {-5, 0, 0}, {0, 0, 5} }
   for i, tOffset in ipairs(tCarOffsets) do
     local uCar = Pg.Spawn("Veyron", x + tOffset[1], y + tOffset[2], z + tOffset[3])
     if uCar then

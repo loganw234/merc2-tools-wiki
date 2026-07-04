@@ -495,8 +495,8 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 - **Parameters**: None
 
 - **Confirmed: has a generic placeholder for a mission with no real cinematic configured at all** — its
-  `_PlayCinematic` falls back to `MrxCinematic.PlaceholderSequence({{sCaption = "Mission Briefing:\n\"" ..
-  _sSelectedMission .. "\""}}, _CinematicComplete)`. This is what makes a custom mission with no briefing
+  `_PlayCinematic` falls back to `MrxCinematic.PlaceholderSequence({ {sCaption = "Mission Briefing:\n\"" ..
+  _sSelectedMission .. "\""} }, _CinematicComplete)`. This is what makes a custom mission with no briefing
   assets at all still show *something* playable (a plain caption screen with a Continue prompt) instead of
   erroring — confirmed live.
 

@@ -96,7 +96,7 @@ Retrieves the start locations for a given mission. If the mission has specific s
 [`MrxUtil.TeleportHeroesToLocations`](mrxutil) (what actually consumes this list) also accepts a plain
 `{x, y, z, yaw}` table per player — confirmed from its source, which explicitly branches on
 `type(vLocation) == "table"` as a valid case alongside strings/userdata. A custom mission with no placed
-level marker can set `tStartLocations = {{2776.8684, -13.8681, -873.5605}}` directly on its
+level marker can set `tStartLocations = { {2776.8684, -13.8681, -873.5605} }` directly on its
 `WifMissionData` entry to pin the exit teleport to a known location instead.
 
 ### GetBriefingStartLocations(sMissionName, bGetEntrance)
