@@ -22,6 +22,16 @@ purpose, the mission itself is as trivial as possible — destroy 3 cars spawned
 so the interesting part is the *plumbing*, not the gameplay. The intent is a minimal, honest skeleton
 other mods can build a real contract from, once it actually works.
 
+![Flow diagram of the accept sequence through mrxbriefing.lua, from Fiona's menu opening through _LoadSpiel, the confirm dialog, _AcceptOrDeclineMission, _End, and a detail panel zooming into _UnloadSpiel's internals with each step marked confirmed-working, untested, or the stuck point.](../img/customcontractflow.png)
+
+**This diagram is a mid-investigation snapshot, not the final state** — it was drawn while still hunting
+for the exact line inside `_UnloadSpiel` that wasn't returning, before `GetSpielFileName`'s real bug (the
+`string.format("%02d", nil)` crash on a non-conforming mission ID, covered below) was actually found. The
+"untested"/"stuck point" labels on `_UnloadSpiel` are now out of date — that call was fully resolved and
+the flow was confirmed to complete end to end past this point. Still useful for the overall shape of the
+accept sequence and as a record of the diagnostic process, just don't read the coloring on the right-hand
+panel as current.
+
 ## The mechanism that's confirmed working
 
 ### Registering the mission
