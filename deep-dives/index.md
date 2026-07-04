@@ -41,3 +41,11 @@ different problem instead of just copy-pasting the end result.
   (`dynamic_import`/`dynamic_remove` unsafe to touch beyond normal use; never `return fOriginal(...)` in a
   wrapper) discovered the hard way — but the same script permanently breaks the lua bridge when a save
   spawns the player directly inside the PMC HQ, root cause not yet found.
+- **[Building a World Inspector (WAILA)](world-inspector)** — *work in progress* — a menu-driven "what am
+  I looking at" mode and bulk nearby-object dump, confirmed working live (cycling, in-world marker,
+  detailed per-object dump), built around a low-radius `Pg.FastCollect*` sweep instead of an unconfirmed
+  reticle-targeting native. Documents the hard ceiling hit while chasing a real spawn-template string out
+  of an object (only a hashed localized name is ever reachable), plus three still-open threads it led to:
+  `Pg.Spawn` only catching a tiny fraction of real world population, whether any deeper native hook exists
+  for object creation (short answer: not a clean one — see the layer system instead), and an unbuilt
+  "layer delamination" tool for extracting a per-layer object roster.

@@ -11,7 +11,10 @@ verified_note: read directly from source in full (mrxlayermanager.lua is only 36
   parameter-passing bug in Remove(), and adds a categorized catalog of ~650 real layer names found across
   the corpus, built while investigating whether the Alamo/Dynasty-class ships' appearance is gated behind
   a layer. Retains the earlier confirmed note on _AddRequest's graceful culling of nonexistent layer names,
-  found via the [Custom Contract deep dive](../deep-dives/custom-contract).
+  found via the [Custom Contract deep dive](../deep-dives/custom-contract). Adds a second, independently-
+  sourced boot-time layer manifest (170 static + 246 default-dynamic names) read directly, verbatim, from
+  vz/xQ!L.lua's own literal _tStaticLayers/_tDefaultDynamicLayers tables -- found while investigating the
+  Pg.Spawn coverage gap documented in the [World Inspector deep dive](../deep-dives/world-inspector).
 ---
 
 # MrxLayerManager
@@ -371,6 +374,188 @@ distinct from its own `_staging`/`_pristine`/etc. variants).
 | vzacon001 | cp01, cp02, pregate1, pregate2, pristine, ruined |
 
 </details>
+
+## Boot-time layer manifest (`vz/xQ!L.lua`)
+
+Found while investigating why hooking `Pg.Spawn` (see the
+[World Inspector deep dive](../deep-dives/world-inspector)) only ever caught a tiny fraction of what
+populates the open world during play — the answer turned out to be this file. `vz/xQ!L.lua` is the
+level/game bootstrap script, and unlike the 649-name catalog above (recovered by grepping every
+`MrxLayerManager.*` call site scattered across the whole corpus), these two tables are read directly,
+verbatim, as literal string arrays hardcoded in that one file — no grep, no inference about what might
+exist:
+
+```lua
+function _LoadLayers()
+  if not _bStaticLayersLoaded then
+    MrxLayerManager.Add(_tStaticLayers, _AttemptGameplaySetup, {"static"}, true, true)
+  end
+  ...
+    MrxLayerManager.Add(_tDefaultDynamicLayers, _AttemptGameplaySetup, {"dynamic"})
+  ...
+end
+```
+
+Every real session loads both tables, unconditionally, as part of getting into gameplay at all — this is
+the actual native bulk-population mechanism the rest of this page's catalog only ever reaches indirectly,
+through individual mission scripts' own later `Add`/`Remove`/`MarkForAddition`/`MarkForRemoval` calls.
+
+### `_tStaticLayers` (170 entries)
+
+Permanent world geometry — terrain, roads, foliage, billboards, per-region "tiny" (presumably distant-LOD)
+variants, and each faction's HQ. Notably, almost none of these follow the `vz_state_*` mission-suffix
+convention documented above — they're not "state" layers at all, which is exactly why grepping
+`MrxLayerManager.*` call sites elsewhere in the corpus never turned them up: nothing ever calls
+`Add`/`Remove` on them again after this one boot-time load, so no mission script's own source ever
+references them by name.
+
+<details markdown="1">
+<summary>Full list (170)</summary>
+
+```
+vz_All_Hq, vz_All_Job001_a, vz_All_Job001_b, vz_All_Job001_c, vz_All_Job001_d, vz_All_Job002_a,
+vz_All_Job002_b, vz_All_Job002_c, vz_All_Job002_d, vz_All_Job002_e, vz_All_job005_a, vz_All_job005_e,
+vz_All_job005_d, vz_All_Job010_a, vz_All_Job010_b, vz_All_Job010_c, vz_All_Job010_d, vz_All_Job010_e,
+vz_amazon_base, vz_amazon_scrub, vz_amazon_road, vz_Amazon_foilage, vz_Amazon_billboard,
+vz_Angel_Falls_Foilage, vz_angel_falls_road, vz_atmosphere_regions, vz_boundary_regions, vz_caracas_base,
+vz_caracas_scrub, vz_car_city, vz_car_billboard, vz_car_city_roads, vz_car_estate, vz_caracas_foilage,
+vz_car_shanty02, vz_car_shanty_roads, vz_Chi_Con005_d, vz_Chi_Con006_d, vz_Chi_Con054, vz_Chi_Job001_a,
+vz_Chi_Job001_b, vz_Chi_Job001_c, vz_Chi_Job001_d, vz_Chi_Job002_a, vz_Chi_Job002_b, vz_Chi_Job002_c,
+vz_Chi_Job002_d, vz_Chi_Job002_e, vz_Chi_Job006_a, vz_Chi_Job006_b, vz_Chi_Job006_c, vz_Chi_Job006_d,
+vz_Chi_Job006_e, vz_Chi_Job010_a, vz_Chi_Job010_b, vz_Chi_Job010_c, vz_Chi_Job010_d, vz_Chi_Job010_e,
+Vz_CommonLocations, vz_cum_city, vz_cum_billboard, vz_cum_margarita, vz_cum_outskirt, vz_cum_fortress,
+vz_cum_roads, vz_cumana_scrub, vz_Cumana_foilage, vz_gua_upperclass, vz_gua_billboard, vz_guanare_road,
+vz_Gua_vzbase, vz_Gur_base, vz_gur_base_mines, vz_Gur_HQ, vz_Gur_Job002_b, vz_Gur_Job002_c, vz_Gur_Job002_d,
+vz_Gur_Job002_f, vz_Gur_job002_h, vz_Gur_job002_j, vz_Gur_Job003, vz_Gur_Job005, vz_Gur_Job008_a,
+vz_Gur_Job008_b, vz_Gur_Job012_a, vz_Gur_Job012_g, vz_Gur_Job012_i, vz_Jet_Con001,
+vz_jungle_mountain_billboard, vz_jungle_mountain_foilage, vz_jungle_mountain_road,
+vz_jungle_mountain_scrub, vz_landingzone, vz_mar_altagracia, vz_mar_altagracia_roads, vz_mar_city,
+vz_mar_fortress, vz_mar_roads, vz_mar_billboard, vz_mar_foilage, vz_mar_scrub, vz_mar_industrial,
+vz_mar_industrial_roads, vz_mar_outskirt, vz_mar_outskirt_roads, vz_mar_village, vz_mar_village_roads,
+vz_mer_commercial, vz_mer_billboard, vz_mer_dock, vz_mer_outskirt, vz_mer_residential, vz_mer_white,
+vz_merida_foilage, vz_merida_roads, vz_merida_scrub, vz_Oil_Job001, vz_Oil_Job002, vz_Oil_Job005,
+vz_Oil_Job008_d, vz_oil_job011_a, vz_oil_job011_c, vz_oil_job011_e, vz_oil_job011_h, vz_oil_job011_i,
+vz_oil_job011_j, vz_oil_job011_f, vz_oil_job011_g, vz_PIR_HQ, vz_Pir_con003, vz_Pir_Job002_a,
+vz_Pir_Job002_b, vz_Pir_Job002_c, vz_Pir_Job007_a, vz_Pir_Job012_a, vz_Pir_Job012_b, vz_Pir_Job012_c,
+vz_Pir_Job012_d, vz_Pir_Job012_e, vz_Pir_Job012_f, vz_Pir_Job012_g, vz_Pir_Job012_h, vz_Pir_Job012_i,
+vz_Pir_Job012_j, vz_Pirate_Isles_foilage, vz_Pirate_Isles_roads, vz_Pirate_Isles_scrub, vz_PMC,
+vz_PMC_roads, vz_PMC_scrub, vz_PMC_foilage, vz_poi_lineregions, vz_rover_camera_test, vz_sfx_ambience,
+vz_waterSounds, vz_sol_base, VZ_start_location, vz_teleporter, vz_LowResTerrain, VZ_terrain,
+vz_caracas_tiny, vz_maracaibo_tiny, vz_amazon_tiny, vz_angel_falls_tiny, vz_jungle_mountain_tiny,
+vz_merida_tiny, vz_guanare_tiny, vz_cumana_tiny, vz_pirate_isles_tiny, vz_pmc_tiny
+```
+
+</details>
+
+### `_tDefaultDynamicLayers` (246 entries)
+
+The default/starting ("pristine") state for essentially every region and mission-tied set piece in the
+game, loaded up front so the world looks right before any contract has been touched. Unlike the static
+list, most of these names *do* follow the `vz_state_*` convention and substantially overlap in spirit with
+the mission-ID catalog above — this is likely where a large share of that catalog's own `_pristine`/
+`_staging` entries actually get loaded from at runtime. No line-by-line cross-reference against the
+existing 649-name catalog has been done here; treat this as a second, independently-sourced list, not a
+verified diff against the first.
+
+<details markdown="1">
+<summary>Full list (246)</summary>
+
+```
+vz_state_car_city_pristine, vz_state_mar_city_pristine, vz_state_OC_Depot_pristine, vz_state_OC_Depot,
+vz_state_mar_industrial_pristine, vz_state_mer_oilrig_pristine, vz_state_mer_oilrig_pristine_tg,
+vz_State_Margarita_precrash, vz_State_AllCon001_pristine, vz_state_AllCon003_and_ChiCon003_Pristine,
+vz_state_AllJob001_01_Pristine, Vz_State_AllJob001_01_Staging, vz_state_AllJob001_02_Pristine,
+vz_state_AllJob001_03_Pristine, Vz_State_AllJob001_03_Staging2, vz_state_AllJob001_04_Pristine,
+Vz_State_AllJob001_04_Staging, Vz_State_AllJob002_01_Pristine, Vz_State_AllJob002_02_Pristine,
+Vz_State_AllJob002_03_Pristine, Vz_State_AllJob002_04_Pristine, Vz_State_AllJob002_05_Pristine,
+Vz_State_AllJob002_01_Staging, Vz_State_AllJob002_02_Staging, Vz_State_AllJob002_03_Staging,
+Vz_State_AllJob002_04_Staging, Vz_State_AllJob002_05_Staging, Vz_State_AllJob009_01_Pristine,
+Vz_State_AllJob009_02_Pristine, Vz_State_AllJob009_03_Pristine, Vz_State_AllJob009_04_Pristine,
+Vz_State_AllJob009_05_Pristine, Vz_State_AllJob010_02_Pristine, Vz_State_AllJob010_03_Pristine,
+Vz_State_AllJob010_04_Pristine, Vz_State_AllJob010_05_Pristine, vz_state_amazon_act1,
+vz_state_angel_falls_act1, Vz_State_Chi_HQ_Structures, Vz_State_ChiCon001_Pristine,
+vz_State_ChiCon002_HQ_Pristine, vz_State_ChiCon002_Bridge_Pristine, vz_State_ChiCon002_Depot_Pristine,
+vz_state_ChiCon054_Pristine, vz_state_ChiCon054_Staging, vz_state_ChiJob001_01_Pristine,
+Vz_State_ChiJob001_01_Staging, vz_state_ChiJob001_02_Pristine, Vz_State_ChiJob001_02_Staging,
+vz_state_ChiJob001_03_Pristine, Vz_State_ChiJob001_03_Staging, vz_state_ChiJob001_04_Pristine,
+Vz_State_ChiJob001_04_Staging, Vz_State_ChiJob002_01_Pristine, Vz_State_ChiJob002_02_Pristine,
+Vz_State_ChiJob002_03_Pristine, Vz_State_ChiJob002_04_Pristine, Vz_State_ChiJob002_05_Pristine,
+Vz_State_ChiJob002_01_Staging, Vz_State_ChiJob002_02_Staging, Vz_State_ChiJob002_03_Staging,
+Vz_State_ChiJob002_04_Staging, Vz_State_ChiJob002_05_Staging, Vz_State_ChiJob005_A_Pristine,
+Vz_State_ChiJob005_B_Pristine, Vz_State_ChiJob005_C_Pristine, Vz_State_ChiJob005_D_Pristine,
+Vz_State_ChiJob005_E_Pristine, Vz_State_ChiJob005_F_Pristine, Vz_State_ChiJob005_G_Pristine,
+Vz_State_ChiJob006_A_Pristine, Vz_State_ChiJob006_B_Pristine, Vz_State_ChiJob006_C_Pristine,
+Vz_State_ChiJob006_D_Pristine, Vz_State_ChiJob006_E_Pristine, Vz_State_ChiJob006_A_Staging,
+Vz_State_ChiJob006_B_Staging, Vz_State_ChiJob006_C_Staging, Vz_State_ChiJob006_D_Staging,
+Vz_State_ChiJob006_E_Staging, Vz_State_ChiJob009_A_Pristine, Vz_State_ChiJob009_A_Pristine_tg,
+Vz_State_ChiJob009_B_Pristine, Vz_State_ChiJob009_B_Pristine_tg, Vz_State_ChiJob010_01_Pristine,
+Vz_State_ChiJob010_02_Pristine, Vz_State_ChiJob010_04_Pristine, vz_state_guanare_act1,
+vz_state_gua_upperclass_pristine, vz_state_gurcon001_pristine, vz_state_gurcon001_outpost_pristine,
+vz_state_gurcon001_staging, vz_state_gurcon002_pristine, vz_state_GurHQ_act1,
+Vz_State_GurJob002_01_Pristine, Vz_State_GurJob002_02_Pristine, Vz_State_GurJob002_03_Pristine,
+Vz_State_GurJob002_04_Pristine, Vz_State_GurJob002_05_Pristine, Vz_State_GurJob002_01_Staging,
+Vz_State_GurJob002_02_Staging, Vz_State_GurJob002_03_Staging, Vz_State_GurJob002_04_Staging,
+Vz_State_GurJob002_05_Staging, vz_state_GurJob003_Pristine, Vz_State_GurJob003_Staging,
+vz_state_GurJob005_Pristine, Vz_State_GurJob005_Staging, Vz_State_GurJob007_01, Vz_State_GurJob007_02,
+Vz_State_GurJob007_03, vz_state_GurJob008_01_Pristine, Vz_State_GurJob008_01_Staging,
+vz_state_GurJob008_02_Pristine, Vz_State_GurJob008_02_Staging, Vz_State_GurJob11_01, Vz_State_GurJob11_02,
+Vz_State_GurJob11_03, Vz_State_GurJob11_04, Vz_State_GurJob11_05, Vz_State_GurJob11_06,
+Vz_State_GurJob11_07, Vz_State_GurJob11_08, Vz_State_GurJob11_09, Vz_State_GurJob11_10,
+Vz_State_GurJob012_01_Pristine, Vz_State_GurJob012_02_Pristine, Vz_State_GurJob012_03_Pristine,
+Vz_State_GurJob012_04_Pristine, Vz_State_GurJob012_05_Pristine, Vz_State_GurJob012_01_Staging,
+Vz_State_GurJob012_02_Staging, Vz_State_GurJob012_03_Staging, Vz_State_GurJob012_04_Staging,
+Vz_State_GurJob012_05_Staging, vz_state_JetCon001_pristine, vz_state_jungle_mountain_act1,
+vz_state_mar_altagracia_act1, vz_state_mar_big_lineregion, vz_state_mar_city_act1,
+vz_state_mar_industrial_act1, vz_state_mar_outskirt_act1, vz_state_mar_village_act1,
+vz_state_merida_act1, vz_state_merida_act1_helo, vz_state_merida_act1_staging,
+vz_state_mer_big_lineregion, vz_state_mer_commercialpristine, vz_state_ocgate_dynamic,
+vz_state_OilCon002_pristine, vz_state_OilCon021_staging, vz_state_OilJob001_Pristine,
+vz_state_OilJob001_Staging, vz_state_OilJob002_Pristine, vz_state_OilJob002_Staging,
+vz_state_OilJob005_Pristine, vz_state_OilJob005_Staging, Vz_State_OilJob008_A_Pristine,
+Vz_State_OilJob008_A_Staging, Vz_State_OilJob008_B_Pristine, Vz_State_OilJob008_B_Staging,
+Vz_State_OilJob008_C_Pristine, Vz_State_OilJob008_C_Staging, Vz_State_OilJob008_D_Pristine,
+Vz_State_OilJob008_D_Staging, Vz_State_OilJob008_E_Pristine, Vz_State_OilJob008_E_Staging,
+Vz_State_OilJob008_F_Pristine, Vz_State_OilJob008_F_Staging, Vz_State_OilJob008_G_Pristine,
+Vz_State_OilJob008_G_Staging, Vz_State_OilJob008_H_Pristine, Vz_State_OilJob008_H_Staging,
+Vz_State_OilJob008_I_Pristine, Vz_State_OilJob008_J_Pristine, Vz_State_OilJob008_J_Staging,
+Vz_State_OilJob008_k_Pristine, Vz_State_OilJob008_k_Staging, Vz_State_OilJob008_l_Pristine,
+Vz_State_OilJob008_l_Staging, Vz_State_OilJob008_m_Pristine, Vz_State_OilJob008_m_Staging,
+Vz_State_OilJob011_01_Pristine, Vz_State_OilJob011_02_Pristine, Vz_State_OilJob011_03_Pristine,
+Vz_State_OilJob011_04_Pristine, Vz_State_OilJob011_05_Pristine, Vz_State_OilJob011_01_Staging,
+Vz_State_OilJob011_02_Staging, Vz_State_OilJob011_03_Staging, Vz_State_OilJob011_04_Staging,
+Vz_State_OilJob011_05_Staging, Vz_State_OilJob012_01_Pristine, Vz_State_OilJob012_02_Pristine,
+Vz_State_OilJob012_03_Pristine, Vz_State_OilJob012_04_Pristine, Vz_State_OilJob012_05_Pristine,
+Vz_State_OilJob012_01_Staging, Vz_State_OilJob012_02_Staging, Vz_State_OilJob012_03_Staging,
+Vz_State_OilJob012_04_Staging, Vz_State_OilJob012_05_Staging, vz_State_PirCon004_Pristine,
+vz_state_PirJob002_01_Pristine, Vz_State_PirJob002_01_Staging, vz_state_PirJob002_02_Pristine,
+Vz_State_PirJob002_02_Staging, vz_state_PirJob002_03_Pristine, Vz_State_PirJob002_03_Staging,
+Vz_State_PirJob007_A_Pristine, Vz_State_PirJob007_B_Pristine, Vz_State_PirJob007_C_Pristine,
+Vz_State_PirJob007_E_Pristine, Vz_State_PirJob007_F_Pristine, Vz_State_PirJob007_G_Pristine,
+Vz_State_PirJob007_A_Staging, Vz_State_PirJob007_B_Staging, Vz_State_PirJob007_C_Staging,
+Vz_State_PirJob007_E_Staging, Vz_State_PirJob007_F_Staging, Vz_State_PirJob007_G_Staging,
+Vz_State_PirJob012_02_Pristine, Vz_State_PirJob012_05_Pristine, Vz_State_PirJob012_06_Pristine,
+Vz_State_PirJob012_07_Pristine, Vz_State_PirJob012_08_Pristine, Vz_State_PirJob012_09_Pristine,
+Vz_State_PirJob012_10_Pristine, Vz_State_PirJob012_05_Staging, Vz_State_PirJob012_06_Staging,
+Vz_State_PirJob012_07_Staging, Vz_State_PirJob012_08_Staging, Vz_State_PirJob012_09_Staging,
+Vz_State_PirJob012_10_Staging, VZ_State_Pmc_Pristine, vz_state_sol_base_pristine, vz_state_sol_bunker,
+vz_state_staging_OilDepot, vz_state_staging_OilHQ, vz_state_staging_PirHQ, vz_state_VzaCon001_Pristine,
+vz_state_vza_con001, vz_state_gurcon001_fortress, vz_state_PMC, vz_state_cashpickups,
+vz_state_munitions_freeplay
+```
+
+</details>
+
+### Why this matters for modding
+
+- **This is a complete, safe candidate list** for any tool that wants to iterate over "every layer known
+  to exist" without needing to enumerate them at runtime (no such enumeration function exists anywhere in
+  `Pg` or in this module) or intercept the boot sequence to discover them.
+- **It directly explains the `Pg.Spawn` gap** documented in the [World Inspector deep dive](../deep-dives/world-inspector):
+  the overwhelming majority of what's "in the world" the moment a level finishes loading came from these
+  ~416 layer loads, not from any runtime spawn call. Hooking `Pg.Spawn` alone was never going to catch it,
+  because from Lua's perspective this content was never "spawned" — just loaded as part of a layer.
+- **It still doesn't explain ambient traffic/pedestrians.** Nothing in either list reads as a
+  population/traffic/density system by name — that remains a genuinely open question.
 
 ## Notes for modders
 
