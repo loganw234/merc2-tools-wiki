@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskJob
 tags: [mission, task]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskJob](mrxtaskjob) for the general mechanism.
 ---
 
 # MrxTaskJobVerifySet
@@ -19,7 +21,9 @@ The `MrxTaskJobVerifySet` module is a subclass of `MrxTaskJob` designed to handl
 - Imports: `MrxFactionManager`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskJob`](mrxtaskjob)'s class-factory pattern** (itself inherited from
+[`MrxTaskMission`](mrxtaskmission)/[`MrxTask`](mrxtask); see that page for the general mechanism),
+identified by name/lineage rather than a world-object GUID. Key fields:
 - `_oObjective`: The objective associated with the verification task.
 - `_sFactionId`: The faction ID for the task.
 - `_bPlayedVerificationVO`: A flag indicating whether the verification voice-over has been played.

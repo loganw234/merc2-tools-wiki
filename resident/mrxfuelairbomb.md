@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, airstrike]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxFuelAirBomb
@@ -19,7 +21,9 @@ The `MrxFuelAirBomb` module is responsible for managing the deployment and deton
 - Imports: `MrxSupportDesignatorSmoke`, `MrxSupportDesignatorLaser`, `MrxSupportDesignatorSatellite`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `uOwner`: The GUID of the player who owns this support action.
 - `sRecruit`: The type of recruit required for this support action, set to "Pilot".
 - `oDesignator`: The designator used to target the bomb drop location.

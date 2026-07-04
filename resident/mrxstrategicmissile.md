@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, missile]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxStrategicMissile
@@ -19,7 +21,9 @@ The `MrxStrategicMissile` module is responsible for managing the launch and deto
 - Imports: `MrxSupportDesignatorBeacon`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `uOwner`: The GUID of the player who owns the missile.
 - `uSpawnedBomb`: The GUID of the spawned missile projectile.
 - `oDesignator`: The designator beacon used to target the missile.

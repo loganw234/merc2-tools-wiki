@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, artillery]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxRocketArtillery
@@ -19,7 +21,9 @@ The `MrxRocketArtillery` module is responsible for managing the rocket artillery
 - Imports: `MrxSupportDesignatorSatellite`, `MrxVoSequence`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `oDesignator`: The designator satellite used for targeting.
 - `uOwner`: The GUID of the player who owns this support system.
 - `sRecruit`: The recruit name associated with this support system.

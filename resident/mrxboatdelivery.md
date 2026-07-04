@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDelivery, MrxSupportDesignatorFlare
 tags: [support, delivery, boat]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxBoatDelivery
@@ -19,7 +21,9 @@ The `MrxBoatDelivery` module is a specialized support delivery system for water-
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as [`MrxSupportDelivery`](mrxsupportdelivery)/[`MrxSupportDesignatorFlare`](mrxsupportdesignatorflare),
+not per-`uGuid`** — `Create(oSelf, uOwnerGuid)` builds a new table via `setmetatable`/`__index`, exactly
+like its parents. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks the following key fields:
 - `sCargoToDeliver`: The type of cargo to be delivered.
 - `oDesignator`: The designator used for marking the drop zone.
 

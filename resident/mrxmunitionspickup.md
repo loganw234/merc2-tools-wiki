@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [pickup, transit]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxMunitionsPickup
@@ -19,7 +21,9 @@ The `MrxMunitionsPickup` module is responsible for handling the pickup of tagged
 - Imports: `MrxSupportManager`, `MrxSupportDesignatorSmoke`, `Munitions`, `MrxUtil`, `MrxVoSequence`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uOwnerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `oTarget`: The target for the pickup operation.
 - `sDeliveryVehicle`: The name of the vehicle template used for delivery.
 - `uDeliveryVehicle`: The GUID of the delivery vehicle.

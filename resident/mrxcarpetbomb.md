@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, airstrike]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxCarpetBomb
@@ -19,7 +21,9 @@ The `MrxCarpetBomb` module is a support system that allows players to deploy car
 - Imports: `MrxSupportDesignatorSatellite`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uOwnerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `nTotalLines`: Total number of bomb lines to deploy.
 - `nRemainingLines`: Number of remaining bomb lines to deploy.
 - `nTimeInterval`: Time interval between each explosion.

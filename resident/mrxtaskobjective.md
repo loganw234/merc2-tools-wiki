@@ -11,6 +11,10 @@ inherits: MrxTask
 
 tags: [task, objective]
 
+verified: true
+
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTask](mrxtask) for the general mechanism.
+
 ---
 
 
@@ -38,7 +42,9 @@ The `MrxTaskObjective` module is responsible for managing task objectives within
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTask`](mrxtask)'s class-factory pattern** (see that page for the general
+mechanism), identified by name/lineage rather than a world-object GUID. Key fields tracked via the config
+table:
 
 - `_tEvents`: A table for managing event callbacks.
 

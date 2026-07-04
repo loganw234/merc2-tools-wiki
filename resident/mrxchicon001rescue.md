@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportPickup
 tags: [support, rescue]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxChiCon001Rescue
@@ -19,7 +21,9 @@ The `MrxChiCon001Rescue` module defines the behavior for a rescue copter support
 - Imports: `MrxChiCon001Rescue`, `MrxVoSequence`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as [`MrxSupportPickup`](mrxsupportpickup)/[`MrxSupport`](mrxsupport), not
+per-`uGuid`** — `Create(oSelf, uOwnerGuid)` builds a new table via `setmetatable`/`__index`, exactly like
+its parent chain. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks the following key fields:
 - `oTarget`: The target for the rescue operation.
 - `sDeliveryVehicle`: The name of the delivery vehicle (rescue helicopter).
 - `uDeliveryVehicle`: The GUID of the delivery vehicle.

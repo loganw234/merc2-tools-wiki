@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDesignator
 tags: [support, designator]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxSupportDesignatorLaser
@@ -19,7 +21,9 @@ The `MrxSupportDesignatorLaser` module is responsible for managing the behavior 
 - Imports: `MrxSupport`, `MrxSupportManager`, `MrxPmc`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupportDesignator`, not per-`uGuid`** — `Create(self, oNewDesignator)`
+builds a new table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no
+`tInstance` registry. It tracks the following key fields:
 - `uOwner`: The owner of the designator.
 - `bDesignationComplete`: Indicates whether the designation process is complete.
 - `sDesignationType`: The type of designator, set to "Laser Designator".

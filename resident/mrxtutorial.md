@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [tutorial, manager]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxTutorial
@@ -19,7 +21,9 @@ The `MrxTutorial` module is responsible for managing in-game tutorials. It handl
 - Imports: `MrxTutorialManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid`** — same class-factory pattern used elsewhere in `resident/`: `Create(mModule, self)` is
+`self = self or {}; setmetatable(self, {__index = mModule}); return self`, no `tInstance` registry. It
+tracks the following key fields:
 - `_tEvents`: A table to store handles of created events.
 - `sName`: The name of the tutorial.
 

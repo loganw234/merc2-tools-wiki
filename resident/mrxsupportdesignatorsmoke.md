@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDesignator
 tags: [support, designator]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxSupportDesignatorSmoke
@@ -19,7 +21,9 @@ The `MrxSupportDesignatorSmoke` module is responsible for handling the functiona
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupportDesignator`, not per-`uGuid`** — `Create(self, oNewDesignator)`
+builds a new table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no
+`tInstance` registry. It tracks the following key fields:
 - `uOwner`: The owner of the designator.
 - `bDesignateOnDeath`: Whether to designate on death.
 - `bDesignationComplete`: Indicates if the designation is complete.

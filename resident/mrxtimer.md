@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [timer, hud]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxTimer
@@ -19,7 +21,9 @@ The `MrxTimer` module is responsible for managing countdown and stopwatch timers
 - Imports: `MrxUtil`, `MrxGuiInterface`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid`** — same class-factory pattern used elsewhere in `resident/`: `Create(mModule, self)` is
+`self = self or {}; setmetatable(self, {__index = mModule}); return self`, no `tInstance` registry. It
+tracks the following key fields:
 - `nStartTime`: The starting time of the timer.
 - `nStopTime`: The stopping time of the timer.
 - `nStep`: The increment/decrement step size for each tick.

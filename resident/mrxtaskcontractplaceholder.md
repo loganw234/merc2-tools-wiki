@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskContract
 tags: [task, contract]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskContract](mrxtaskcontract) for the general mechanism.
 ---
 
 # MrxTaskContractPlaceholder
@@ -19,7 +21,10 @@ The `MrxTaskContractPlaceholder` module is a stub implementation of a task contr
 - Imports: `MrxCinematic`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). However, it does not track any additional state beyond what is inherited from `MrxTaskContract`.
+**Not per-`uGuid` — inherits [`MrxTaskContract`](mrxtaskcontract)'s class-factory pattern** (itself
+inherited from [`MrxTaskMission`](mrxtaskmission)/[`MrxTask`](mrxtask); see that page for the general
+mechanism), identified by name/lineage rather than a world-object GUID. It does not track any additional
+state beyond what is inherited from `MrxTaskContract`.
 
 ## Functions
 ### `Activated(self)`

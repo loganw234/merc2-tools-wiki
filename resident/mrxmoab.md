@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxDaisyCutter
 tags: [support, bomb]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxMOAB
@@ -19,7 +21,9 @@ The `MrxMOAB` module is a specialized support module for the MOAB (Massive Ordna
 - Imports: `MrxSupportDesignatorSmoke`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as [`MrxDaisyCutter`](mrxdaisycutter)/[`MrxSupport`](mrxsupport), not
+per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new table via `setmetatable`/`__index`, exactly like
+its parent chain. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks the following key fields:
 - `oDesignator`: An instance of `MrxSupportDesignatorSmoke` used for designating targets.
 - `uPlayerGuid`: The GUID of the player who owns this support module.
 - `sRecruit`: The name of the recruit associated with this support module ("Fiona").

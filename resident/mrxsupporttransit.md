@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, transit]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxSupportTransit
@@ -26,7 +28,9 @@ The `MrxSupportTransit` module is responsible for managing the support transit s
   - `MrxTutorialManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `sDeliveryVehicle`: The name of the delivery vehicle, set to `"UH1 Transport (Transit)"`.
 - `nAltitude`: The altitude at which the heli operates, set to `250`.
 - `tVOOnTheWay`: A table containing VO cues for when the transit is on the way.

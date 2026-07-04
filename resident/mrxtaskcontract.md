@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: Mrxtaskmission
 tags: [task, contract]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskMission](mrxtaskmission) for the general mechanism.
 ---
 
 # Mrxtaskcontract
@@ -19,7 +21,9 @@ The `Mrxtaskcontract` module is responsible for managing contract missions withi
 - Imports: `none`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskMission`](mrxtaskmission)'s class-factory pattern** (itself inherited
+from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage rather than
+a world-object GUID. Key fields tracked via the config table:
 - `_tContractState`: A table used to store contract-specific state data. It is initialized from saved data or set to an empty table if no saved data is available.
 - `_bCancelByMedEvac`: A flag indicating whether the cancellation should be handled by moving to sickbay or medevac.
 - `ActionHijack`: A boolean flag used in hijack scenarios.

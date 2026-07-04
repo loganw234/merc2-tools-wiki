@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDesignator
 tags: [satellite, support]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxSupportDesignatorSatellite
@@ -19,7 +21,9 @@ The `MrxSupportDesignatorSatellite` module is responsible for handling the satel
 - Imports: `MrxSupport`, `MrxGuiManager`, `MrxSupportManager`, `MrxPmc`, `MrxGuiSatellite`, `MrxSound`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupportDesignator`, not per-`uGuid`** — `Create(self, oNewDesignator)`
+builds a new table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no
+`tInstance` registry. It tracks the following key fields:
 - `nStartZoom`: Initial zoom level for the satellite view.
 - `nMinZoom`: Minimum zoom level allowed.
 - `nMaxZoom`: Maximum zoom level allowed.

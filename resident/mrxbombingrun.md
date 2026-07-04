@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, bombing run]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxBombingRun
@@ -19,7 +21,9 @@ The `MrxBombingRun` module is a support system for executing bombing runs in the
 - Imports: `MrxSupportDesignatorSmoke`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `sDeliveryVehicle`: Name of the delivery vehicle used for the bombing run.
 - `uDeliveryVehicle`: GUID of the delivery vehicle.
 - `uOwner`: GUID of the player who initiated the bombing run.

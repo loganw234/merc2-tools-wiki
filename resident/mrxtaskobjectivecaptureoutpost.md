@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, outpost]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
 ---
 
 # MrxTaskObjectiveCaptureOutpost
@@ -19,7 +21,9 @@ The `MrxTaskObjectiveCaptureOutpost` module is a specific type of task objective
 - Imports: `MrxOutpostManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
+inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
+rather than a world-object GUID. Key fields:
 - `tConfig`: Configuration settings for the task objective.
 - `_HandleOutpostStatusChange`: Internal function to handle changes in outpost status.
 

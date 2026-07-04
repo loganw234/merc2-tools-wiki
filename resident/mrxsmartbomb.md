@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupport
 tags: [support, smart bomb]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxSmartBomb
@@ -19,7 +21,9 @@ The `MrxSmartBomb` module is responsible for handling the functionality of the S
 - Imports: `MrxSupportDesignatorBeacon`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
+table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
+registry. It tracks the following key fields:
 - `oDesignator`: The designator beacon used for targeting.
 - `uOwner`: The GUID of the player who owns this support instance.
 - `sBomb`: The name of the bomb projectile.

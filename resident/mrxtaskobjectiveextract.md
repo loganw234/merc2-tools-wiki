@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, extraction]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
 ---
 
 # MrxTaskObjectiveExtract
@@ -19,7 +21,9 @@ The `MrxTaskObjectiveExtract` module is responsible for handling the extraction 
 - Imports: `MrxSupportData`, `MrxFollow`, `MrxUtil`, `MrxGui`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
+inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
+rather than a world-object GUID. Key fields:
 - `_uTgtObjFilter`: Filter for the target object.
 - `oFollower`: Follower object managing the extraction process.
 - `eHeliClose`, `eHeliFar`, `eHeliHurt`, `eHeliFailsafe`, `eAIenter1`, `eAIenter2`: Event handles for various events related to the extraction process.

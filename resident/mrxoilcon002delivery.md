@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDelivery
 tags: [support, delivery]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxOilCon002Delivery
@@ -19,7 +21,9 @@ The `MrxOilCon002Delivery` module manages the listening-post delivery support mi
 - Imports: `MrxSupportDesignator`, `MrxSubtitle`, `MrxOilCon002Delivery`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as [`MrxSupportDelivery`](mrxsupportdelivery), not per-`uGuid`** —
+`Create(oSelf, uOwnerGuid)` builds a new table via `setmetatable`/`__index`, exactly like its parent. No
+`OnActivate`/`Awake`, no `tInstance` registry. It tracks the following key fields:
 - `_tDeliveryLocations`: A table of current drop zone locations.
 - `NETEVENT_SETDELIVERYLOCATIONS`: An event type constant for setting delivery locations.
 

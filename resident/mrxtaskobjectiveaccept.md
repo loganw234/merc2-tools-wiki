@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxTaskObjectiveAction
 tags: [task, objective]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjectiveAction](mrxtaskobjectiveaction) for the general mechanism.
 ---
 
 # MrxTaskObjectiveAccept
@@ -19,7 +21,9 @@ The `MrxTaskObjectiveAccept` module is a task objective action that handles the 
 - Imports: `MrxGui`, `MrxPlayer`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction)'s class-factory pattern**
+(itself inherited from [`MrxTaskObjective`](mrxtaskobjective)/[`MrxTask`](mrxtask); see that page for the
+general mechanism), identified by name/lineage rather than a world-object GUID. Key fields:
 - `_bConfPromptDisplayed`: A boolean indicating whether the confirmation prompt has been displayed.
 
 ## Functions

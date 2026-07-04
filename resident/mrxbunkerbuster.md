@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxLaserGuidedBomb
 tags: [support, bomb]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxBunkerBuster
@@ -19,7 +21,9 @@ The `MrxBunkerBuster` module is responsible for managing the behavior of a bunke
 - Imports: `MrxSupportDesignatorLaser`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Same class-factory pattern as [`MrxLaserGuidedBomb`](mrxlaserguidedbomb)/[`MrxSupport`](mrxsupport), not
+per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new table via `setmetatable`/`__index`, exactly like
+its parent chain. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks the following key fields:
 - `tVOCues`: A table of sound cues associated with the support weapon.
 - `sBomb`: The name of the bomb projectile.
 - `uBomb`: The GUID of the bomb projectile.

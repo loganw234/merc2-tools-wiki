@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: MrxSupportDelivery
 tags: [support, delivery]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
 ---
 
 # MrxCrateDelivery
@@ -19,7 +21,11 @@ The `MrxCrateDelivery` module is a specialized support delivery system for groun
 - Imports: `MrxSupportDesignator`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It extends the functionality of `MrxSupportDelivery` without adding new state fields. The instance primarily manages the delivery process, including setting up the cargo and vehicle, configuring the designator, and handling specific validation logic.
+**Same class-factory pattern as [`MrxSupportDelivery`](mrxsupportdelivery), not per-`uGuid`** —
+`Create(oSelf, uOwnerGuid)` builds a new table via `setmetatable`/`__index`, exactly like its parent. No
+`OnActivate`/`Awake`, no `tInstance` registry. It extends the functionality of `MrxSupportDelivery` without
+adding new state fields. The instance primarily manages the delivery process, including setting up the
+cargo and vehicle, configuring the designator, and handling specific validation logic.
 
 ## Functions
 ### `Create(oSelf, uOwnerGuid)`

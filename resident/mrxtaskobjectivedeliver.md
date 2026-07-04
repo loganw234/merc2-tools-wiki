@@ -11,6 +11,10 @@ inherits: MrxTaskObjective
 
 tags: [task, delivery]
 
+verified: true
+
+verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+
 ---
 
 
@@ -38,7 +42,9 @@ The `MrxTaskObjectiveDeliver` module is responsible for managing task objectives
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
+inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
+rather than a world-object GUID. Key fields tracked via the config table:
 
 - `sGlobalDiscCount`: A global counter used to generate unique IDs for destination blips.
 
