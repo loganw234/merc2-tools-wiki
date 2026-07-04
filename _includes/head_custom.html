@@ -87,6 +87,21 @@ details.script-entry > *:last-child {
   margin-bottom: 0;
 }
 
+/* One-off "patriotic" variant, added for Fireworks.lua -- same box as details.script-entry, just with
+   a red/white/blue gradient left accent instead of the standard solid blue. Layered via a second
+   `background` (a small gradient strip positioned at the left edge, sized 6px wide) rather than
+   border-image, so it doesn't risk border-image's 9-slice behavior interacting oddly with the plain
+   1px border this still shares with every other script-entry box on the left/top/right/bottom. Usage:
+   `<details class="script-entry patriotic" markdown="1">`. */
+details.script-entry.patriotic {
+  border-left-width: 1px;
+  border-left-color: #c3ccd6;
+  background:
+    linear-gradient(to bottom, #b31942, #ffffff 50%, #0a3161) left top / 6px 100% no-repeat,
+    #f5f7fa;
+  padding-left: 1.4em;
+}
+
 /* Download button injected into each sample-script entry's <summary> -- see footer_custom.html for the
    script that wires it up. Sits inline at the end of the summary text, floated right. */
 .script-download-btn {
@@ -152,6 +167,12 @@ html.wiki-dark details.script-entry summary {
 }
 html.wiki-dark details.script-entry summary:hover {
   color: #cddcf2;
+}
+html.wiki-dark details.script-entry.patriotic {
+  border-left-color: #33445c;
+  background:
+    linear-gradient(to bottom, #b31942, #ffffff 50%, #0a3161) left top / 6px 100% no-repeat,
+    #1b222c;
 }
 html.wiki-dark .script-download-btn {
   background: #1b222c;

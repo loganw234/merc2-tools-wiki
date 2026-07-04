@@ -333,6 +333,40 @@ Shows an announcement message for specified players.
 
 
 
+### Hud.ClassyText:ShowText(tArgs)
+
+Shows a large, centered animated text popup (a Flash `"text_effect"` SWF) for specified players —
+confirmed to be a real, fully-wired system (traced through to
+[`MrxGuiHudMessage.DisplayClassyText`](mrxguihudmessage)), but **no other script anywhere in the
+decompiled corpus actually calls it** — used live for the first time in
+[`Fireworks.lua`](../sample-scripts-onkey) (a "Happy 4th of July" banner) — see that page's own
+`OnKey` scripts collection.
+
+**Parameters:**
+
+- `tArgs` (table): A table containing:
+
+  - `vPlayer`: The player(s) to show the text to — `nil` targets every player with an active widget of
+    this name.
+
+  - `sText` (string): The text to display. Non-string values are silently ignored (`DisplayClassyText`
+    returns early if `type(sText) ~= "string"`).
+
+  - `nY`: Vertical position — defaults to `240` if omitted. Horizontal position is not configurable at
+    all; `DisplayClassyText` always recenters it itself (`nX = (640 - _nClassyTextWidth) * 0.5`).
+
+  - `nDuration`: Seconds on screen — defaults to `3` if omitted.
+
+  - `sJustification`: Text alignment (`"left"`/`"center"`/etc., default `"left"`). **Also silently
+    doubles as the horizontal anchor** — `DisplayClassyText`'s own `sHorizAnchor` parameter gets
+    immediately overwritten with whatever `sJustification` resolves to, before `sJustification` even
+    gets its own default applied. There's no way to set horizontal anchor and justification
+    independently; whichever value you pass as `sJustification` controls both.
+
+  - `sVertAnchor`: Vertical anchor (`"center"`, etc., default `"center"`).
+
+  - `bExpand`: Whether the text box expands to fit content (default `false`).
+
 ### _tFanfareQueue:Append(fAction)
 
 Appends an action to the fanfare queue. If the queue is pending, it immediately executes the action; otherwise, it adds it to the queue.

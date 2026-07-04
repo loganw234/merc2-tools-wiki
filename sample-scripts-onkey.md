@@ -657,3 +657,161 @@ A few things worth knowing if you customize this:
 
 </details>
 
+<details class="script-entry patriotic" markdown="1">
+<summary><strong>Fireworks.lua</strong> — Happy 4th of July: a banner announcement, then a real fireworks show fired straight out of the game's own airstrike ordnance.</summary>
+
+A pure "why not" script, built entirely on two things already documented elsewhere on this wiki:
+[`Airstrike.SpawnOrdnance`](namespaces/airstrike) (the same native every AI bomb/missile/gunship in this
+game calls to actually fire something) aimed at the sky instead of a target, and
+[`Hud.ClassyText:ShowText`](resident/mrxguiinterface#hudclassytextshowtexttargs) for the announcement
+banner — the first live use of that particular function anywhere, since no shipped mission ever calls it.
+
+```lua
+local KEYVAL = "f6"  -- must be in the first 10 lines -- f2/f3/f4/f5 already taken by the other OnKey scripts on this wiki
+
+-- Happy 4th of July. Fires a big volley of real Airstrike.SpawnOrdnance shells outward/upward around
+-- you, set to detonate mid-air by distance traveled instead of on impact -- the same native call every
+-- AI bomb/missile/gunship in this game uses to fire, just aimed at the sky instead of a target.
+--
+-- These are real ordnance with real blast damage, not a cosmetic effect -- fire this somewhere open,
+-- not near anything (or anyone) you don't actually want to blow up.
+
+local tFireworkShells = {
+  --"Cluster Bomb Projectile",   -- bursts into multiple bomblets -- closest thing to a real firework burst
+  "Flare Projectile Stage 2",  -- bright flare, lighter blast
+  "Gunship Shell",     -- small, quick pop
+  "Flare Projectile",
+  "Gunship Shell",
+}
+
+local nShellCount = 300        -- tweak me: how many shells in the show (was 18 -- this is ~17x, "just because")
+local nShowDuration = 15       -- tweak me: seconds -- stretched out along with the shell count so the
+                                -- firing rate doesn't spike (300 shells in the original 7s window would be
+                                -- ~43/sec; this keeps it to a denser-but-sane ~6.7/sec average)
+local nBurstDistanceMin = 90   -- tweak me: how far (world units) a shell travels before it detonates --
+local nBurstDistanceRange = 60 -- was 35-60, this is ~2.5x that range
+local nLaunchSpreadRange = 40  -- tweak me: how far around you the launch points are scattered
+local nLaunchHeightOffset = 20 -- tweak me: spawn this far above your feet -- fixes shells occasionally
+                                -- spawning embedded in sloped/uneven ground and detonating instantly
+                                -- (mrxartillery.lua's own incoming-shell spawns use the same trick,
+                                -- spawning 200 units above their target rather than at ground level)
+local nYawCorrectionDegrees = 22  -- tweak me: reported firing ~15-30 deg right of center at 0 -- this
+                                   -- rotates the aim left to compensate. If it overshoots past straight
+                                   -- and out the left instead, or the offset gets worse, negate this
+                                   -- value (try -22) rather than adjusting the magnitude further.
+
+-- customCos/customSin: math.sin/math.cos don't exist in this Lua build (same constraint documented in
+-- Freecam.lua). Reuses that script's confirmed-working yaw -> world-direction convention
+-- (forward = (cos(yaw), sin(yaw)) in (X, Z)), just applied to a character's Object.GetYaw() instead of
+-- camera yaw -- both are plain yaw angles in the same world coordinate space, but this specific
+-- direction hasn't been independently live-tested the way the camera case was, so if shells come out
+-- fired backwards/sideways instead of forward, try swapping the fCos/fSin terms below.
+local PI = 3.14159265
+
+local function normalizeAngle(x)
+  local twoPi = 2 * PI
+  x = x % twoPi
+  if x > PI then x = x - twoPi elseif x < -PI then x = x + twoPi end
+  return x
+end
+
+local function customSin(x)
+  x = normalizeAngle(x)
+  local x2 = x * x
+  return x * (1 - x2 * (0.16666666666667 - x2 * (0.00833333333333 - x2 * 0.000198412698)))
+end
+
+local function customCos(x)
+  x = normalizeAngle(x)
+  local x2 = x * x
+  return 1 - x2 * (0.5 - x2 * (0.04166666666667 - x2 * (0.00138888888889 - x2 * 0.000024801587)))
+end
+
+local function LaunchOne()
+  local uChar = Player.GetLocalCharacter()
+  if not uChar then
+    return
+  end
+  local x, y, z = Object.GetPosition(uChar)
+  local nYaw = Object.GetYaw(uChar) or 0
+
+  -- Launch point: a random offset around the player, raised above ground level, so the show surrounds
+  -- you (instead of one single spot) without shells clipping into uneven terrain.
+  local nLaunchX = x + math.randi(nLaunchSpreadRange) - math.randi(nLaunchSpreadRange)
+  local nLaunchZ = z + math.randi(nLaunchSpreadRange) - math.randi(nLaunchSpreadRange)
+  local nLaunchY = y + nLaunchHeightOffset
+
+  -- Fan out in a cone around whichever way you're currently facing (recomputed fresh per shell, so
+  -- turning around mid-show re-aims the rest of the barrage), roughly +/-35 degrees of spread.
+  local nYawJitter = (math.randi(60) - math.randi(60)) / 100
+  local nYawCorrection = nYawCorrectionDegrees / 180 * PI
+  local fCos = customCos(nYaw + nYawJitter + nYawCorrection)
+  local fSin = customSin(nYaw + nYawJitter + nYawCorrection)
+
+  -- Sharper forward angle than a near-vertical column: a strong forward-facing horizontal component
+  -- plus a real, but smaller, vertical component.
+  local nForwardSpeed = 160 + math.randi(70)
+  local nVelX = fCos * nForwardSpeed
+  local nVelZ = fSin * nForwardSpeed
+  local nVelY = 90 + math.randi(50)
+
+  local nBurstDistance = nBurstDistanceMin + math.randi(nBurstDistanceRange)
+  local sShell = tFireworkShells[math.randi(table.getn(tFireworkShells))]
+
+  Airstrike.SpawnOrdnance(sShell, nLaunchX, nLaunchY, nLaunchZ, nVelX, nVelY, nVelZ, "distance", nBurstDistance)
+end
+
+-- Banner first, real functional entry point is Hud.ClassyText:ShowText (mrxguiinterface.lua) -- a
+-- Flash "text_effect" popup. No other script in the decompiled corpus actually calls this one, so
+-- these arg values are sensible-defaults-from-the-definition-itself, not a confirmed real example --
+-- if the text looks off-position or oddly sized, nY/sJustification/sVertAnchor are the ones to try
+-- adjusting first.
+Hud.ClassyText:ShowText({
+  sText = "Happy 4th of July!",
+  nY = 240,
+  nDuration = 4,
+  sJustification = "center",
+  sVertAnchor = "center",
+  bExpand = true,
+})
+
+-- One solo flare timed with the banner as a little attention-getter, then a beat of pause before the
+-- full volley below -- banner+flare, pause, barrage, rather than everything landing at once.
+Event.Create(Event.TimerRelative, {0.3}, function()
+  local uChar = Player.GetLocalCharacter()
+  if not uChar then
+    return
+  end
+  local x, y, z = Object.GetPosition(uChar)
+  Airstrike.SpawnOrdnance("Flare Projectile Stage 2", x, y + nLaunchHeightOffset, z, 0, 130, 0, "distance", 100)
+end, {})
+
+local nShowStart = 2  -- seconds -- lets the banner/opening flare land before the barrage begins
+for i = 1, nShellCount do
+  -- Staggered across the show window with a little jitter so it doesn't tick like a metronome.
+  local nDelay = nShowStart + (i - 1) * (nShowDuration / nShellCount) + (math.randi(10) / 20)
+  Event.Create(Event.TimerRelative, {nDelay}, LaunchOne, {})
+end
+
+Loader.Printf("Fireworks: launching " .. tostring(nShellCount) .. " shells over ~" .. tostring(nShowDuration) .. "s")
+```
+
+**Confirmed working by live testing, tuned in collaboration through several rounds**: the initial version
+fired a small, mostly-vertical volley of 5 different shell types; live testing found some (cluster bomb,
+smart bomb in bulk) too visually disruptive (heavy screen shake/bloom) and narrowed the mix down to what's
+above, found the firing direction needed the `nYawCorrectionDegrees` calibration term (initially fired
+15-30 degrees right of dead-ahead), and settled on a shorter 15-second show with no performance issues at
+300 shells.
+
+A few things worth knowing if you customize this further:
+- **The `nYawCorrectionDegrees` value is an empirical fudge factor, not a derived constant** — it corrects
+  a real, observed rightward bias in this specific script's yaw-to-direction math, tuned to *this* offset
+  by testing, not calculated from a confirmed forward-vector formula for `Object.GetYaw`.
+- **These are real ordnance** — `Airstrike.SpawnOrdnance` is the same native every scripted bomb/missile in
+  the game fires with, not a cosmetic particle effect. Fire this somewhere open.
+- The shell list is a deliberately curated subset, not the full catalog — see
+  [Airstrike](namespaces/airstrike) for every other confirmed ordnance template name if you want to swap
+  the mix back out.
+
+</details>
+
