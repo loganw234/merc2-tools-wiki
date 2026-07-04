@@ -108,6 +108,13 @@ userdata handle rather than a string, for most objects tested.
 **The literal, `Pg.Spawn`-able name string for an already-existing object appears not to be retained
 anywhere Lua-reachable, unless something explicitly called `Object.SetName` on it.**
 
+**Update:** a promising resolution path exists now, though it's a lookup table, not a new Lua-reachable
+call. See the [Hash Lookup](../hash-lookup) page — a 6,119-entry name-to-hash table cross-referenced
+against several template names already confirmed real on this wiki (`Veyron`, `Supply Drop (Blueprints)`,
+`Chinese Destroyer`), all matching exactly. If a live `Sys.GuidToString(Object.GetParent(uGuid))` capture
+ever matches that table's `value_hex` column, that would fully resolve this ceiling for any object with a
+compiled template entry -- not yet live-tested, flagged as the next thing to try there.
+
 ## What this tool led to (three open threads)
 
 1. **`SpawnScraper.lua`** (`scripts/OnLoad/`) — hooks `Pg.Spawn` itself, logging every first-seen template
