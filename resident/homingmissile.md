@@ -42,6 +42,14 @@ Removes the radar blip and marker for the missile. Deletes the timer event if it
 ### `_HomingLaunched(oWidget, tData)`
 A helper function that activates the missile when it is launched. It sets the missile as active and calls `SetBlipped` to add its blip.
 
+**Confirmed: this does not spawn or fire the missile itself, despite the module name — it only reacts to
+one that already exists.** `tData` carries a reference to an already-live missile object (`uAmmoGuid` per
+the calling convention used at [`AntiAir`](antiair)'s own `_HomingLaunched`, which just forwards here).
+The real spawn/launch is handled by something native, outside this file entirely — see
+[`AntiAir`](antiair)'s notes and [`Junk.SpawnHomingProjectile`](../namespaces/junk#alarms--gameplay) for
+the likely (unconfirmed) mechanism, and [`Airstrike`](../namespaces/airstrike) for the *other*, confirmed
+projectile-spawning namespace this module does **not** use.
+
 ## Events
 - Listens for custom event `_HomingLaunched` to activate the missile and set up its blip.
 

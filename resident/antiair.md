@@ -99,6 +99,14 @@ Clears the homing lock-on state and resets related fields.
 ### `_HomingLaunched(oWidget, tData)`
 Handles the launch of a homing missile by calling into `HomingMissile._HomingLaunched`.
 
+**Confirmed: this function is purely reactive — it does not fire/spawn anything itself.** Its exact body
+is just `HomingMissile._HomingLaunched(oWidget, tData)`, forwarding to
+[`HomingMissile`](homingmissile)'s own radar-blip bookkeeping. `antiair.lua` never calls
+[`Airstrike`](../namespaces/airstrike) anywhere (confirmed by direct search) — the actual missile
+spawn/launch happens through some other, native mechanism this file only reacts to after the fact. See
+[`Junk.SpawnHomingProjectile`](../namespaces/junk#alarms--gameplay) for the likely (but unconfirmed)
+candidate.
+
 ## Events
 - Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
 - Listens for proximity events (`Event.ObjectProximity`) to activate and deactivate the anti-air system based on player distance.

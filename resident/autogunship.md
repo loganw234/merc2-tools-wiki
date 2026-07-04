@@ -40,6 +40,24 @@ one of these exact labels: `VZ`, `China`, or `Guerilla`.
 ### `LaunchMissile(uGuid, uTarget)`
 Fires a single missile towards the specified target. It calculates the normalized direction vector from the gunship to the target with ±5 aim scatter, plays sound and particle effects, and spawns the missile with a speed of 100.
 
+**Confirmed exact firing sequence** (a plain, non-`local` function — safe to override from an `OnLoad`
+script, same pattern as everywhere else in this wiki):
+
+```lua
+Sound.CueSound(uGuid, "wpn_tankgun_fire_npc")
+Pg.Spawn("global_particle_muzzleflash_tank", nSpawnX, nSpawnY, nSpawnZ)
+Airstrike.SpawnOrdnance("Gunship Shell", nSpawnX, nSpawnY, nSpawnZ, nVectorX * nSpeedScale, nVectorY * nSpeedScale, nVectorZ * nSpeedScale, "impact", 1)
+```
+
+Three independently swappable pieces: the sound cue, the muzzle-flash particle effect (a separate
+`Pg.Spawn` call, not part of the ordnance itself), and the [`Airstrike.SpawnOrdnance`](../namespaces/airstrike)
+call — which is the actual projectile. Overriding this function and changing `"Gunship Shell"` to a
+different confirmed ordnance template name (see the [Airstrike](../namespaces/airstrike) catalog) is a
+real, buildable way to change what this specific gunship fires — e.g. `"Cluster Bomb Projectile"` instead
+of a single shell. Found while investigating vehicle-turret weapon customization more broadly — see the
+[Airstrike namespace page](../namespaces/airstrike) for the full verdict on what is and isn't reachable
+this way.
+
 ## Events
 - Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
 - `Salvo` and `LaunchMissile` aren't event subscriptions in the usual sense — they're scheduled via

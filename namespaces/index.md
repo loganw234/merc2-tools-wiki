@@ -85,6 +85,14 @@ Treat those as real leads worth live-testing, not documentation gaps to be paper
 | [Junk](junk) | 24 | A dev/debug-tools grab-bag with a few genuinely gameplay-relevant functions (alarms, homing projectiles) mixed in. |
 | [Marker](marker) | 13 | Minimap/radar blips and world markers — `AddBlip` is already live-tested in [Snippets](../snippets#put-a-markerblip-on-an-object). |
 
+Two more namespaces below are **not** from a live `pairs()` dump — call-site evidence only, so treat their
+function counts as "at least this many," not complete:
+
+| Namespace | Functions (call-site only) | Notes |
+|---|---|---|
+| [Airstrike](airstrike) | 2 | The only mechanism in the whole corpus for spawning a projectile/ordnance object — `SpawnOrdnance`/`SpawnTargettedOrdnance`, plus a catalog of every confirmed ordnance template name string. |
+| [Weapon](weapon) | 3 | Ammo-reserve management for a player's carried/equipped weapon — confirmed to have no relationship to vehicle turrets. |
+
 ## What's left
 
 A full `pairs(_G)` scan (see [Snippets](../snippets#dump-every-engine-namespace-at-once)) turned up a

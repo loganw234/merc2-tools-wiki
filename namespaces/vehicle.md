@@ -40,8 +40,8 @@ The 40 functions listed below are a complete, authoritative enumeration taken fr
 |---|---|---|
 | `OpenDoor` | `OpenDoor(uVehicle, sDoorName)` | Used with a vehicle guid and a door/part name string (e.g. `"pivot"`, `"DriverHatch"`). `Vehicle.OpenDoor(uGuid, "DriverHatch")` has been proposed in this project as a live test for opening a tank hatch, but as of this writing no wiki page marks that call as confirmed by live testing — treat it as proposed-but-unconfirmed, not verified. |
 | `CloseDoor` | `CloseDoor(uVehicle, sDoorName)` | Used with a vehicle guid and a door/part name string (e.g. `"pivot"`), mirroring `OpenDoor`. |
-| `EnableTurret` | `EnableTurret(uVehicle, sTurretName, bEnable, sAxis?, bAxisFlag?)` | Used with a vehicle guid, a turret/part name (`"head"`, `"main_turret"`), a boolean, and in some call sites additional axis-related arguments (`"pitch"`, `"all"`, plus a boolean). |
-| `SetTurretPitch` | `SetTurretPitch(uVehicle, sTurretName, nValue)` | Used with a vehicle guid, turret name, and a numeric value (observed as `0`). |
+| `EnableTurret` | `EnableTurret(uVehicle, sTurretName, bEnable, sAxis?, bAxisFlag?)` | Used with a vehicle guid, a turret/part name (`"head"`, `"main_turret"`), a boolean, and in some call sites additional axis-related arguments (`"pitch"`, `"all"`, plus a boolean). **Confirmed control/orientation-only — not weapon selection.** Every real call site (`resident/mrxactionhijack.lua:83,123,955,1069,1072`) is disabling or re-enabling the turret's own control during a vehicle-hijack cinematic (`Vehicle.EnableTurret(self._hijackee, "head", false, "all", false)` before the cinematic, `Vehicle.EnableTurret(self._hijackee, "head", true)` after) — none of them touch what the turret fires. |
+| `SetTurretPitch` | `SetTurretPitch(uVehicle, sTurretName, nValue)` | Used with a vehicle guid, turret name, and a numeric value (observed as `0`, `resident/mrxactionhijack.lua:124`, resetting the turret's pitch to level right after disabling it during hijack). Orientation only, same caveat as `EnableTurret`. |
 | `SetTurretYaw` | — | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Presumed analogous to `SetTurretPitch` by naming only. |
 | `SetParts` | `SetParts(uVehicle, sPartName, bState)` | Used with a vehicle/object guid, a part name string (e.g. `"LightFront"`, `"CtrlRotation"`), and a boolean; returns a boolean. Also used on non-vehicle gate/alarm objects in the decompiled source, suggesting broader applicability than just player vehicles. |
 | `SetCanPlayerUse` | `SetCanPlayerUse(uVehicle, sSeatType, bCanUse)` | Used with a vehicle guid, a seat-type string (`"d"`, `"a"`), and a boolean. |
@@ -75,6 +75,15 @@ The 40 functions listed below are a complete, authoritative enumeration taken fr
 | `ClearControls` | `ClearControls(uVehicle)` | Used with a plain vehicle guid, called alongside turret-disable logic during hijack setup. |
 
 ## Notes for modders
+
+**No function on this namespace selects what a turret fires.** Investigated directly while researching
+whether a "vehicle weapon editor" mod was feasible: the turret functions above only ever control
+orientation and enable/disable state, never which weapon or ordnance fires. The actual mechanism for
+spawning a projectile in this engine is the [`Airstrike`](airstrike) namespace — but no call site anywhere
+in the corpus connects it to a vehicle's own turret; the modules that call it (`autogunship.lua`,
+`mrxartillery.lua`, etc.) are all separate AI/scripted objects, not the player-driven vehicle turrets these
+functions manage. As far as the decompiled corpus shows, a player-operated vehicle's mounted gun fires via
+a mechanism with no Lua touchpoint at all.
 
 The eleven hijack-related functions — `HijackStart`, `HijackAbort`, `HijackAbortDone`, `HijackComplete`, `SetHijackState`, `SetHijackSuccess`, `IsHijackBad`, `IsHijackRemote`, `CancelHijack`, `StartTankHijackMotion`, and `StopTankHijackMotion` — clearly belong to a single state machine driving the game's hijack-a-vehicle mechanic, based on their co-occurrence in the hijack-handling source. Beyond that, this page does not attempt to describe the actual flow (what triggers each transition, what states `SetHijackState`'s numeric argument accepts, etc.) — that would go beyond what the call-site evidence supports. This is a strong candidate for future live-testing to map out the real sequencing.
 
