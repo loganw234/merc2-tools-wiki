@@ -50,3 +50,52 @@
   sync();
 })();
 </script>
+
+<script>
+/* Adds a small "Download" button to each sample-script entry's <summary>, so readers can grab the
+   .lua file directly instead of copy-pasting out of the code block. Scoped to details.script-entry
+   specifically (the sample-scripts pages' box, see head_custom.html), not code blocks in general.
+   Reads the already-rendered code block's plain text client-side and downloads it via a Blob -- no
+   server involved, works fine on static GitHub Pages hosting. Filename comes from the
+   <strong>X.lua</strong> text already present in each entry's own <summary>, so there's nothing to
+   configure per script. */
+(function () {
+  document.querySelectorAll("details.script-entry").forEach(function (entry) {
+    var summary = entry.querySelector("summary");
+    var strong = summary ? summary.querySelector("strong") : null;
+    var pre = entry.querySelector("pre");
+    if (!summary || !strong || !pre) {
+      return;
+    }
+    var filename = strong.textContent.trim();
+    if (!/\.lua$/i.test(filename)) {
+      return;
+    }
+    var codeEl = pre.querySelector("code") || pre;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "script-download-btn";
+    btn.textContent = "⬇ Download";
+    btn.title = "Download " + filename;
+    btn.setAttribute("aria-label", "Download " + filename);
+    // preventDefault + stopPropagation: without both, clicking the button (a descendant of
+    // <summary>) would also trigger the browser's native toggle-open/closed behavior for the
+    // parent <details>, since that's the default action for any click landing on/inside a summary.
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var blob = new Blob([codeEl.textContent], {type: "text/plain;charset=utf-8"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    summary.appendChild(btn);
+  });
+})();
+</script>

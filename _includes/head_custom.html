@@ -87,6 +87,26 @@ details.script-entry > *:last-child {
   margin-bottom: 0;
 }
 
+/* Download button injected into each sample-script entry's <summary> -- see footer_custom.html for the
+   script that wires it up. Sits inline at the end of the summary text, floated right. */
+.script-download-btn {
+  float: right;
+  margin-left: 0.75em;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #4a6fa5;
+  background: #ffffff;
+  border: 1px solid #c3ccd6;
+  border-radius: 4px;
+  padding: 0.15em 0.6em;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.script-download-btn:hover {
+  background: #eaf1fb;
+  color: #2c3e50;
+}
+
 /* Floating light/dark toggle button -- see footer_custom.html for the script
    that wires it up via just-the-docs' own jtd.setTheme()/jtd.getTheme() API. */
 #theme-toggle {
@@ -131,6 +151,15 @@ html.wiki-dark details.script-entry summary {
   color: #a9c3e8;
 }
 html.wiki-dark details.script-entry summary:hover {
+  color: #cddcf2;
+}
+html.wiki-dark .script-download-btn {
+  background: #1b222c;
+  border-color: #33445c;
+  color: #a9c3e8;
+}
+html.wiki-dark .script-download-btn:hover {
+  background: #26314a;
   color: #cddcf2;
 }
 html.wiki-dark #theme-toggle {
