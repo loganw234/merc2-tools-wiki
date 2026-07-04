@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, cinematic]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiCinematic
@@ -19,7 +21,9 @@ The `MrxGuiCinematic` module is responsible for managing the display of cinemati
 - Imports: `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry anywhere
+in source — `Show`/etc. operate on a caller-supplied `oWidget` parameter, not a self-managed per-object
+table. This is one shared movie-playback element, not something spawned per world object. Key fields:
 - `bShowMoviePending`: A boolean flag indicating whether a movie is pending to be shown.
 - Other state fields related to movie playback, subtitles, and widget management are not explicitly listed here but are managed internally within the module.
 

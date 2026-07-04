@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [player, character management]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source; _tPlayerDatabase is a plain module-level table keyed by player, not a factory-built instance registry)
 ---
 
 # MrxPlayer
@@ -19,7 +21,9 @@ The `MrxPlayer` module is responsible for managing player characters in the game
 - Imports: `MrxCoop`, `MrxGui`, `MrxPlayState`, `MrxPmc`, `MrxUtil`, and others
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. `_tPlayerDatabase` is a plain module-level table this module maintains itself (keyed
+by player), not a factory-built per-instance object with inherited methods. Key fields:
 - `_tCharacterMap`: A table mapping character names to their upgrade templates and costume models.
 - `_tPlayerDatabase`: A database of player instances, each containing information about the player's character, position, health, and equipment.
 - `_fLocalPlayerJoinedCallback`: A callback function for when the local player joins the game.

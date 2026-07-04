@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiHudVehicleDisguise
@@ -19,7 +21,8 @@ The `MrxGuiHudVehicleDisguise` module is responsible for managing the vehicle di
 - Imports: `MrxGui`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. This is one shared HUD element, not something spawned per world object. Key fields:
 - `nValue`: The current disguise level.
 - `nBasePoint`, `nRedPoint`: Animation points for color transitions.
 - `oIcon`, `oIconCross`: Widgets representing the faction icon and crossed-out icon, respectively.

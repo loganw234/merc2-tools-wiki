@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, economy]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory via Create(self, oNewDesignator)/setmetatable, same pattern as MrxSupport -- not per-uGuid, no tInstance registry)
 ---
 
 # MrxSupportDesignator
@@ -19,7 +21,10 @@ The `MrxSupportDesignator` module is a base class for support designators in the
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — same class-factory pattern as [`MrxSupport`](mrxsupport)**: `Create(self, oNewDesignator)`
+builds a new table via `setmetatable`/`__index`, no `tInstance` registry anywhere in source. This is the
+base class its 5 designator subtypes (Beacon/Flare/Laser/Satellite/Smoke) all inherit the pattern from.
+Key fields:
 - `uOwner`: The GUID of the player or entity that owns the designator.
 - `bDesignationComplete`: A boolean indicating whether the designation process is complete.
 - `sDesignationType`: The type of designation being used.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud, ammo]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiHudAmmoCountersNew
@@ -19,7 +21,9 @@ The `MrxGuiHudAmmoCountersNew` module is responsible for managing the display an
 - Imports: `MrxGuiBase`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry anywhere
+in source. This is one shared HUD element, not something spawned per world object — the fields below are
+plain module-level state. Key fields:
 - `_knPulseTime`: 0.4 seconds, used for color pulse animations.
 - `_knRotateTime`: 0.5 seconds, used for rotation animations.
 - `_knRotateDelay`: 0.05 seconds, delay before starting rotation animations.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, pda]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiPda
@@ -19,7 +21,9 @@ The `MrxGuiPda` module is responsible for managing the Player Data Assistant (PD
 - Imports: `MrxGuiBase`, `MrxPmc`, `MrxGuiManager`, `WifVzRegionNames`, `MrxSupportData`, `MrxGuiDialogBox`, `MrxSound`, `MrxPlayState`, `WifMissionData`, `MrxGuiHudFactionGauge`, `MrxStatsManager`, `MrxState`, and `MrxGui`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
+`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is the one shared PDA interface, not
+something spawned per world object. Key fields:
 - `_knBlipLimit`: A limit for the number of map blips.
 - `_nMissionCount`: A counter for mission IDs.
 - `tMapBlips`: Table to store map blips.

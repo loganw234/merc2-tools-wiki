@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [winchable, blip]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tGuids[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
 ---
 
 # Crate
@@ -19,9 +21,12 @@ The `Crate` module represents a winchable crate object in the game world. It man
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks:
-- `Marker`: The GUID of the blip marker added to the minimap.
-- `Winched`: An event handle for the crate's winching state.
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `tGuids[uGuid] = tGuids[uGuid] or {}`, with no `Create`/`Delete`/`setmetatable`
+anywhere. Each activated crate gets a small sub-table entry in `tGuids`, not a full instance object with
+inherited methods. It tracks:
+- `tGuids[uGuid].Marker`: The GUID of the blip marker added to the minimap.
+- `tGuids[uGuid].Winched`: An event handle for the crate's winching state.
 
 ## Functions
 ### `OnActivate(uGuid)`

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [oilrig, destruction]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level _tOilrigEvents[uGuid] bookkeeping table (plus an Init()/Deinit() singleton lifecycle), no Create/setmetatable/tInstance factory, not the Inheritable rich-instance pattern
 ---
 
 # Oilrig
@@ -19,7 +21,10 @@ The `Oilrig` module manages the destruction sequence of oil rig objects in the g
 - Imports: `MrxLayerManager`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `_tOilrigEvents[uGuid]`, populated once via a module-level `Init()`/`Deinit()`
+pair, with no `Create`/`setmetatable`/rich-instance factory anywhere. Each activated oil rig gets a
+sub-table entry, not a full instance object with inherited methods. It tracks the following key fields:
 - `_tOilrigEvents`: A table to store event handles for each oil rig instance.
 - `tTGLayers`: A mapping of GUIDs to layer names used for managing game layers.
 

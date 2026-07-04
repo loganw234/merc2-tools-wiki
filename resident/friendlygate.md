@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, gate]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level _tGates[uGuid] bookkeeping table (plus an Init()/Deinit() singleton lifecycle), no Create/setmetatable/tInstance factory, not the Inheritable rich-instance pattern
 ---
 
 # FriendlyGate
@@ -19,7 +21,11 @@ The `FriendlyGate` module manages the behavior of gates that open based on proxi
 - Imports: `MrxFactionManager`, `MrxUtil`, `MrxVoSequence`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `_tGates[uGateGuid]`, with no `Create`/`Delete`/`setmetatable` anywhere. There's
+also a module-level `Init()`/`Deinit()` pair for one-time setup, alongside the per-gate `OnActivate`. Each
+activated gate gets a sub-table entry in `_tGates`, not a full instance object with inherited methods. It
+tracks the following key fields:
 - `_tLockedGates`: A table to store locked gate GUIDs.
 - `_tGates`: A table to manage gate-specific data, including proximity events, attitude change events, candidate vehicles, and filter settings.
 

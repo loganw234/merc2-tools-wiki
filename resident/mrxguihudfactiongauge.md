@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, faction]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiHudFactionGauge
@@ -19,7 +21,9 @@ The `MrxGuiHudFactionGauge` module is responsible for managing the graphical rep
 - Imports: `MrxGuiBase`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
+`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD gauge, not something
+spawned per world object. Key fields:
 - `_knMin`: Minimum value of the faction gauge (0).
 - `_knMax`: Maximum value of the faction gauge (100).
 - `_ksPursuit`: String key for the pursuit label ("[0x1cab5133]").

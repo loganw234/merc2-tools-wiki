@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud, resource]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiHudResourceCounter
@@ -19,7 +21,9 @@ The `MrxGuiHudResourceCounter` module is responsible for managing and displaying
 - Imports: `MrxGui`, `MrxPmc`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
+`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD counter, not
+something spawned per world object. Key fields:
 - `_nValue`: The current value of the counter.
 - `_sAppendedString`: An optional string appended to the counter's display.
 - `_bTicking`: A boolean indicating whether the counter is currently animating.

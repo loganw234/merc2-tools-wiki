@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [outpost, support]
+verified: true
+verified_note: confirms the Instance pattern claim is actually accurate for this file (unlike most other pages with this same boilerplate line) -- Outpost hand-rolls its own uGuid registry rather than inheriting the shared Inheritable base
 ---
 
 # outpost
@@ -19,7 +21,13 @@ The `outpost` module manages the behavior and state of outposts in the game worl
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Confirmed genuinely accurate** — unlike most other pages that carried this same line, `Outpost` really
+does maintain one rich instance object per `uGuid`. It just doesn't get this from the shared
+[`Inheritable`](inheritable) base ([`Blippable`](blippable)/[`MrxTask`](mrxtask)'s pattern) — it hand-rolls
+the identical idea itself: `Create(oPrototype, tArgs)` builds `oSelf` via
+`setmetatable(oSelf, {__index = oPrototype})`, then explicitly registers it with
+`_tOutposts[oSelf.uGuid] = oSelf` (and `nil`s it back out on destruction). `Find(uGuid)` is the confirmed
+lookup function: `return uGuid and _tOutposts[uGuid]`. It tracks the following key fields:
 - `_tOutposts`: A table that maps outpost GUIDs to their respective outpost instances.
 - `_tSupportRefCount`: A table tracking the reference count of support types for different factions.
 - `tDefaultSupport`: A table mapping faction names to default support types.

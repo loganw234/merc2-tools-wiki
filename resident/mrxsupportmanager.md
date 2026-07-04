@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, economy]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- CurrentlyEquippedSupport/SupportQueue/_tRecruitStates are plain module-level tables keyed by player/character guid, not a factory-built instance registry; has an OnActivate but it's a plain reactive handler, not a per-instance constructor)
 ---
 
 # MrxSupportManager
@@ -19,7 +21,10 @@ The `MrxSupportManager` module is responsible for managing the designation queue
 - Imports: `MrxSupport`, `MrxPmc`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `Create`/`tInstance` registry anywhere in
+source — `CurrentlyEquippedSupport`/`SupportQueue` are plain module-level tables this manager maintains
+itself, keyed by player/character guid as simple lookup keys, not a factory-built per-instance object with
+inherited methods. Key fields:
 - `_tRecruitStates`: A table that stores the availability state of each recruit.
 - `_tRecruitTimers`: A table that stores the timer objects for each recruit's cooldown period.
 - `_nDefaultCooldownTime`: The default cooldown time for recruits.

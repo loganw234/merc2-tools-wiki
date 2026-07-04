@@ -11,6 +11,9 @@ inherits: none
 
 tags: [gui, hud]
 
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+
 ---
 
 
@@ -38,7 +41,9 @@ The `MrxGuiInterface` module is a comprehensive interface for managing various a
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. This is the single shared UI-plumbing hub for the whole game session, not something
+spawned per world object. Key fields:
 
 - **HudInterface**: Exposed as `_G.Hud` and contains sub-tables like `Radar`, `MessageBox`, `SupportMenu`, `ObjectiveTray`, etc.
 

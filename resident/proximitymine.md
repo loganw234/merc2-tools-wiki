@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [mine, proximity]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level uEvent[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
 ---
 
 # ProximityMine
@@ -19,9 +21,13 @@ The `ProximityMine` module is responsible for handling the behavior of proximity
 - Imports: `none`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `uEvent[uGuid]`, set up once via `Init()` alongside a single shared `uFilter`
+(both true singleton/module-level fields, not per-instance), with no `Create`/`setmetatable`/rich-instance
+factory anywhere. Each activated mine gets one event handle entry in `uEvent`, not a full instance object
+with inherited methods. It tracks the following key fields:
 - `uEvent`: A table to store event handles for each instance.
-- `uFilter`: An object filter used to detect human players.
+- `uFilter`: A single shared object filter used to detect human players, set up once in `Init()` — not per-instance.
 
 ## Functions
 ### `Init()`

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, companion]
+verified: true
+verified_note: corrects the Instance pattern section (class-factory via Create(mModule, self)/setmetatable, same pattern as MrxTask -- not per-uGuid, no tInstance registry)
 ---
 
 # MrxFollow
@@ -19,7 +21,9 @@ The `MrxFollow` module manages the escort/follow behavior for companion characte
 - Imports: `MrxVoSequence`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — same class-factory pattern as [`MrxTask`](mrxtask)**: `Create(mModule, self)` does
+`self = self or {}; setmetatable(self, {__index = mModule})`, no `tInstance` registry anywhere in source.
+Key fields:
 - `_tEvents`: Table to store event handles.
 - `iStartVOIdx`, `iStopVOIdx`, `iLostVOIdx`, `iFoundVOIdx`, `iHostileVOIdx`, `iHostileRecoveredVOIdx`: Indices for voice-over sequences.
 - `_vActor`: The actor (character) that is following.

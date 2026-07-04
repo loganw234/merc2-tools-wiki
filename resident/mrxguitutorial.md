@@ -11,6 +11,9 @@ inherits: none
 
 tags: [gui, tutorial]
 
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+
 ---
 
 
@@ -38,7 +41,9 @@ The `mrxguitutorial` module is responsible for managing in-game tutorials that g
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. This is the one shared tutorial-message system, not something spawned per world
+object. Key fields:
 
 - `_bTutorialsOn`: A boolean flag indicating whether tutorials are enabled globally.
 

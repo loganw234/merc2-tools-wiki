@@ -11,6 +11,9 @@ inherits: none
 
 tags: [gui, pause]
 
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+
 ---
 
 
@@ -38,7 +41,9 @@ The `MrxGuiPauseScreen` module is responsible for managing the pause screen in t
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
+`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is the one shared pause screen, not
+something spawned per world object. Key fields:
 
 - **`Joystick`**: A table defining constants for joystick button mappings.
 

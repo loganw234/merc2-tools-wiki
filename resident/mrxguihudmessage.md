@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud, message]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxGuiHudMessage
@@ -19,7 +21,9 @@ The `MrxGuiHudMessage` module is responsible for managing various types of HUD m
 - Imports: `MrxGui`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
+`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD message/fanfare
+system, not something spawned per world object. Key fields:
 - `nGlobalWidth`, `nGlobalHeight`: Dimensions for the fanfare widget.
 - `nX`, `nY`: Position coordinates for the fanfare widget.
 - `nMagnification`: Magnification factor for the fanfare widget.

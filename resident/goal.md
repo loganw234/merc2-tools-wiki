@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [goal, soccer]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tEvents[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
 ---
 
 # Goal
@@ -19,7 +21,10 @@ The `Goal` module is responsible for handling the soccer easter egg in the game.
 - Imports: `MrxUtil`, `MrxVoSequence`, `MrxPmc`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `tEvents[uGuid] = tEvents[uGuid] or {}`, with no `Create`/`Delete`/`setmetatable`
+anywhere. Each activated ball/goal object gets a small sub-table entry in `tEvents`, not a full instance
+object with inherited methods. It tracks the following key fields:
 - `tEvents`: A table to store event handles and other state related to the goal.
 
 ## Functions

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, world entity]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tDBs[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
 ---
 
 # DangerousBuilding
@@ -19,7 +21,10 @@ The `DangerousBuilding` module manages dangerous buildings in the game. It handl
 - Imports: `MrxGui`, `MrxPmc`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
+plain module-level table, `tDBs[uGuid] = tDBs[uGuid] or {}`, with no `Create`/`Delete`/`setmetatable`
+anywhere. Each activated building gets a small sub-table entry in `tDBs`, not a full instance object with
+inherited methods. It tracks the following key fields:
 - `tDBs`: A table storing data for each dangerous building instance.
 - `nDBCount`: The current count of active dangerous buildings.
 - `nMaxDBs`: The maximum number of active dangerous buildings allowed.

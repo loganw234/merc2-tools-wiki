@@ -11,6 +11,9 @@ inherits: none
 
 tags: [gui, hud]
 
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+
 ---
 
 
@@ -38,7 +41,9 @@ The `MrxGuiHudReticle` module is responsible for managing the various types of r
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. This is one shared reticle element, not something spawned per world object. Key
+fields:
 
 - `_bFloatCrosshair`: A boolean flag indicating whether the crosshair should float or follow the reticle position.
 

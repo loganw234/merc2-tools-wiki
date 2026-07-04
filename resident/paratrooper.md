@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, airborne]
+verified: true
+verified_note: corrects the Instance pattern section -- confirmed via source there is no inherit("Inheritable") (or anything else) in this file at all; the module-level tEvents table is declared but never actually indexed/used anywhere in the file
 ---
 
 # Paratrooper
@@ -19,7 +21,11 @@ The `Paratrooper` module manages the behavior of paratroopers in the game. It ha
 - Imports: `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It does not track any specific state fields beyond what is inherited from `Inheritable`.
+**Not the `Inheritable` pattern — this file has no `inherit(...)` call at all.** Confirmed from source:
+`tEvents = tEvents or {}` is declared at module scope but never actually indexed or assigned anywhere in
+the file — genuinely dead/vestigial, not a real per-`uGuid` table in active use. Each activation just runs
+its reactive `OnActivate` → `Start` → `RemoveChute` chain directly on the `uGuid` passed through as a
+plain argument, with no stored per-instance state at all.
 
 ## Functions
 ### `OnActivate(uGuid, iArg)`

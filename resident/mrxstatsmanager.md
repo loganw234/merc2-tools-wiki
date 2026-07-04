@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [statistics, player progress]
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
 ---
 
 # MrxStatsManager
@@ -19,7 +21,9 @@ The `MrxStatsManager` module is responsible for tracking and managing various st
 - Imports: `MrxFactionManager`, `WifMissionData`, `MrxVerifyManager`, `MrxUtil`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
+anywhere in source. This is one shared, session-wide stats tracker, not something spawned per world
+object. Key fields:
 - `bActivated`: Indicates whether the module has been activated.
 - `tDestroyBty`: Counts of destroyed parts for each faction.
 - `nCompletedToolboxes`: Total number of completed toolboxes.

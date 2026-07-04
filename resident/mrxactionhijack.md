@@ -11,6 +11,9 @@ inherits: none
 
 tags: [action hijack, minigame, animation]
 
+verified: true
+verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance/setmetatable anywhere in source; self-prefixed fields belong to one shared, reused state table, not a per-uGuid factory)
+
 ---
 
 
@@ -38,7 +41,10 @@ The `MrxActionHijack` module is responsible for managing the action hijack seque
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance`/`setmetatable`
+anywhere in source. The `self`-prefixed fields below belong to one shared, reused state table for
+whichever hijack sequence is currently in progress, not a fresh factory-built object per vehicle/hijacker.
+Key fields:
 
 - `_bIsInHijack`: A boolean indicating whether the hijack action is currently active.
 
