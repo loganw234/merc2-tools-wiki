@@ -35,3 +35,9 @@ different problem instead of just copy-pasting the end result.
   bug found in `MrxGuiTextBuffer`'s own documented constructor, a scope-sealing dead end while trying to
   patch around it, and the bug-free internal function that turned out to be the real fix — plus a
   confirmed static-source-vs-runtime discrepancy in `MrxGui` itself.
+- **[Adding a Custom Contract](custom-contract)** — *research notes, currently broken* — registering a
+  mission into `WifMissionData` and Fiona's briefing menu, confirmed working end to end exactly once
+  (menu, accept, teleport-out, spawn/destroy/reward), plus two hard native-safety rules
+  (`dynamic_import`/`dynamic_remove` unsafe to touch beyond normal use; never `return fOriginal(...)` in a
+  wrapper) discovered the hard way — but the same script permanently breaks the lua bridge when a save
+  spawns the player directly inside the PMC HQ, root cause not yet found.
