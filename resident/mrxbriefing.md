@@ -11,6 +11,13 @@ inherits: none
 
 tags: [briefing, UI]
 
+verified: true
+verified_note: corrects the Instance pattern (singleton module table, not per-uGuid) and the fabricated
+  Events section; adds confirmed mechanism detail for Start/_DisplayRootMenu/_BriefingSelected/_LoadSpiel/
+  _FileLoaded/_HandleConfirmDialogInput/_AcceptOrDeclineMission/_End/_EndBegin/_UnloadSpiel/
+  _GetSelectedBriefingConfig/GetSpielFileName from building and debugging a real custom contract end to
+  end — see the [Custom Contract deep dive](../deep-dives/custom-contract) for the full investigation.
+
 ---
 
 
@@ -38,11 +45,18 @@ The `mrxbriefing` module is responsible for managing the briefing system in Merc
 
 ## Instance pattern
 
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — this is a singleton module table**, confirmed directly: `_THIS` (the `self` passed to
+`MrxUtil.SetupLoadingCallback`/`LoadingCallback` throughout this file) turns out to just be
+`mrxbriefing.lua`'s own module environment — `tostring(_THIS)` dumps every function and constant the file
+itself defines (this engine gives tables a custom `__tostring` that lists their contents). There's exactly
+one active briefing session at a time, tracked in module-level fields, not one instance per world object.
 
-- `_oStarter`: The starter object for the briefing.
+- `_oStarter`: The starter object for the briefing currently in progress.
 
-- `_tBriefings`: Configuration data for different briefings.
+- **`_tBriefings`: not this module's own private table.** `Start()` (below) sets it via
+  `_tBriefings = _oStarter:GetOfferedBriefings()` — literally the *same table reference* as the current
+  starter's own briefing list (populated by [`MrxStarter`](mrxstarter)'s `AddBriefing`). Reading or writing
+  `_tBriefings` here and reading/writing it through the starter are the same operation.
 
 - `_sSelectedMission`: The currently selected mission name.
 
@@ -52,7 +66,10 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 
 - `_tFlashObjects`: Table holding references to flash objects used in the briefing UI.
 
-- `_nLoadPending`: Counter tracking the number of assets pending loading or unloading.
+- `_nLoadPending`: A bare module-level counter used by `_UnloadSpiel`, distinct from `_THIS._nLoadPending`
+  (the field `MrxUtil.SetupLoadingCallback`/`LoadingCallback` manage when called as
+  `MrxUtil.LoadingCallback(_THIS)`) — two separate pieces of pending-load bookkeeping in this file, not
+  one, easy to conflate when tracing a hang since they share a naming pattern but not storage.
 
 - `_tAssetLoadTimers`: Table managing timers for asset loading operations.
 
@@ -272,9 +289,17 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
 - **Purpose:** Initializes the briefing system for the player.
 
+- **Confirmed mechanism:** `_tBriefings = _oStarter:GetOfferedBriefings()` — this is the aliasing described
+  under Instance pattern above, not a copy. Immediately after, it loops over every entry and sets
+  `tMissionData.tConfig = WifBriefingData[sMissionName] or {}` — this is where every later
+  `_GetSelectedBriefingConfig()` call actually gets its answer from; a mission with no
+  `WifBriefingData` entry (e.g. a custom mission added via `WifMissionData.tMissionData` directly) ends up
+  with `tConfig = {}`, making every `if tConfig.tXxx then` check throughout this file a safe no-op rather
+  than an error.
+
 - **Process:**
 
-  - Retrieves offered briefings and mission data from `_oStarter`.
+  - Retrieves offered briefings and mission data from `_oStarter` (see above).
 
   - Sets up default camera effects and shadow distance.
 
@@ -350,11 +375,24 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
 - **Purpose:** Displays the main briefing menu with options for briefings, shop, transit, hint, and bribe systems.
 
+- **Confirmed behavior — boss starters skip the menu entirely:** `if _oStarter:IsBoss() then
+  _BriefingSelected(_tNames[1]); return end` — for a starter where `IsBoss()` is true, this function
+  auto-selects and opens whatever ended up first in `_tNames` and never shows the option list at all.
+  **`IsBoss()` is just `return self.bBoss`** ([`MrxStarter`](mrxstarter)), and Fiona's real starter data
+  (`WifStarterData.PmcBoss`) does not set `bBoss = true` despite the starter ID's name — confirmed live:
+  talking to Fiona shows the normal multi-option menu, not an auto-selected briefing, meaning `IsBoss()`
+  evaluates false for her. Don't assume a starter ID containing "Boss" implies this branch fires; check the
+  actual `WifStarterData` entry's `bBoss` field.
+
 - **Process:**
 
   - Stops any ongoing cheap cinematic and deletes skip events.
 
-  - Collects and organizes available briefings, intros, and other options into `_tNames`, `_tTitles`, and `_tActions`.
+  - Collects and organizes available briefings, intros, and other options into `_tNames`, `_tTitles`, and
+    `_tActions` — walks `_tBriefings` with `pairs()`, so a custom mission added via
+    [`MrxStarter`](mrxstarter)'s `AddBriefing` shows up here exactly like a real one, in whatever position
+    Lua's table iteration happens to put it (not guaranteed stable/first, except for
+    `WifMissionData.IsMissionOnCriticalPath` entries, which are forced to index 1).
 
   - Sends a custom event to display the menu on the client side if it's the server.
 
@@ -382,21 +420,55 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
   - Checks if the mission is already accepted or if it's a contract with active/pending status.
 
-  - Loads the briefing spiel if the mission is not yet accepted.
-
-
+  - If not yet accepted, calls `_Fade(false, _BeginLoad)`, where a local `_BeginLoad()` reads
+    `_GetSelectedBriefingConfig()` and then calls `_LoadSpiel()`.
 
 ### `_LoadSpiel()`
 
 - **Purpose:** Loads the briefing spiel for the selected mission.
 
-- **Process:**
+- **Confirmed exact body** (`resident/mrxbriefing.lua:792`):
 
-  - If on the server, sends a custom event to load the mission spiel.
+  ```lua
+  function _LoadSpiel()
+    if Net.IsServer() then
+      local idx = 1
+      local tNetBriefingActors = {}
+      if _sSelectedMission then
+        local tBriefingData = WifBriefingData[_sSelectedMission]
+        if tBriefingData then
+          local tActors = tBriefingData.tActors
+          if tActors then
+            for sName, tActorData in pairs(tActors) do
+              if sName ~= "Starter" then
+                tNetBriefingActors[idx] = GetActorGuid(sName)
+                idx = idx + 1
+              end
+            end
+          end
+        end
+      end
+      Net.LoadMissionSpiel(WifMissionData.GetMissionIndexFromId(_sSelectedMission), tNetBriefingActors)
+    end
+    local sSpielFile = GetSpielFileName(_sSelectedMission)
+    dynamic_import(sSpielFile, _FileLoaded)
+  end
+  ```
 
-  - Dynamically imports the spiel file and registers a callback function `_FileLoaded` to handle post-load actions.
+- **`dynamic_import` here is a real, confirmed crash risk for a mission with no compiled spiel asset.**
+  Calling it with a name that was never a real compiled asset crashes the game outright (`AV READ`,
+  confirmed live) — and this is the only place in the accept flow that calls it for the initially selected
+  mission. A custom mission with no real spiel file needs to intercept `_LoadSpiel` itself (an ordinary Lua
+  function, safe to wrap) and skip straight to `_FileLoaded(nil)`, while still calling the
+  `Net.LoadMissionSpiel(...)` native above it with an empty actor list — `_UnloadSpiel` (below) always
+  calls the matching `Net.UnloadMissionSpiel` later regardless of how the spiel was loaded, so skipping the
+  load half while still hitting the unload half is an easy way to leave that native pair unbalanced. See
+  the [Custom Contract deep dive](../deep-dives/custom-contract) for the full worked example.
 
-
+- **Never wrap `dynamic_import` itself, even just to log around it.** Confirmed by two separate crashes
+  with an identical signature: one from a bogus name, and a second from wrapping `dynamic_import`
+  transparently (call the original, change nothing) around a call using a real, valid asset name. It's
+  sensitive to its immediate caller's Lua environment, not just its arguments.
 
 ### \_FileLoaded(tFile)
 
@@ -406,6 +478,14 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
   - `tFile`: The file containing briefing data.
 
+- **Confirmed: `_FileLoaded(nil)` is a safe, deliberate way to skip straight to `_StartSpiel()`.** Every
+  asset-preload block in this function is gated on `type(tFile) == "table"`, so passing `nil` skips all of
+  them. The one unconditional `MrxUtil.LoadingCallback(_THIS)` call at the end still fires, and since
+  `_THIS._nLoadPending` starts at 0 (from the matching `SetupLoadingCallback(_THIS, _StartSpiel)` earlier
+  in this function), that single call is enough to immediately invoke `_StartSpiel`. This is the mechanism
+  a custom mission with no real spiel asset relies on when it calls `_FileLoaded(nil)` directly instead of
+  routing through `dynamic_import`.
+
 
 
 ### \_StartSpiel()
@@ -413,6 +493,12 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 - **Description**: Starts the briefing process. It initializes camera settings, binds face animations, and plays the appropriate type of briefing (cinematic, cheap cinematic, or placeholder slides).
 
 - **Parameters**: None
+
+- **Confirmed: has a generic placeholder for a mission with no real cinematic configured at all** — its
+  `_PlayCinematic` falls back to `MrxCinematic.PlaceholderSequence({{sCaption = "Mission Briefing:\n\"" ..
+  _sSelectedMission .. "\""}}, _CinematicComplete)`. This is what makes a custom mission with no briefing
+  assets at all still show *something* playable (a plain caption screen with a Continue prompt) instead of
+  erroring — confirmed live.
 
 
 
@@ -431,6 +517,9 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 - **Parameters**:
 
   - `nIndex`: The index of the selected option.
+
+- **Confirmed**: `nIndex == 1` is Accept (if no recommendations pending), `nIndex == 2` is Decline —
+  confirmed live via the dialog shown in the [Custom Contract deep dive](../deep-dives/custom-contract).
 
 
 
@@ -461,6 +550,19 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 - **Parameters**:
 
   - `bAccepted`: A boolean indicating whether the mission was accepted.
+
+- **Confirmed key steps, in order**: reads `tConfig = _GetSelectedBriefingConfig()`; if accepted and
+  [`WifMissionData.IsMissionAContract`](wifmissiondata) is true, calls `_oStarter:SetPendingContract(
+  _sSelectedMission)` — this is what later tells `WifPmcInterior.Exit()` where to teleport the player, so a
+  custom contract mission that never set `bContract = true` on its own `WifMissionData` entry silently
+  skips this call and the player ends up stranded with nowhere to go after accepting. Also calls
+  `_oStarter:SetMissionAccepted(_sSelectedMission, true)` and appends to `_tMissionsToBeAccepted`. Branches
+  three ways on `_oStarter:IsBoss()`/`IsPmcStarter()`: the boss/simple-briefing path plays a confirm/decline
+  cinematic if configured, then calls `_End()` directly if none is configured (this is the path Fiona's
+  `PmcBoss` starter actually takes, since her real config has no such cinematic set for a mission that
+  doesn't define one); the non-PMC-starter path goes through a cheap cinematic before `_End()`/
+  `_ReturnToRootMenu()`; the final fallback is a plain `_End()` (accepted) or `_ReturnToRootMenu()`
+  (declined) with no cinematic at all.
 
 
 
@@ -522,11 +624,20 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
 - **Description**: Ends the briefing process by setting loading screens, stopping cinematic effects, disabling quick fade, and cleaning up various UI elements and player states. It also sends events to the server and client to handle specific tasks like enabling markers and exiting the briefing state.
 
-
+- **Confirmed exact sequence**: `Net.SetLoadingScreen(true)` → `_StopCheapCinematic()` →
+  `_DeleteSkipEvent()` → **`_UnloadSpiel(true)`** (called directly, not deferred — see below, this is the
+  step that has to actually finish for the accept flow to continue at all) → client-menu-box cleanup →
+  `LTILibName.ChangeShellState(false)` → `MrxState.SetQuickFade(false)` → `_Fade(false, _EndBegin)`.
 
 ### `_EndBegin()`
 
 - **Description**: Sets up the final state of the briefing after it has ended. This includes restoring shadow distances, camera effects, face animations, player setup, enabling player markers, suppressing PDA, detaching actors from hardpoints, restoring actor positions if needed, disabling cinematic mode, and setting animation LOD settings. It also handles client-specific tasks like exiting the wait-for-game state.
+
+- **Confirmed**: the non-client branch ends with `_oStarter:End(_tMissionsToBeAccepted,
+  _sLastAcceptedMission)` ([`MrxStarter.End`](mrxstarter)), which is what actually calls
+  `WifPmcInterior.Exit(1, false)` for a PMC starter to teleport the player back out — the real end of the
+  whole accept sequence. Confirmed reached live, end to end, for a custom contract mission with no real
+  spiel asset, once `_UnloadSpiel` (below) was fixed to not error for such a mission.
 
 
 
@@ -629,6 +740,33 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 ### `_UnloadSpiel(bExitingBriefing)`
 
 - **Description**: Unloads the briefing spiel for the selected mission. It performs various cleanup tasks like unloading assets, stopping animations, and resetting face animations. It also handles server-specific tasks like unloading mission data and sending events.
+
+- **Confirmed exact final two statements — a real crash risk for any mission with no real spiel asset**:
+
+  ```lua
+  local sSpielFile = GetSpielFileName(_sSelectedMission)
+  dynamic_remove(sSpielFile)
+  _sSelectedMission = nil
+  ```
+
+  `dynamic_remove` is `dynamic_import`'s native counterpart — calling it here always runs, regardless of
+  whether anything was ever actually `dynamic_import`'d for this mission (a mission using the
+  `_FileLoaded(nil)` bypass above never imported anything, so this is asking the engine to unload a module
+  that was never loaded). More importantly, **`GetSpielFileName` itself throws a hard Lua error** for any
+  mission ID that doesn't fit the real `<3-letter faction><Con|Job><3-digit number>` shape (see
+  `GetSpielFileName` below) — confirmed to be the actual cause of a real, reproducible hang (no crash
+  dump, no log output, just a permanently frozen screen) when this function ran for a custom mission ID
+  like `"CustomTest001"`. Everything else in this function is a legitimate no-op for a mission with no
+  `WifBriefingData` entry (`_GetSelectedBriefingConfig()` returns `{}`, per `Start()` above, so every
+  `if tConfig.tXxx then` block here is skipped) — `GetSpielFileName`'s crash is the one real blocker.
+  **Fix**: temporarily short-circuit `GetSpielFileName` (and, separately, neutralize `dynamic_remove`) for
+  the specific mission ID, only for the duration of this one call — full worked example and diagnostic
+  trail in the [Custom Contract deep dive](../deep-dives/custom-contract).
+
+- **`Net.UnloadMissionSpiel(bExitingBriefing)`** (the native call near the top of this function, paired
+  with `_LoadSpiel`'s `Net.LoadMissionSpiel`) was independently bracketed and confirmed *not* to be the
+  source of the hang above — it returns normally even for a mission that never had a matching
+  `dynamic_import`, as long as the load half was still called (see `_LoadSpiel` above).
 
 
 
@@ -1040,6 +1178,35 @@ Retrieves the GUID of an actor based on its name. It handles special cases for "
 
 Generates the file name for a spiel based on the mission name and the primary character's name.
 
+**Confirmed exact body — throws a hard Lua error for any mission ID that isn't shaped like a real one:**
+
+```lua
+function GetSpielFileName(sMissionName)
+  local sCharName = MrxUtil.GetPrimaryCharacterName()
+  if sMissionName == "ChiCon009" then
+    return "Spiel_Job_Chi09_" .. sCharName
+  elseif sMissionName == "OilCon020" then
+    return "Spiel_Job_Oil00_" .. sCharName
+  elseif sMissionName == "OilCon050" then
+    return "Spiel_Job_Oil01_" .. sCharName
+  end
+  local sFaction, bContract, nNumber = MrxUtil.ExplodeMissionName(sMissionName)
+  local sMissionType = "Job"
+  if bContract then
+    sMissionType = "MinorContract"
+  end
+  return "Spiel_" .. sMissionType .. "_" .. sFaction .. string.format("%02d", nNumber) .. "_" .. sCharName
+end
+```
+
+[`MrxUtil.ExplodeMissionName`](mrxutil) expects the real mission-ID convention — 3-letter faction +
+`"Con"`/`"Job"` + 3-digit number, e.g. `"PmcCon031"`. Feed it anything else (e.g. a custom mission ID like
+`"CustomTest001"`) and its number parse (`tonumber(string.sub(sMissionName, 7, 9))`) comes back `nil`,
+which makes the `string.format("%02d", nNumber)` above throw a hard Lua error. This is a real,
+confirmed-live crash/hang source — see `_UnloadSpiel` above, the one place in the accept flow that calls
+this function for a mission whose `_LoadSpiel` bypassed `dynamic_import` (and therefore never called this
+function earlier, where the problem would have surfaced sooner and been easier to trace).
+
 
 
 ### `GetAnimSet(vSet, sActor)`
@@ -1088,6 +1255,22 @@ Generates a generic idle body animation for a speaker. It selects an animation b
 
 Retrieves the briefing configuration for the selected mission, if available.
 
+**Confirmed exact body**:
+
+```lua
+function _GetSelectedBriefingConfig()
+  if not (_tBriefings and _sSelectedMission) or not _tBriefings[_sSelectedMission] then
+    return nil
+  end
+  return _tBriefings[_sSelectedMission].tConfig
+end
+```
+
+Returns `nil` (not `{}`) if the selected mission was never added to `_tBriefings` at all — but for any
+mission actually reachable through the normal menu flow, `Start()` (above) already guaranteed
+`_tBriefings[sMissionName].tConfig` is set to at least `{}`, so in practice this reliably returns a table,
+never `nil`, once a real briefing session is underway.
+
 
 
 ### `_CreateSkipEvent(fCallback, tCallbackArgs)`
@@ -1134,48 +1317,53 @@ Handles network events related to enabling/disabling markers and displaying/hidi
 
 ## Events
 
+**Corrected — none of `OnActivate`/`OnDeactivate`/`OnDeath`/`OnUse`/`OnEnter`/`OnExit`/`OnStateChange`/
+`OnPlayerJoined`/`OnPlayerLeft`/`Init`/`Create`/`Delete` exist anywhere in this file** (a previous pass of
+this page listed generic per-`uGuid` object lifecycle boilerplate that doesn't apply — this is a singleton
+module, see Instance pattern above, not a spawned world object with its own activation lifecycle). The
+real lifecycle is driven by direct calls, not engine object events:
 
-
-- **`OnActivate(uGuid, uRuntimeOwner, iArg)`**: Initializes the briefing system when a world object instance is spawned/activated.
-
-- **`OnDeactivate(uGuid)`**: Tears down the briefing system when an instance is being torn down (despawned/unloaded).
-
-- **`OnDeath(uGuid)`**: Handles cleanup when the underlying object dies — usually just calls `OnDeactivate`.
-
-- **`OnUse(uGuid, ...)`**: Player interacts with/uses the object.
-
-- **`OnEnter` / `OnExit`**: Player or trigger volume enter/exit.
-
-- **`OnStateChange`**: A tracked state machine field changed.
-
-- **`OnPlayerJoined` / `OnPlayerLeft`**: Co-op player session changes.
-
-- **`Init()`**: One-time module initialization (not per-instance).
-
-- **`Create(...)`**: Constructs a new per-instance table (see above).
-
-- **`Delete(self)`**: Tears down a per-instance table, usually unregisters from `tInstance`.
-
-
-
-This module listens for various engine events such as player join/leave, object activation/deactivation, and state changes to manage the briefing process, handle user interactions, and perform necessary cleanup.
+- **`SetStarter(oStarter)` → `Start()`** is how a briefing session actually begins, called by whatever
+  starts the interaction with an NPC starter (not shown in this file).
+- **`NetEventCallback(nEventType)`** is this file's one real network event handler — enabling/disabling
+  markers and showing/hiding the client-side menu box, dispatched through the engine's custom-event
+  mechanism (see the [Custom Networked Events deep dive](../deep-dives/networking)), not a `uGuid`-scoped
+  object event.
+- The `NetSafe*` functions (`NetSafeLoadSpiel`, `NetSafeSetStarter`, etc.) are the client-side halves of
+  actions the server initiates via native `Net.*` calls (e.g. `_LoadSpiel`'s `Net.LoadMissionSpiel(...)`
+  pairs with `NetSafeLoadSpiel` here) — callback-by-convention, not a subscribed event either.
 
 
 
 ## Notes for modders
 
-
-
 - **Call-order requirements**: Ensure that `SetStarter` is called before starting the briefing process. The sequence of loading assets, setting up actors, and playing cinematics should be followed in a specific order to avoid visual or logical errors.
-
-  
 
 - **Pitfalls**: Be cautious with network events (`NetSafeBriefingAssetsLoaded`, `NetSafeLoadBriefingAssets`, etc.) as they can lead to race conditions if not handled properly. Ensure that assets are fully loaded before proceeding with briefing sequences.
 
-
-
 - **Tunables**: The module uses several boolean flags and counters (e.g., `_bLoadingBriefingAssets`, `_nLoadPending`) to manage the loading state of briefing assets. Modders should be aware of these flags and ensure they are reset or updated correctly after asset operations.
 
-
-
 - **Decompiler artifacts**: There are some unused local variables in functions like `_ProcessAsset` and `_UnloadTableOfAssets`. These can be safely ignored as they do not affect the functionality of the module. Additionally, there are slight operator precedence groupings that do not change behavior but look redundant; these should also be disregarded.
+
+- **A custom mission with no compiled spiel asset is possible, but two functions in this file will crash
+  or hang if not handled** — confirmed by building a real one end to end. `_LoadSpiel` calls
+  `dynamic_import` on a name that was never compiled (crashes outright); `_UnloadSpiel` calls
+  `GetSpielFileName` unconditionally, which throws a Lua error for any mission ID that doesn't fit the real
+  `<3-letter faction><Con|Job><3-digit number>` naming convention. Both are wrappable/interceptable since
+  they're ordinary Lua functions in this file — the crash risk is specifically in `dynamic_import`/
+  `dynamic_remove` themselves (see below), not in wrapping the functions that call them. Full worked
+  example: the [Custom Contract deep dive](../deep-dives/custom-contract).
+
+- **Never wrap `dynamic_import` (or its counterpart `dynamic_remove`) — not even transparently.** Confirmed
+  by two separate real crashes with an identical signature: calling `dynamic_import` with a name that was
+  never a real compiled asset, and merely interposing a passthrough wrapper around a call using a real,
+  valid asset name. Both natives appear sensitive to their immediate caller's Lua environment, not just
+  their arguments.
+
+- **Never write `return fOriginal(...)` when wrapping any function in this file (or anywhere in this
+  codebase).** That phrasing compiles as a Lua tail call, which collapses the stack frame and breaks this
+  engine's `getfenv(n)`-based module system — confirmed to produce a real runtime error
+  (`: no function environment for tail call at level 2`) that broke an already-shipped mission's own
+  briefing flow once a hook used this phrasing. Call the original as a plain statement, or capture its
+  result in a local and `return` that on a separate line if the return value is actually used (as with
+  `GetSpielFileName`).

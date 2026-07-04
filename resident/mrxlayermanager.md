@@ -5,6 +5,10 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [layer management]
+verified: true
+verified_note: confirms _AddRequest's graceful culling of nonexistent layer names (via Pg.AssetExists)
+  directly from source, found while confirming a custom mission's auto-generated layer name wasn't a crash
+  risk — see the [Custom Contract deep dive](../deep-dives/custom-contract).
 ---
 
 # MrxLayerManager
@@ -59,6 +63,13 @@ Processes marked layers for addition or removal. It first removes marked layers 
 
 ### `_AddRequest(nRequestType, vLayers, fCallback, tCallbackArgs, bCullDupes, bStatic, bClientNeedsLoadingScreen)`
 A private function to add a new request to the operation queue after processing each layer based on criteria like existence and current status.
+
+**Confirmed: a nonexistent layer name is culled gracefully, not an error.** `Pg.AssetExists(sLayerName,
+"layer")` gates whether a layer is actually queued — a name that doesn't correspond to a real compiled
+layer just logs `"Culling layer <name> from add request; layer does not exist"` via `Debug.Printf` and is
+silently dropped from the request, confirmed from source. Relevant to anything that auto-generates a layer
+name for content that was never actually compiled into the level (e.g. a mission/task framework that
+derives a per-mission layer name from the mission ID) — the layer add is a safe no-op rather than a crash.
 
 ### `_ProcessOpQueue()`
 Processes the operation queue by handling pending operations within the specified limit (`_knLayersToProcessCap`). It updates the asset request maximum based on the number of pending operations.

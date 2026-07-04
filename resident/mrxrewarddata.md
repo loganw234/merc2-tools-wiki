@@ -330,6 +330,12 @@ Initializes the reward data by iterating through each reward entry in `_tRewards
 ### GetRewards(sRewardKey)
 Retrieves the reward data associated with the given `sRewardKey` from `_tRewards`.
 
+**Confirmed: this is what [`WifMissionFlow.UnlockMission`](mrxmissionflow) calls automatically** for every
+mission it unlocks (`tMissionConfig.tRewards = MrxRewardData.GetRewards(sMissionName)`) — a custom
+`_tRewards` entry added directly (e.g. `MrxRewardData._tRewards.CustomTest001 = {nCash = 5000}`) is picked
+up for free with no extra wiring, confirmed live while building a custom contract end to end. See the
+[Custom Contract deep dive](../deep-dives/custom-contract).
+
 ### GetAllPotentialShopItems(sFactionId)
 Generates lists of potential support and equipment items that can be sold in shops for a specific faction. It caches these lists in `gtAllSupport` and `gtAllEquipment` to avoid redundant calculations.
 

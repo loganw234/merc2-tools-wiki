@@ -5,6 +5,11 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [mission, flow]
+verified: true
+verified_note: corrects the Instance pattern (singleton module, no uGuid keying or Create factory anywhere
+  in source — _tActiveMissions is keyed by mission name); adds confirmed UnlockMission/
+  GetMissionStartLocations mechanism from building and debugging a real custom contract end to end — see
+  the [Custom Contract deep dive](../deep-dives/custom-contract).
 ---
 
 # mrxmissionflow
@@ -19,7 +24,16 @@ The `mrxmissionflow` module is responsible for managing the mission flow in the 
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — this is a singleton module, confirmed directly: there is no `Create` factory function
+anywhere in this file**, unlike [`MrxTask`](mrxtask)/[`MrxStarter`](mrxstarter)'s class-factory pattern. All
+state is module-level. In particular, **`_tActiveMissions` is keyed by mission name (a string), not a world
+object GUID** — confirmed from source: `_tActiveMissions[sMissionName] = {oMission = oMission}`. This is
+the table a custom mission's `fOnActivate` callback (config-driven, called with zero arguments — see
+[`MrxTask`](mrxtask)) has to read to get its own live `MrxTask` instance, since it isn't passed one
+directly: `WifMissionFlow._tActiveMissions.<sMissionName>.oMission`, confirmed populated synchronously by
+`UnlockMission` (below), well before activation ever fires.
+
+It tracks the following key fields:
 - `_bEnable`: A boolean flag to enable or disable the mission flow.
 - `_tMyFlowData`, `_tActiveMissions`, `_tCulledBindings`, `_sTrackedMissionName`, `_tMissionsToRepeat`, `_fRefreshCallback`, `_tRefreshCallbackArgs`: Tables and variables used to track various aspects of missions, such as active missions, culled bindings, tracked mission names, and deferred key awards.
 - `_bCheckpointSaveMode`, `_bCurrentlyRefreshing`, `_bGrappleEnabled`, `_bVehicleDisguiseEnabled`, `_bResourceCountersEnabled`, `_bPersistentRetry`, `_bSkipToMissionReached`, `_nBlockingSequences`, `_oParent`, `_sLastCompletedContractName`, `_tDeferredKeyAwards`, `_tFlowData`, `_tRetryLocations`: Additional flags and tables used for managing mission flow, including checkpoint save mode, current refreshing state, network-related settings, and retry locations.
@@ -50,11 +64,40 @@ Sets a pre-contract save function `_fPreContractSave` that will be called before
 ### UnlockMission(sMissionName, tSaveData, bBlockingSequence)
 Unlocks a mission by its name. It performs various checks and configurations to set up the mission, including creating containers and missions, handling briefing, setting rewards, and managing mission states. It also handles special cases like skip mode and wager missions.
 
+**Confirmed real entry point for a custom mission** — not something to build by hand. Looks up
+`WifMissionData.tMissionData[sMissionName]`, builds an `MrxTask` container + mission instance (both via
+`MrxTask:Create()`), auto-sets `tMissionConfig.tRewards = MrxRewardData.GetRewards(sMissionName)` (a custom
+[`MrxRewardData._tRewards`](mrxrewarddata) entry is picked up automatically — confirmed live, no extra
+work needed beyond adding the entry), wires wager win/loss settlement into the task's own
+`tOnComplete`/`tOnCancel` config lists, and calls a local `_AddBriefingToStarter()` which does
+`MrxStarterManager.RequestStarter(sStarter):AddBriefing(sMissionName, sMissionTitle)` —
+[`MrxStarter.AddBriefing`](mrxstarter), confirmed to be exactly what makes a mission show up in a
+starter's menu. Populates `_tActiveMissions[sMissionName] = {oMission = oMission}` synchronously before
+returning, which is how a bare-`MrxTask`-based mission's `fOnActivate` callback (zero arguments, see
+[`MrxTask`](mrxtask)) finds its own instance later.
+
+A minimal custom mission calling this needs, at minimum, a `WifMissionData.tMissionData` entry with
+`sFactionId`, `sStarter`, and `bContract = true` set by hand (`WifMissionData.Init()`'s automatic
+faction/type/number parse of the mission ID already ran before a custom `OnLoad` entry exists, so this
+never happens for a mission added after boot) — full worked example in the
+[Custom Contract deep dive](../deep-dives/custom-contract).
+
 ### DestroyMission(sMissionName)
 Destroys a mission by its name. It removes the mission from `_tActiveMissions`, updates the PDA map, sends network events if applicable, and cleans up briefings associated with the mission.
 
 ### GetMissionStartLocations(sMissionName)
 Retrieves the start locations for a given mission. If the mission has specific start locations defined in `WifMissionData.tMissionData`, it returns those. Otherwise, it calls `GetBriefingStartLocations` to get the briefing start locations.
+
+**Confirmed exact body**: `if tMissionConfig.tStartLocations then return tMissionConfig.tStartLocations end`
+— read directly off the mission's own config, no fallback logic beyond that check. This is what
+`WifPmcInterior.Exit()` calls to figure out where to teleport the player after accepting a contract.
+`tStartLocations` in every real mission is a list of *string* level-marker names (e.g.
+`{"OilCon005_Startpoint_01", "OilCon005_Startpoint_02"}`), but
+[`MrxUtil.TeleportHeroesToLocations`](mrxutil) (what actually consumes this list) also accepts a plain
+`{x, y, z, yaw}` table per player — confirmed from its source, which explicitly branches on
+`type(vLocation) == "table"` as a valid case alongside strings/userdata. A custom mission with no placed
+level marker can set `tStartLocations = {{2776.8684, -13.8681, -873.5605}}` directly on its
+`WifMissionData` entry to pin the exit teleport to a known location instead.
 
 ### GetBriefingStartLocations(sMissionName, bGetEntrance)
 Retrieves the briefing start locations for a given mission. It first gets the case-sensitive mission ID and then checks if the mission has a starter defined in `WifStarterData`. If the starter is an HQ, it returns the entrance or start points from the HQ data. If the starter is a PMC starter, it returns predefined start points.

@@ -265,7 +265,11 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
   - `tCallbackData`: Additional data to pass to the callback function (optional).
 
-
+- **Confirmed exact body**: `self._nLoadPending = 0; self._fLoadCallback = fCallback; self._tLoadData =
+  tCallbackData`. Called with no `fCallback` (e.g. `SetupLoadingCallback(_THIS)`) leaves
+  `self._fLoadCallback = nil`, which just means `LoadingCallback` below logs `"No load callback!"` instead
+  of calling anything once the counter hits zero — a legitimate, harmless way to reuse this counter
+  mechanism purely for its pending-count bookkeeping without wanting a callback fired.
 
 ### CleanupLoadingCallback(self)
 
@@ -284,6 +288,34 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 - **Parameters**:
 
   - `self`: The object instance.
+
+- **Confirmed exact body**:
+
+  ```lua
+  function LoadingCallback(self)
+    if self._nLoadPending ~= nil then
+      self._nLoadPending = self._nLoadPending - 1
+      if self._nLoadPending > 0 then
+        return
+      end
+    end
+    local fCallback = self._fLoadCallback
+    local tData = self._tLoadData
+    self._nLoadPending = nil
+    self._fLoadCallback = nil
+    self._tLoadData = nil
+    if fCallback then
+      CallWithOptionalArgs(fCallback, tData)
+    else
+      Debug.Printf("No load callback!")
+    end
+  end
+  ```
+
+  Decrements first, fires (or logs the harmless "No load callback!" message) once the count reaches `<= 0`
+  — a `self` whose `_nLoadPending` was set to `0` by `SetupLoadingCallback` fires on the very first
+  `LoadingCallback(self)` call, useful for skipping straight to a completion callback with no real asset
+  loading in between (e.g. [`mrxbriefing.lua`'s `_FileLoaded(nil)`](mrxbriefing), confirmed live).
 
 
 
@@ -304,6 +336,34 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
   - `sMissionName`: The mission name string to be exploded.
 
 - **Returns**: A tuple containing the faction, mission type (boolean), and mission number.
+
+- **Confirmed exact body — expects a specific ID shape, silently returns `nil` for the number if it
+  doesn't fit, no error of its own**:
+
+  ```lua
+  function ExplodeMissionName(sMissionName)
+    local sFaction = string.sub(sMissionName, 1, 3)
+    local sMissionType = string.sub(sMissionName, 4, 6)
+    local sMissionNum = string.sub(sMissionName, 7, 9)
+    local bMissionType
+    if sMissionType == "Con" then
+      bMissionType = true
+    elseif sMissionType == "Job" then
+      bMissionType = false
+    end
+    local nMissionNum = tonumber(sMissionNum)
+    return sFaction, bMissionType, nMissionNum
+  end
+  ```
+
+  Expects the real convention: 3-letter faction + `"Con"`/`"Job"` + 3-digit number, e.g. `"PmcCon031"`. Feed
+  it a mission ID that doesn't fit (e.g. a custom mission like `"CustomTest001"`) and `nMissionNum` comes
+  back `nil` — this function itself doesn't error, but at least one real caller does:
+  [`mrxbriefing.lua`'s `GetSpielFileName`](mrxbriefing) immediately does
+  `string.format("%02d", nMissionNum)` on the result, which throws a hard Lua error on `nil`. Confirmed
+  live to be the root cause of a real, reproducible hang while building a custom contract with a
+  non-conforming mission ID — see the [Custom Contract deep dive](../deep-dives/custom-contract). Also used
+  by `WifMissionData.Init()` to auto-set every real mission's `bContract` field from `bMissionType`.
 
 
 

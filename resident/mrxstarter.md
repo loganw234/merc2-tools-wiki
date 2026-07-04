@@ -5,6 +5,11 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [briefing, mission, starter]
+verified: true
+verified_note: corrects the Instance pattern (class-factory via Create(mModule, self), the same
+  prototype-inheritance pattern as MrxTask — not per-uGuid); confirms IsBoss/AddBriefing/SetPendingContract/
+  End's exact mechanism from building and debugging a real custom contract end to end — see the
+  [Custom Contract deep dive](../deep-dives/custom-contract).
 ---
 
 # MrxStarter
@@ -19,7 +24,24 @@ The `MrxStarter` module is responsible for managing the briefing process, handli
 - Imports: `MrxGui`, `MrxTask`, `MrxUtil`, `MrxLayerManager`, `MrxHqManager`, `MrxPlayState`, `MrxState`, `WifPmcInterior`, `WifBriefingData`, `WifMissionData`, `MrxUnlockFanfare`, `WifMissionFlow`, `MrxSoundBanks`, `MrxTransit`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
+**Not per-`uGuid` — this is the same class-factory pattern as [`MrxTask`](mrxtask), confirmed directly from
+`Create`'s exact body:**
+
+```lua
+function Create(mModule, self)
+  self = self or {}
+  setmetatable(self, {__index = mModule})
+  self._tBriefings = {}
+  self:_SetBriefingCount(0)
+  return self
+end
+```
+
+`setmetatable(self, {__index = mModule})` — prototype inheritance via metatable, no `tInstance[uGuid]`
+registry anywhere in this function. Each real starter (Fiona, Ewan, Misha, Eva, etc.) is one of these
+tables, held and looked up by name elsewhere (`MrxStarterManager.RequestStarter(sStarter)`, confirmed used
+by [`WifMissionFlow.UnlockMission`](mrxmissionflow) to fetch a starter and call `AddBriefing` on it) — not
+indexed by a world-object GUID inside this module itself. It tracks the following key fields:
 - `_tBriefings`: A table to store briefings.
 - `_nBriefingCount`: An integer count of briefings.
 - `_bActive`: A boolean indicating if the starter is active.
@@ -55,6 +77,8 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 - **Parameters**:
   - `self`: The instance.
 - **Returns**: The PMC name as a string.
+- **Confirmed starter-ID-to-character mapping**: `"PmcBoss"` → `"Fiona"`, `"HelPmcBoss"` → `"Ewan"`,
+  `"JetPmcBoss"` → `"Misha"`, `"MecPmcBoss"` → `"Eva"`.
 
 ### GetActionDisplay(self)
 - **Description**: Returns the action display text for the starter.
@@ -73,6 +97,11 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 - **Parameters**:
   - `self`: The instance.
 - **Returns**: A boolean indicating if it's a boss.
+- **Confirmed exact body: `return self.bBoss`.** Purely a data flag from `WifStarterData`, not derived from
+  the starter ID's name. **`WifStarterData.PmcBoss` (Fiona) does not set `bBoss = true`**, confirmed live —
+  talking to her shows the normal multi-option briefing menu rather than the auto-selected-first-entry
+  behavior [`_DisplayRootMenu`](mrxbriefing) takes for a starter where `IsBoss()` is true. Don't assume a
+  starter ID containing "Boss" implies this returns true.
 
 ### IsPmcStarter(self)
 - **Description**: Checks if the starter is a PMC starter.
@@ -198,6 +227,15 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
   - `self`: The instance.
   - `sMissionName`: The name of the mission.
   - `sMissionTitle`: The title of the mission.
+- **Confirmed exact body**: `self._tBriefings[sMissionName] = {sTitle = sMissionTitle, sLevel =
+  sMissionLevel}`. This is what makes a mission actually appear in this starter's menu — confirmed live by
+  registering a mission directly into `WifMissionData.tMissionData` and calling
+  [`WifMissionFlow.UnlockMission`](mrxmissionflow), which calls this internally
+  (`_AddBriefingToStarter`) and the new entry showed up in Fiona's menu on the next interaction, no other
+  step required. Does **not** set `.tConfig` — that only happens later, in
+  [`mrxbriefing.lua`'s `Start()`](mrxbriefing), which aliases this same `_tBriefings` table
+  (`_oStarter:GetOfferedBriefings()` below returns this exact table reference, not a copy) and sets
+  `.tConfig = WifBriefingData[sMissionName] or {}` on every entry once a briefing session begins.
 
 ### RemoveBriefing(self, sMissionName)
 - **Description**: Removes a briefing from the starter.
@@ -207,6 +245,7 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 
 ### GetOfferedBriefings(self)
 - **Description**: Returns the offered briefings for the starter.
+- **Confirmed: returns `self._tBriefings` directly, not a copy** — [`mrxbriefing.lua`'s `Start()`](mrxbriefing) aliases its own module-level `_tBriefings` to this exact same table via `_tBriefings = _oStarter:GetOfferedBriefings()`.
 - **Parameters**:
   - `self`: The instance.
 - **Returns**: A table of offered briefings.
@@ -306,6 +345,14 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 - **Parameters**:
   - `self`: The instance.
   - `sPendingContractId`: The ID of the pending contract.
+- **Confirmed why this matters**: [`mrxbriefing.lua`'s `_AcceptOrDeclineMission`](mrxbriefing) only calls
+  this when `WifMissionData.IsMissionAContract(sMissionId)` is true for the accepted mission. That in turn
+  is a `bContract` field on the mission's `WifMissionData.tMissionData` entry — set automatically by
+  `WifMissionData.Init()` for every real mission, but that pass already ran before a custom `OnLoad`
+  script's own entry exists, so a custom contract has to set `bContract = true` itself or this call never
+  happens, and `WifPmcInterior.Exit()` (which reads `GetPendingContract()` to decide where to teleport the
+  player) falls back to the HQ's own default exterior exit instead — confirmed live: skipping this leaves
+  the player with no clear way out after accepting.
 
 ### GetPendingContract(self)
 - **Description**: Returns the pending contract ID for the starter.
@@ -363,6 +410,12 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
   - `self`: The instance.
   - `tMissionsAcceptedThisSession`: A table of missions accepted this session.
   - `sLastAcceptedMission`: The last accepted mission name.
+- **Confirmed**: for a PMC starter (`bPmcStarter` true) with a non-`nil` `sLastAcceptedMission`, calls
+  `WifPmcInterior.Exit(1, false)` — this is the actual call that teleports the player back out of the HQ
+  interior after accepting a mission. Called from [`mrxbriefing.lua`'s `_EndBegin`](mrxbriefing) as
+  `_oStarter:End(_tMissionsToBeAccepted, _sLastAcceptedMission)`, the very end of the accept flow. Confirmed
+  reached live for a custom contract mission with no real spiel asset, once the two workarounds documented
+  on the `mrxbriefing` page were in place.
 
 ### _CompleteHqExit(self, oHq)
 - **Description**: Completes the HQ exit process for the starter.

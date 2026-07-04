@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [task, mission]
 verified: true
-verified_note: read directly from source -- corrects the Instance pattern (class-factory identified by name/lineage, not per-uGuid) and a real inaccuracy about _CreatePersistentEvent cleanup (both event kinds are cleaned up identically)
+verified_note: read directly from source -- corrects the Instance pattern (class-factory identified by name/lineage, not per-uGuid) and a real inaccuracy about _CreatePersistentEvent cleanup (both event kinds are cleaned up identically); confirms _IssueStateChangeCallbacks' single fOnActivate/fOnComplete/fOnCancel callback is called with zero arguments, found while building a custom mission with a bare fOnActivate config -- see the [Custom Contract deep dive](../deep-dives/custom-contract)
 ---
 
 # MrxTask
@@ -97,6 +97,15 @@ On any real state transition (not latent), calls every callback in the matching 
 `tOnComplete`/`tOnCancel` list (via `MrxUtil.CallWithOptionalArgs`), then also calls the single
 `fOnActivate`/`fOnComplete`/`fOnCancel` function if one was configured. Both the list-based and
 single-function config keys fire on the same transition, not one or the other.
+
+**Confirmed: the single `fOnActivate`/`fOnComplete`/`fOnCancel` callback is called with zero arguments —
+literally `fCallback()`, not even `self`.** A mission/task built without a real subclass (e.g. a bare
+`MrxTask` config'd with `fOnActivate` directly, skipping `MrxTaskMission`/`MrxTaskContract` entirely) can't
+rely on receiving its own instance this way — it has to look itself up by name instead, e.g.
+`WifMissionFlow._tActiveMissions.<sMissionName>.oMission` for a mission unlocked via
+[`WifMissionFlow.UnlockMission`](mrxmissionflow), confirmed populated synchronously before activation ever
+fires. Confirmed live while building a custom contract with no `sModuleName`/subclass — see the
+[Custom Contract deep dive](../deep-dives/custom-contract).
 
 ### `GetName(self)` / `GetTitle(self)` / `GetParent(self)` / `GetLineage(self)`
 Read `sName`/`sTitle`/`oParent` from config. `GetLineage` walks up through `GetParent` repeatedly,
