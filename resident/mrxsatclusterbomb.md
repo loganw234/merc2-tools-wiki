@@ -41,7 +41,7 @@ registry. It tracks the following key fields:
   [MrxClusterBomb](mrxclusterbomb)).
 - Ordnance: `"Cluster Bomb Projectile"` (shell, `nSpeedScale = 35`) → `"Cluster Bomblet Projectile"`
   (submunitions, `nSpeed = 20`). Shell detonation trigger: `"distance"` with `nDistance = nSpawnY - nTargetY - 15`.
-- Satellite designator config: `SetMinigameSectors({{45,135},{225,315}})` and `SetCost(0)` — **this strike is
+- Satellite designator config: `{% raw %}SetMinigameSectors({{45,135},{225,315}}){% endraw %}` and `SetCost(0)` — **this strike is
   free** (no support-resource cost).
 
 ## Functions
@@ -80,5 +80,5 @@ Airstrike.ConeSpawn("Cluster Bomblet Projectile", …, 50, 20, 6)   -- 50° / 6
   saturation pattern; compare the two-ring [MrxClusterBomb](mrxclusterbomb).
 - **`SetCost(0)` makes this strike free** — flip it to a nonzero cost (or set `SetCost` in an override of
   `Create`) if you want it to consume support resources.
-- `SetMinigameSectors({{45,135},{225,315}})` defines the satellite-aiming mini-game's valid arcs; adjust for
+- `{% raw %}SetMinigameSectors({{45,135},{225,315}}){% endraw %}` defines the satellite-aiming mini-game's valid arcs; adjust for
   an easier/harder designation.

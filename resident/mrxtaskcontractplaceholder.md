@@ -34,11 +34,13 @@ The only function in the file. Calls `MrxTaskContract.Activated(self)` (all the 
 inherited — see [`MrxTaskContract`](mrxtaskcontract)), then plays a single-caption placeholder via
 [`MrxCinematic.PlaceholderSequence`](mrxcinematic):
 
+{% raw %}
 ```lua
 MrxCinematic.PlaceholderSequence(
   {{ sCaption = "This contract is not yet implemented." }},
   self.Complete, {self})
 ```
+{% endraw %}
 
 The caption string is hardcoded (not localized), and `self.Complete` — the inherited
 [`MrxTaskContract.Complete`](mrxtaskcontract) — is the sequence's completion callback, so dismissing the

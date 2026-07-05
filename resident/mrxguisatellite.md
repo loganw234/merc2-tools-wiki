@@ -42,7 +42,7 @@ The `MrxGuiSatellite` module is responsible for managing the satellite GUI overl
 - `_bUseMinigame = true` — master switch for the timing minigame; when false the overlay skips all minigame setup.
 - `_nMinigameTime = 1` — starting seconds per cursor sweep; `_nMinigameTimeIncrease = 1.2` (each cycle multiplies the time, i.e. slows the cursor); `_nMinigameMaxTime = 7` — cap.
 - `_nMoneyCost = 5000` — default cash-per-second charged while the minigame runs (settable per-use via `SetMinigameCost`). Cost accrues in `_CostUpdate` and is deducted in `_CleanupMinigame` via `MrxPmc.AddCashQty(-nCost, nil, "[Generic.SupportDesignators.Satellite]")`.
-- `_tDefaultSectorData = {{-30, 30}, {150, 210}}` — the default two target pie-slice sectors (angle ranges in degrees), set in `Init()`. Override per-use with `SetMinigameSectors`.
+- `{% raw %}_tDefaultSectorData = {{-30, 30}, {150, 210}}{% endraw %}` — the default two target pie-slice sectors (angle ranges in degrees), set in `Init()`. Override per-use with `SetMinigameSectors`.
 - Sector colors: base grey `(nSliceR/G/B = 172)`, lit white `(255)`; background base white `(255)` with red/green flash points for miss/hit feedback.
 - Sound cues: `"ui_SatDes_Turn_On"`, `"ui_SatDes_BG_Loop"`, `"ui_SatDes_Turn_Off"`, `"ui_SatDes_Circular_PopUp"`, `"ui_SatDes_Circular_Beep"`, `"ui_SatDes_Circular_Timing_Correct"`, `"ui_SatDes_Circular_Timing_Fail"`.
 - Feedback textures: `"icon_success"` / `"icon_fail"`; the confirm button uses `"icon_hijack_button_B"` when `Sys.IsConfirmOnCircle()`.

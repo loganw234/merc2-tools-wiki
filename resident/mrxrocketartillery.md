@@ -31,7 +31,7 @@ registry. It tracks the following key fields:
 
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), gives it three mini-game sectors `{{35,55},{170,190},{305,325}}`, clears its `sAATestLevel` (so this strike is **not** blocked by anti-air), sets recruit `"Fiona"`, and names the module `"MrxRocketArtillery"`.
+Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), gives it three mini-game sectors `{% raw %}{{35,55},{170,190},{305,325}}{% endraw %}`, clears its `sAATestLevel` (so this strike is **not** blocked by anti-air), sets recruit `"Fiona"`, and names the module `"MrxRocketArtillery"`.
 
 ### `DesignationCallback(self)`
 Fires when the satellite designation completes. Reads the mark, then builds two normalized basis vectors from the hero→target line — a **width** vector (perpendicular) and a **height** vector (along the aim direction) — so the 30-round pattern is a rectangle *oriented toward wherever the player was aiming*, not axis-aligned. Constants inline: `sAmmo = "Rocket Artillery Projectile"`, `nWidth = 100`, `nHeight = 50`, `nShells = 30`, `nTime = 8`. Each round's offset is computed along those two vectors and scheduled with [`Event.TimerRelative`](../namespaces/event) at `3 + i * (nTime / nShells)`. Ends with a random Chinese-soldier "artillery/incoming" VO line via [`MrxVoSequence.Start`](mrxvosequence).
@@ -53,7 +53,7 @@ No event subscriptions. `DesignationCallback` is the designator's completion cal
 All inline in `Create` / `DesignationCallback` (no module-level `local`s):
 - Ordnance template: `"Rocket Artillery Projectile"`.
 - Pattern: `nWidth = 100`, `nHeight = 50`, `nShells = 30`, `nTime = 8` — a large aim-oriented rectangle, 30 rockets over ~8s.
-- Satellite mini-game sectors: `{{35,55},{170,190},{305,325}}` (three narrow success bands).
+- Satellite mini-game sectors: `{% raw %}{{35,55},{170,190},{305,325}}{% endraw %}` (three narrow success bands).
 - Anti-air: explicitly disabled (`oDesignator.sAATestLevel = nil`), unlike most strikes.
 
 ## Notes for modders

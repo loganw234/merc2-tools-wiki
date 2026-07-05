@@ -38,7 +38,7 @@ registry. It tracks the following key fields:
 
 ## Functions
 ### `Create(oSelf, uPlayerGuid)`
-Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), calls `oDesignator:SetCost(0)` (**free** — the defining difference from the paid [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb)), sets mini-game sectors `{{45,90},{152,203},{270,315}}` (wider/easier bands than the paid version), recruit `"Pilot"`, and copies `sDeliveryVehicle`/`sBomb` from the prototype. The module-level default `sBomb = "Smart Bomb Projectile"`.
+Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), calls `oDesignator:SetCost(0)` (**free** — the defining difference from the paid [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb)), sets mini-game sectors `{% raw %}{{45,90},{152,203},{270,315}}{% endraw %}` (wider/easier bands than the paid version), recruit `"Pilot"`, and copies `sDeliveryVehicle`/`sBomb` from the prototype. The module-level default `sBomb = "Smart Bomb Projectile"`.
 
 {: .warning }
 > `Create` calls `oNewSupport:SetModuleName("MrxSatelliteGuidedBomb")`, **not** `"MrxSurgicalStrike"`. The module identifies itself to the network/support layer as the guided-bomb module. This is almost certainly a copy-paste from [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb) that was never renamed — confirmed in source, not an error in this page. It matters if you key any logic off `GetModuleName()`.
@@ -61,7 +61,7 @@ No event subscriptions. `DesignationCallback` is the satellite designator's comp
 ## Module constants & tunables
 - `sBomb = "Smart Bomb Projectile"` — module-level global (settable per-instance since it's not `local`).
 - Satellite cost: `0` (free), set via `SetCost(0)` in `Create`.
-- Mini-game sectors: `{{45,90},{152,203},{270,315}}` — three wide success bands.
+- Mini-game sectors: `{% raw %}{{45,90},{152,203},{270,315}}{% endraw %}` — three wide success bands.
 - Recruit: `"Pilot"`.
 - Bomb velocity scale: `110`; explosion effect: `"Explosion (Grenade)"`.
 

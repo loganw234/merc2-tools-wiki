@@ -36,7 +36,7 @@ registry. It tracks the following key fields:
 
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), sets its cost to `self.nCost or 1000` (default **1000**), and mini-game sectors `{{135,225},{-45,45}}` (two broad bands). Copies `sDeliveryVehicle`/`sBomb` from the prototype; module-level `sBomb = "Smart Bomb Projectile"`, module name `"MrxSatelliteGuidedBomb"`.
+Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), sets its cost to `self.nCost or 1000` (default **1000**), and mini-game sectors `{% raw %}{{135,225},{-45,45}}{% endraw %}` (two broad bands). Copies `sDeliveryVehicle`/`sBomb` from the prototype; module-level `sBomb = "Smart Bomb Projectile"`, module name `"MrxSatelliteGuidedBomb"`.
 
 ### `SetCost(self, nCost)`
 Updates both the designator's cost and `self.nCost`. This is the money knob — call before `Create` (or override the default) to change what the strike costs.
@@ -59,7 +59,7 @@ No event subscriptions. `DesignationCallback` is the satellite designator's comp
 ## Module constants & tunables
 - `sBomb = "Smart Bomb Projectile"` — module-level global (settable per-instance).
 - Default cost: **1000** (`self.nCost or 1000` in `Create`; also settable via `SetCost`).
-- Mini-game sectors: `{{135,225},{-45,45}}`.
+- Mini-game sectors: `{% raw %}{{135,225},{-45,45}}{% endraw %}`.
 - Bomb velocity scale: `110`.
 
 ## Notes for modders
