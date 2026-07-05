@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [winchable, blip]
 verified: true
-verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tGuids[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
+verified_note: 'deeper pass: re-confirmed the bare tGuids[uGuid] bookkeeping pattern and all four lifecycle functions; added the full Marker.AddBlip args (opaque white 255,255,255,255 + 0.5,16,20 tail) and cross-linked the Marker namespace — the earlier note undersold the blip colour/params'
 ---
 
 # Crate
@@ -45,7 +45,17 @@ Called when the underlying object of the crate dies. Deactivates the crate insta
 - Listens for: `Event.ObjectHibernation` to handle the crate's awakening.
 - Listens for: `Event.ObjectWinched` to update the blip marker based on the crate's winching state.
 
+## Module constants & tunables
+- Blip texture: `sTexture = "pickup_crate_2"` (the one module-level constant; swap to re-skin the minimap
+  blip).
+- Full blip call (in `Awake`):
+  `Marker.AddBlip(uGuid, "pickup_crate_2", 48, 255, 255, 255, 255, 0.5, 16, 20)` — size `48`, colour
+  `255,255,255,255` (opaque white RGBA), then `0.5, 16, 20` (the remaining `Marker.AddBlip` params — e.g.
+  scale/range values). See [Marker](../namespaces/marker) for the full signature.
+
 ## Notes for modders
-- The crate uses a blip marker with texture `"pickup_crate_2"` and size `48`.
-- When the crate is winched, its blip marker is removed from the minimap.
-- Ensure that `OnDeactivate` is called to clean up resources when the crate instance is no longer needed.
+- The crate uses a blip marker with texture `"pickup_crate_2"` and size `48`, drawn opaque white.
+- When the crate is winched (`Object.IsWinched(uGuid)`), its blip marker is removed from the minimap; the
+  blip returns when it is un-winched, because `Awake` re-runs on each `Event.ObjectWinched`.
+- `OnActivate`/`Awake`/`OnDeactivate`/`OnDeath` are engine-invoked — you don't call them yourself. The only
+  real skin lever here is `sTexture`; everything else is bare bookkeeping.

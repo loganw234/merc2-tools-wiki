@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [tree, animation]
 verified: true
-verified_note: removed fabricated Event.ObjectStateChange claim (file only references Event.ObjectIsReady; OnStateChange is engine-invoked by naming convention, not the function that's actually scheduled via Event.Create)
+verified_note: 'deeper pass: re-confirmed the whole file (2 functions, one Event.ObjectIsReady subscription); surfaced the two trigger state names + the "global_env_treepalm_anim" material anim and the leftover Debug.Printf; documented that this is treetrunk.lua with a different anim name; cross-linked treetrunk/Object/Event namespaces.'
 ---
 
 # Treetrunkpalm
@@ -14,7 +14,13 @@ verified_note: removed fabricated Event.ObjectStateChange claim (file only refer
 *Module: treetrunkpalm.lua*
 
 ## Overview
-The `Treetrunkpalm` module is responsible for playing material animations on palm tree trunks when they transition to specific fire-related states. It listens for state changes and triggers animations that simulate debris or destruction effects.
+The `Treetrunkpalm` module plays a material animation on a **palm** tree trunk when it enters a fire
+state (`"FireDebrisState"` or `"FireDestroyedState"`), giving it the charred/debris look. Two
+functions, one deferred animation.
+
+It is functionally the same script as [`treetrunk`](treetrunk) — the palm version just uses a
+different animation name (`global_env_treepalm_anim` vs. `global_env_treeplaza03_anim`) and adds a
+leftover `Debug.Printf`. If you're editing both, keep them in sync.
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
@@ -25,10 +31,14 @@ This is a stateless utility module with no per-instance pattern. It does not tra
 
 ## Functions
 ### `OnStateChange(uiGuid, uiNodeHashName, uiStateHashName)`
-Called when the object's state changes. If the new state is either "FireDebrisState" or "FireDestroyedState", it schedules `_PlayMaterialAnims` to be called once the object is ready.
+Engine lifecycle callback. Compares `uiStateHashName` against `String.GetHash("FireDebrisState")` and
+`String.GetHash("FireDestroyedState")` (it hashes the state *name* strings and compares hashes). On a
+match it schedules `_PlayMaterialAnims` via `Event.ObjectIsReady`. `uiNodeHashName` is unused.
 
 ### `_PlayMaterialAnims(uiGuid)`
-Plays a material animation on the palm tree trunk with the GUID `uiGuid`. The animation played is named "global_env_treepalm_anim". It also logs a debug message indicating that the animation is being played.
+Calls [`Object.PlayMaterialAnimation(uiGuid, "global_env_treepalm_anim", false)`](../namespaces/object)
+(non-looping), then prints a debug line (`"im playing the palm material anim"`) — engine-log noise, no
+gameplay effect. This debug print is the only code difference from [`treetrunk`](treetrunk).
 
 ## Events
 - `Event.ObjectIsReady` (in `OnStateChange`, via `Event.Create`) — the only `Event.*` call in this file.
@@ -39,7 +49,15 @@ Plays a material animation on the palm tree trunk with the GUID `uiGuid`. The an
   directly by the engine as a naming-convention callback on the world-object script, the same way
   `OnActivate`/`OnDeath` are called on other modules.
 
+## Module constants & tunables
+- **Trigger states**: `"FireDebrisState"` and `"FireDestroyedState"` (compared as hashes via
+  `String.GetHash`).
+- **Material animation**: `"global_env_treepalm_anim"`, played once (non-looping).
+
 ## Notes for modders
-- Ensure that `OnStateChange` is called appropriately to manage state transitions and trigger animations.
-- Customize the animation name by modifying the argument passed to `Object.PlayMaterialAnimation`.
-- Be aware of the specific state names ("FireDebrisState", "FireDestroyedState") as they are used to determine when to play the animation.
+- Change the animation by editing the `"global_env_treepalm_anim"` string; change *when* it plays by
+  editing the two state names in `OnStateChange`.
+- The animation is deferred with `Event.ObjectIsReady` — don't move it inline into `OnStateChange`, the
+  object may not be ready to animate the instant its state flips.
+- The `Debug.Printf` here is harmless leftover; it only writes to the log. See the sibling
+  [`treetrunk`](treetrunk) for the non-palm variant.

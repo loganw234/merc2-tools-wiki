@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [tutorial, manager]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: re-confirmed all functions/Imports against source; clarified this is the overridable base tutorial class (empty Setup*Criteria hooks are extension points, SetupCompletionCriteria's 20s timer is the only concrete default), corrected the Events section (no custom-event listening in this file), made modder notes actionable"
 ---
 
 # MrxTutorial
@@ -14,7 +14,11 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxtutorial.lua*
 
 ## Overview
-The `MrxTutorial` module is responsible for managing in-game tutorials. It handles the activation, completion, and cancellation of tutorials, as well as setting up event-driven criteria for these actions.
+`MrxTutorial` is the **base class for a single tutorial**. It handles the activation / completion / cancellation
+lifecycle and the bookkeeping of the events that drive it. It is deliberately generic: the three
+`Setup*Criteria` hooks are where a concrete tutorial subclass defines *when* it activates, completes, and
+cancels. Out of the box only `SetupCompletionCriteria` does anything (a 20-second auto-complete timer). The
+manager that owns the current tutorial and its net-sync is [`MrxTutorialManager`](mrxtutorialmanager).
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
@@ -44,13 +48,17 @@ Activates the current tutorial using `MrxTutorialManager.SetCurrentTutorial`. De
 Ends the current tutorial using `MrxTutorialManager.HideCurrentTutorial`. Destroys all registered events and either destroys the tutorial if completed or sets up activation criteria otherwise.
 
 ### `SetupActivationCriteria(self)`
-Sets up the criteria for activating the tutorial. This function is currently empty.
+**Empty in the base class — an override point.** A subclass fills this in to register the event(s) (via
+`_CreateEvent`/`_CreatePersistentEvent`) whose firing should call `ActivateTutorial`. Called when a tutorial
+can't activate yet (or after it ends without completing), so it re-arms itself for next time.
 
 ### `SetupCompletionCriteria(self)`
 Sets up the criteria for completing the tutorial by creating a relative timer event that triggers `EndTutorial` after 20 seconds.
 
 ### `SetupCancellationCriteria(self)`
-Sets up the criteria for canceling the tutorial. This function is currently empty.
+**Empty in the base class — an override point.** A subclass registers the event(s) that should end the
+tutorial *without* completing it (e.g. the player did the wrong thing), typically calling
+`EndTutorial(self, false)`.
 
 ### `_CreateEvent(self, nEventId, tEventArgs, fCallback, tCallbackArgs)`
 Creates an event with the specified ID and arguments, registers it as a callback, and stores its handle in `_tEvents`.
@@ -59,9 +67,18 @@ Creates an event with the specified ID and arguments, registers it as a callback
 Creates a persistent event with the specified ID and arguments, registers it as a callback, and stores its handle in `_tEvents`.
 
 ## Events
-- Listens for custom events to manage tutorial lifecycle (activation, completion, cancellation).
+This base class **subscribes to nothing itself**. It only provides the plumbing: `_CreateEvent` wraps
+`Event.Create` and `_CreatePersistentEvent` wraps `Event.CreatePersistent`, both stashing the handle in
+`self._tEvents` so `DestroyEvents` can tear the whole set down at once. The only event the base class actually
+creates is the `Event.TimerRelative` (20 s) in `SetupCompletionCriteria`. Subclasses use these helpers to
+register their own criteria events.
 
 ## Notes for modders
-- Ensure that `ActivateTutorial` and `EndTutorial` are called appropriately to manage the tutorial's lifecycle.
-- Customize event-driven criteria by extending `SetupActivationCriteria`, `SetupCompletionCriteria`, or `SetupCancellationCriteria`.
-- Be aware of network synchronization (`bDontNetSync`) when activating tutorials in multiplayer scenarios.
+- **To build a real tutorial, subclass this and override the `Setup*Criteria` hooks** using `self:_CreateEvent`
+  / `self:_CreatePersistentEvent` — always create your events through those wrappers so `DestroyEvents` cleans
+  them up (otherwise you leak event handles between activations).
+- The default `SetupCompletionCriteria` auto-completes after **20 seconds**; override it if your tutorial
+  should complete on a real gameplay condition instead of a timeout.
+- `ActivateTutorial(self, bDontNetSync)` returns whether activation succeeded; on failure it falls back to
+  `SetupActivationCriteria` to try again later. Pass `bDontNetSync = true` on the receiving side in co-op so you
+  don't echo the net event back.

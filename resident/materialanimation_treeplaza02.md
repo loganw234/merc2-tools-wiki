@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [material animation, tree plaza]
 verified: true
-verified_note: removed fabricated Event.ObjectStateChange (not in source, and the old wording was self-contradictory — said OnStateChange listens for the event that invokes it); only real Event.* reference is Event.ObjectIsReady; corrected the two state names checked (FireDebrisState/FireDestroyedState, not the largecanopy modules' CollapseFireState/CollapseState).
+verified_note: "deeper pass: re-confirmed the 9-line source — no node check, fires on FireDebrisState/FireDestroyedState, plays global_env_treeplaza02_anim one-shot; only Event.* is ObjectIsReady; cross-linked the two canopy sibling drivers"
 ---
 
 # MaterialAnimation_TreePlaza02
@@ -43,7 +43,16 @@ one-shot (`false` loop flag). The animation played is named `"global_env_treepla
   `OnStateChange` is invoked directly by the engine via naming convention, not through an
   `Event.Create`/`Event.ObjectStateChange` registration.
 
+## Module constants & tunables
+- **Trigger:** state `"FireDebrisState"` **or** `"FireDestroyedState"` (hashed via `String.GetHash`). No
+  node check.
+- **Animation:** `"global_env_treeplaza02_anim"`, one-shot (loop flag `false`) via
+  `Object.PlayMaterialAnimation`.
+
 ## Notes for modders
-- Ensure that the object has the correct material animations defined in its asset files.
-- The animation name "global_env_treeplaza02_anim" should match the actual animation defined for the object.
-- This module does not require any specific initialization or cleanup steps beyond ensuring the object's state changes are properly handled.
+- Change the two fire-state strings and/or the animation name to retarget this driver — those three strings
+  are the entire knob set.
+- **Sibling drivers** (same one-shot `OnStateChange` → `Event.ObjectIsReady` → `_PlayMaterialAnims` shape):
+  [MaterialAnimation_LargeCanopy01](materialanimation_largecanopy01) (checks `"Slice00"` node +
+  `CollapseFireState`) and [MaterialAnimation_LargeCanopy02](materialanimation_largecanopy02)
+  (`CollapseFireState`/`CollapseState`, no node check).

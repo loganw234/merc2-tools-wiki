@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [airstrike, atmosphere]
 verified: true
-verified_note: spot-checked against source, no changes needed — OnActivate/_GraphicsAto (0.15s delay, correctly noted), MrxUtil import and ShieldFace call, and Events section all confirmed accurate
+verified_note: 'deeper pass: reframed as a screen-tint override (not an ordnance spawner), documented ShieldFace and the extreme nuke grade (fLightIntensity 6 / fTimeRestore 5.5 — the strongest of the family), cross-linked mrxbunkerbuster/MrxUtil/Graphics'
 ---
 
 # AirstrikeAtomsphereTactNuke
@@ -14,26 +14,57 @@ verified_note: spot-checked against source, no changes needed — OnActivate/_Gr
 *Module: airstrike_atomsphere_tactnuke.lua*
 
 ## Overview
-The `AirstrikeAtomsphereTactNuke` module is responsible for handling the atmospheric effects triggered by a tactical nuke airstrike. It adjusts various atmosphere settings to create visual and lighting effects that simulate the impact of such an attack.
+This is the **screen-grade / post-process flash** for the tactical-nuke effect — it does **not** detonate
+anything. On activation it overrides the global [`Graphics.Atmosphere`](../namespaces/graphics) look with
+the most extreme grade of the whole airstrike family (blinding light, huge bloom, a slow ~5.5 s recovery),
+then makes nearby heroes shield their eyes via [`MrxUtil.ShieldFace`](mrxutil). The "nuke" itself is the
+*Nuclear* branch of [MrxBunkerBuster](mrxbunkerbuster) — its `FinalExplosion` spawns
+`global_particle_airstrike_tactnuke` and posts a `"Nuked"` event; this module supplies the whiteout flash.
+
+{: .note }
+> `atomsphere` is a typo baked into the real in-game object name (it means *atmosphere*). Leave it as-is.
 
 ## Inheritance
-- Inherits from: `none — base/utility module`
-- Imports: `MrxUtil`
+- Inherits from: `none`
+- Imports: [`MrxUtil`](mrxutil)
 
 ## Instance pattern
-This is a stateless manager/utility module (no per-instance tables). It does not track any persistent state.
+Stateless utility module — no per-instance tables, no `uGuid` keying, no persistent state. Reacts to one
+engine `OnActivate` call.
 
 ## Functions
 ### `OnActivate(guid)`
-Called when the object instance is activated. It sets up a timer to call `_GraphicsAto` after 0.15 seconds with the provided `guid`.
+Engine lifecycle callback. Schedules `_GraphicsAto` **0.15 s** later via
+`Event.Create(Event.TimerRelative, {0.15}, _GraphicsAto, {guid})`.
 
 ### `_GraphicsAto(guid)`
-Handles the atmospheric effects for the tactical nuke airstrike. It modifies various atmosphere settings such as ambient colors, bloom parameters, light intensity, and other visual properties. After setting these values, it calls `MrxUtil.ShieldFace` to apply additional effects.
+Runs the `Graphics.Atmosphere.Begin()` … `End()` override block (see tunables), then calls
+`MrxUtil.ShieldFace(guid)` — plays the `"shieldface"` action on every player hero within **150 units** of
+`guid`.
+
+## Module constants & tunables
+Hardcoded literals inside `_GraphicsAto` (no named module constants). This variant is the strongest grade
+in the family:
+
+| `Graphics.Atmosphere` key | Value | Effect |
+|---|---|---|
+| `fAtmosphereLimit` | `400` | Widest haze reach of any variant. |
+| `fBloomAmount` | `2` | Double the normal max — pushes into full whiteout. |
+| `fBloomMultiplier` | `1.8` | Heaviest bloom output. |
+| `fLightIntensity` | `6` | Blinding flash (others top out at 3.75). |
+| `fTimeRestore` | `5.5` | Longest recovery — the washed-out look lingers ~5.5 s. |
+
+Ambient/cube/rim colors are neutral grey `128,128,128,255`; gradient stops `uiGradient0_Color2` /
+`uiGradient1_Color1` are zeroed to `0,0,255,0`.
 
 ## Events
-- Listens for `Event.TimerRelative` to trigger `_GraphicsAto` after a short delay.
+- **Not an `Event.Create` subscription.** `Event.TimerRelative` schedules `_GraphicsAto` once, 0.15 s after
+  activation. `OnActivate` is an engine lifecycle callback.
 
 ## Notes for modders
-- Ensure that `OnActivate` is called appropriately when the tactical nuke airstrike is initiated.
-- Customize the atmospheric effects by modifying the values set in `_GraphicsAto`.
-- Be aware that changes to atmosphere settings may affect visual consistency across different game scenarios.
+- This is the "nuke whiteout" grade. `fLightIntensity` (`6`) and `fTimeRestore` (`5.5`) are the two knobs
+  that make it feel nuclear — dial them down toward the other variants for a subtler blast, or up for an
+  even longer blind.
+- Override `_GraphicsAto` (a plain global) to retune, or drop the `ShieldFace` flinch (150-unit radius,
+  defined in [`mrxutil`](mrxutil)).
+- The nuclear detonation logic lives in [MrxBunkerBuster](mrxbunkerbuster)'s `FinalExplosion`, not here.

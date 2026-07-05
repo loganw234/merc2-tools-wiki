@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, airstrike]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: flagged that SetModuleName is 'MrxSatelliteGuidedBomb' (not SurgicalStrike), documented the free satellite (SetCost 0)/minigame sectors, the Smart Bomb payload + Explosion (Grenade) burst, and the dead FinalExplosion; cross-linked Airstrike/satellite"
 ---
 
 # MrxSurgicalStrike
@@ -14,11 +14,11 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsurgicalstrike.lua*
 
 ## Overview
-The `MrxSurgicalStrike` module is a specialized support system for surgical airstrikes. It extends the base `MrxSupport` module to provide functionality for designating targets, launching guided bombs, and handling bomb explosions.
+`MrxSurgicalStrike` is a **free** satellite-designated precision bomb — effectively a no-cost variant of [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb) (it even shares that module's name; see the warning below). The player targets through the satellite mini-game, a jet flies in and drops one `"Smart Bomb Projectile"` on the mark. It inherits from [`MrxSupport`](mrxsupport) and designates with [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite).
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportDesignatorSatellite`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite)
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(oSelf, uPlayerGuid)` builds a new
@@ -38,25 +38,34 @@ registry. It tracks the following key fields:
 
 ## Functions
 ### `Create(oSelf, uPlayerGuid)`
-Creates a new instance of the `MrxSurgicalStrike` support system. Initializes the designator satellite, sets its cost to 0, and configures the minigame sectors for target designation. Sets the owner, recruit type, module name, delivery vehicle, bomb projectile, and other relevant fields.
+Builds the instance. Creates a [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite), calls `oDesignator:SetCost(0)` (**free** — the defining difference from the paid [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb)), sets mini-game sectors `{{45,90},{152,203},{270,315}}` (wider/easier bands than the paid version), recruit `"Pilot"`, and copies `sDeliveryVehicle`/`sBomb` from the prototype. The module-level default `sBomb = "Smart Bomb Projectile"`.
+
+{: .warning }
+> `Create` calls `oNewSupport:SetModuleName("MrxSatelliteGuidedBomb")`, **not** `"MrxSurgicalStrike"`. The module identifies itself to the network/support layer as the guided-bomb module. This is almost certainly a copy-paste from [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb) that was never renamed — confirmed in source, not an error in this page. It matters if you key any logic off `GetModuleName()`.
 
 ### `DesignationCallback(oSelf)`
-Called when the target is designated. Spawns a jet at a calculated position, launches it towards the target, and plays voice-over announcements for the airstrike.
+Runs on satellite-designation complete. Flies the delivery jet in with [`Airstrike.Flyby`](../namespaces/airstrike) (using `oSelf.uDeliveryVehicle`, callback `DropBomb`, jet stored in `oSelf.uJet`), then plays a random Misha freeplay-support line via [`MrxSupport.PlayAirstrikeVO`](mrxsupport).
 
 ### `DropBomb(oSelf)`
-Drops a guided bomb from the jet towards the designated target. Normalizes the vector between the spawn point and the target, spawns the bomb with an initial velocity, and sets up a callback for when the bomb explodes.
+Reads the target, computes a normalized heading, and drops one bomb with [`Airstrike.SpawnOrdnance`](../namespaces/airstrike) using `oSelf.uBomb` at velocity scale `110`, `"impact"` detonation, callback `BombExplodes` with index `1`. Stored in `oSelf.tBombs[1]`. (Note `oSelf.uTarget = uGuid` reads a `uGuid` that is never assigned in this function, so it's set to `nil` — a decompile artifact.)
 
 ### `BombExplodes(oSelf, nIndex)`
-Called when a bomb explodes. Spawns an explosion effect at the bomb's position.
+Impact callback. Reads the bomb's position and, if valid, spawns `"Explosion (Grenade)"` there via [`Pg.Spawn`](../namespaces/pg).
 
 ### `FinalExplosion(oSelf)`
-Handles the final explosion of the bomb, spawning a more powerful explosion effect.
+Would spawn `"Explosion (C4)"` at `oSelf.uSpawnedBomb`. **Dead code in this module** — nothing here sets `oSelf.uSpawnedBomb` (it uses `tBombs[]` instead) and nothing calls `FinalExplosion`. Present but unreachable as written.
 
 ## Events
-- Listens for custom events related to target designation and bomb explosions (not explicitly detailed in this module).
+No event subscriptions. `DesignationCallback` is the satellite designator's completion callback (via [`MrxSupport:Commence`](mrxsupport)); `DropBomb`/`BombExplodes` are flyby-arrival and ordnance-impact callbacks. No `Event.Create`/`TimerRelative`.
+
+## Module constants & tunables
+- `sBomb = "Smart Bomb Projectile"` — module-level global (settable per-instance since it's not `local`).
+- Satellite cost: `0` (free), set via `SetCost(0)` in `Create`.
+- Mini-game sectors: `{{45,90},{152,203},{270,315}}` — three wide success bands.
+- Recruit: `"Pilot"`.
+- Bomb velocity scale: `110`; explosion effect: `"Explosion (Grenade)"`.
 
 ## Notes for modders
-- Ensure that the `Create` function is called with the correct player GUID to initialize the support system properly.
-- Customize the delivery vehicle, bomb projectile, and other fields as needed for different configurations.
-- Be aware of the voice-over announcements played during the airstrike and adjust them if necessary.
-- The module relies on the `MrxSupportDesignatorSatellite` for target designation, so ensure that this module is imported and configured correctly.
+- This is the free/easy sibling of [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb); the code is nearly identical apart from `SetCost(0)`, the wider sectors, the `"Pilot"` recruit, and the added `"Explosion (Grenade)"` in `BombExplodes`.
+- Because `sBomb` is a non-`local` global, you can reassign `oInstance.sBomb` to change the payload before firing — see [Airstrike](../namespaces/airstrike#notes-for-modders).
+- The mismatched module name (`"MrxSatelliteGuidedBomb"`) is worth remembering before you build any per-module routing.

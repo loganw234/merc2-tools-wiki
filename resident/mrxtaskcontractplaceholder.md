@@ -6,7 +6,9 @@ nav_order: 1
 inherits: MrxTaskContract
 tags: [task, contract]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskContract](mrxtaskcontract) for the general mechanism.
+verified_note: 'deeper pass: confirmed the entire 11-line source — Activated calls MrxTaskContract.Activated
+  then MrxCinematic.PlaceholderSequence with a single hardcoded caption and self.Complete as the callback;
+  cross-linked MrxCinematic; removed the vacuous OnActivate note (engine-called, not a modder lever).'
 ---
 
 # MrxTaskContractPlaceholder
@@ -28,12 +30,27 @@ state beyond what is inherited from `MrxTaskContract`.
 
 ## Functions
 ### `Activated(self)`
-Called when the task contract instance is activated. It first calls the base class's `Activated` method and then triggers a placeholder cinematic sequence with a message indicating that the contract is not yet implemented. The sequence automatically completes the contract.
+The only function in the file. Calls `MrxTaskContract.Activated(self)` (all the real contract-start work is
+inherited — see [`MrxTaskContract`](mrxtaskcontract)), then plays a single-caption placeholder via
+[`MrxCinematic.PlaceholderSequence`](mrxcinematic):
+
+```lua
+MrxCinematic.PlaceholderSequence(
+  {{ sCaption = "This contract is not yet implemented." }},
+  self.Complete, {self})
+```
+
+The caption string is hardcoded (not localized), and `self.Complete` — the inherited
+[`MrxTaskContract.Complete`](mrxtaskcontract) — is the sequence's completion callback, so dismissing the
+placeholder immediately completes the contract (running the normal fanfare/reward flow).
 
 ## Events
-- Listens for none, as it does not subscribe to any engine events.
+None. No `Event.*` calls; no lifecycle callbacks beyond the inherited `Activated`.
 
 ## Notes for modders
-- This module is intended as a placeholder and should be replaced with a fully functional task contract implementation.
-- Ensure that `OnActivate` is called appropriately to trigger the placeholder sequence.
-- The placeholder sequence automatically completes the contract, so there are no additional steps required beyond activation.
+- This is a genuine stub — it's how the game fills a contract slot whose real implementation doesn't exist
+  yet. Point a mission's `sModuleName` at a real subclass ([`MrxTaskContractOutpost`](mrxtaskcontractoutpost),
+  or one built on [`MrxTaskContract`](mrxtaskcontract)) to give it actual objectives.
+- If you want a placeholder that *doesn't* auto-complete (e.g. to keep a slot occupied without paying out),
+  pass a different callback than `self.Complete` — but note the completion runs the base contract's full
+  reward/fanfare path, so an unfinished stub still grants its configured rewards.

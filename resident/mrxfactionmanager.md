@@ -12,7 +12,7 @@ inherits: none
 tags: [faction, relation, attitude]
 
 verified: true
-verified_note: faction catalog captured by live runtime dump; SetAttitudeMutable/SetRelation confirmed by live testing via MrxCheatBootstrap; always-resident/NetEventCallback hijack safety confirmed via the networking deep dive and co-op chat feature
+verified_note: "deeper pass: corrected Imports (None -> MrxUtil/MrxPmc/MrxGui/MrxSupport/MrxAchievements/MrxVoSequence/MrxTutorialManager/WifMissionFlow), surfaced the exact attitude thresholds/price-scales/RGB from _tAttitudes and the relation/meter ranges, rewrote Events (real subs are Event.ScriptEvent mpPlayerJoin + Event.ObjectDeath civ&&human + TimerRelative flybys; posts Attitude/CollateralDamage/HeroReported — no ObjectHibernation/PlayerJoined here); faction catalog + SetRelation gotcha re-confirmed"
 
 ---
 
@@ -42,7 +42,10 @@ to actually dispatch a hijacked callback across a real 2-player network connecti
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: None
+- Imports: [`MrxUtil`](mrxutil), [`MrxPmc`](mrxpmc), [`MrxGui`](mrxgui), [`MrxSupport`](mrxsupport),
+  [`MrxAchievements`](mrxachievements), [`MrxVoSequence`](mrxvosequence),
+  [`MrxTutorialManager`](mrxtutorialmanager), `WifMissionFlow` (an earlier draft said "None" — the source has
+  all eight `import()` lines).
 
 
 
@@ -85,6 +88,27 @@ for them at all, by design — see the [`MrxCheatBootstrap`](mrxcheatbootstrap) 
 caveat for the full mechanism this gates. `Pmc` is presumably excluded because it's the player's own
 faction; `Civ`/`Vza` (civilians/the setting's neutral wildlife-adjacent faction) apparently aren't meant
 to have a trackable attitude at all.
+
+## Attitude thresholds, ranges & price scales
+
+The core relation model lives in three module constants plus the `_tAttitudes` table:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `_knRelationMin` / `_knRelationMax` | `-100` / `100` | The raw relation scale `Ai.GetRelation`/`Ai.SetRelation` operate on. |
+| `_knAttitudeMeterMin` / `_knAttitudeMeterMax` | `0` / `100` | HUD meter scale; `ConvertRelationToMeterValue` linearly maps `[-100,100] → [0,100]`. |
+
+`_tAttitudes` (order = attitude level 1→3) defines the bands, shop price scale, and blip color:
+
+| Level | Label | Relation range | Price scale (`nPrices`) | RGB |
+|---|---|---|---|---|
+| 1 | `Hostile` | `[-100, -33)` | `nil` (won't sell) | 255,0,0 (red) |
+| 2 | `Neutral` | `[-33, 33)` | `1.5` | 200,200,200 (grey) |
+| 3 | `Friendly` | `[33, 100]` | `1.0` | 0,127,255 (blue) |
+
+So the `>= 33` relation is the "Friendly" cutoff, `< -33` is "Hostile", and the shop charges 1.5× at Neutral
+vs 1.0× at Friendly (via [`GetPriceScale`](#getpricescalesubjectabbrev-sobjectabbrev), which is what
+[`MrxShop._GetPriceScale`](mrxshop) calls). Editing these ranges/prices re-tunes the whole reputation economy.
 
 ## Functions
 
@@ -817,40 +841,53 @@ Retrieves the index of a specific faction ID in `_tFactions`.
 
 ## Events
 
+Real subscriptions (created in `Setup`/`CivCasualtySetup`):
 
+- **`Event.CreatePersistent(Event.ScriptEvent, {"mpPlayerJoin", <filter>}, SendPlayerJoinEvents)`** — on the
+  server, syncs mutable factions + civ-casualty counts to a joining remote player.
+- **`Event.CreatePersistent(Event.ObjectDeath, {"civ && human"}, ResolveCivCasualty)`** — every civilian human
+  death routes here; if the local player was the killer, `ChargeCivCasualty` applies the escalating penalty.
+- **`Event.Create(Event.TimerRelative, {19 + Math.randi(71)}, RandomFlyby)`** — self-rescheduling ambient
+  flyby timer (≈19–90 s), set up by `SetupNextFlyby`.
+- `Event.TimerRelative` is also used as a retry/backoff in `NetEventCallback` and
+  `NetInitializeClientFactionRelations` (waiting until `_bSetupComplete`).
 
-- **Event.ObjectHibernation**: Listens for this event to wake up and initialize world object instances.
+Events this module **posts** (other modules subscribe): `Event.Post("Attitude", {subj, obj, oldLabel, newLabel})`
+on any attitude-level change (the hook `CreateAttitudeChangeEvent`/`CreatePersistentAttitudeChangeEvent` filter
+on, only for `obj == "Pmc"`); `Event.Post("CollateralDamage", {uKiller})`; `Event.Post("HeroReported", {template, uGuid})`.
 
-- **Event.PlayerJoined**: Responds to player joining events by synchronizing mutable factions and civilian casualties.
-
-- **Event.TimerRelative**: Used for handling various timed events, such as setting up next flybys and managing report delays.
-
-- **Custom Events**:
-
-  - `CreateAttitudeChangeEvent` and `CreatePersistentAttitudeChangeEvent`: These are used internally to manage attitude changes with callbacks.
+{: .note }
+> `CreateAttitudeChangeEvent`/`CreatePersistentAttitudeChangeEvent` subscribe to the `"Attitude"` script event
+> above but silently return `nil` unless `tParams[2] == "Pmc"` — you can only watch attitude changes *toward the
+> player faction* through these helpers.
 
 
 
 ## Notes for modders
 
+- **Changing player reputation with a faction** goes through
+  [`SetRelation`](#setrelationsubjectabbrev-sobjectabbrev-nrelation-binitialize) /
+  [`ChangeRelation`](#changerelationsubjectabbrev-sobjectabbrev-nrelation) with `sObjectAbbrev == "Pmc"`. Both
+  **silently no-op** if the subject faction isn't currently mutable — call
+  [`SetAttitudeMutable(sAbbrev)`](#setattitudemutablesabbrev-brestorefromsave) first. Only the five `bDynamic`
+  factions (`All`/`Chi`/`Gur`/`Oil`/`Pir`) can be made mutable at all; `Civ`/`Pmc`/`Vza` never can. Full worked
+  example: [`MrxCheatBootstrap`](mrxcheatbootstrap).
+- **Rebalance the reputation economy** by editing the `_tAttitudes` bands/prices/colors and the `_knRelation*`
+  ranges above — those are the "friendly at what number / how much does the shop overcharge / what color is the
+  blip" knobs.
+- **Ambient flybys**: `tFlybys` is 5 aircraft-set groups (Tucano / OV10 / Cessna+727 / a large "invasion" mix /
+  Q5). `RandomFlyby` picks group 1–3 normally, +2 (→ groups 3–5) once `WifMissionFlow.HasKey("Invasion")`.
+  Frequency is the `19 + Math.randi(71)` timer in `SetupNextFlyby`; `DisableReporting(true)` also suppresses
+  flybys (`RandomFlyby` early-outs on `bReportingDisabled`).
+- **Reporting/pursuit levers**: `DisableReporting(bDisable)` (global), `SetFactionReporting(sFaction, bValue)`
+  (per-faction `bCanReport`), `DisableReporter`/`EnableReporter(uGuid)` (per-object). Civ-casualty penalty
+  starts at `-5000`, doubles every 20 kills, floored at `-1000000`.
 
+{: .warning }
+> Source bug: `ValidateReporter` reads a local `sFaction` that is never assigned inside the function (it's
+> `nil`), so its `sFaction ~= "Civ" and sFaction ~= "VZ"` sub-check is effectively always true. The `Civ`/`VZ`
+> exclusion it looks like it intends doesn't work via that clause. Don't rely on `ValidateReporter` to filter
+> those factions — they're kept out of reporting by `bDynamic`/`bCanReport` instead.
 
-1. **Call-order requirements**: Ensure that `Init()` is called before any other functions to properly initialize the module state.
-
-2. **Pitfalls**:
-
-   - Modifying faction relations directly without using provided functions can lead to inconsistent behavior, especially in multiplayer scenarios.
-
-   - Be cautious when changing mutable attitudes; it can have significant impacts on game mechanics and player experience.
-
-3. **Tunables**:
-
-   - `_knAttitudeMeterMin`, `_knAttitudeMeterMax`, `_knRelationMin`, and `_knRelationMax` can be adjusted to change the range of attitude meters and relations.
-
-   - `tFlybys` configurations can be modified to alter the frequency and behavior of random flybys.
-
-4. **Decompiler artifacts**:
-
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact and should not be interpreted as intentional logic.
-
-   - Duplicate table keys in literals (last one wins at runtime) are another decompiler artifact to note.
+Decompiler artifacts to ignore: `function expand(a)` is defined twice (identical), and some literal tables have
+duplicate keys (last wins).

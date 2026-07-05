@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [player, character management]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source; _tPlayerDatabase is a plain module-level table keyed by player, not a factory-built instance registry)
+verified_note: "deeper pass: replaced the vague Imports 'and others' with the full 19-module list, surfaced the medevac cost (10000) and NETEVENT_ constants (0-4), clarified Events (PlayerJoined/PlayerLeft are Player.Set*Callback engine callbacks not Event subs; the real persistent sub is Event.ObjectDeath on each hero in OnPlayerInit; posts mpPlayerJoin/mpPlayerLeft/MedevacComplete/ClientKill); instance-pattern + functions re-confirmed"
 ---
 
 # MrxPlayer
@@ -18,7 +18,12 @@ The `MrxPlayer` module is responsible for managing player characters in the game
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxCoop`, `MrxGui`, `MrxPlayState`, `MrxPmc`, `MrxUtil`, and others
+- Imports (all 19): [`MrxCoop`](mrxcoop), [`MrxGui`](mrxgui), [`MrxGuiManager`](mrxguimanager),
+  [`MrxGuiShellBootstrap`](mrxguishellbootstrap), [`MrxPlayState`](mrxplaystate), [`MrxPmc`](mrxpmc),
+  [`MrxUtil`](mrxutil), `WifPmcInterior`, [`MrxMissionFlow`](mrxmissionflow), [`MrxState`](mrxstate),
+  [`MrxTransit`](mrxtransit), [`MrxActionHijack`](mrxactionhijack), [`MrxHqManager`](mrxhqmanager),
+  [`MrxVoSequence`](mrxvosequence), [`Hero`](hero), [`MrxStatsManager`](mrxstatsmanager),
+  [`Munitions`](munitions), [`MrxSound`](mrxsound), [`MrxGuiHudMessage`](mrxguihudmessage)
 
 ## Instance pattern
 **Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
@@ -112,9 +117,9 @@ Checks if medical evacuation is possible based on various conditions such as pla
 - **Returns**: None
 
 ### GetMedEvacCost()
-- **Description**: Returns the cost of a medical evacuation.
-- **Parameters**: None
-- **Returns**: Integer representing the cost in PMC currency
+- **Description**: Returns the flat medevac cost, hard-coded as `return 10000`. This is the amount `_MoveToSickbayEnd`
+  deducts via `MrxPmc.AddCashQty(-GetMedEvacCost(), true, "[Generic.Medevacs]")`.
+- **Returns**: `10000` (integer, PMC cash). To change the medevac price, override this function.
 
 ### ResetWeapons(uCharGuid, sNewWeapon)
 - **Description**: Resets the weapons for a given character. It sets the primary weapon to a specified type or defaults to "Pistol", and also sets grenade and C4 as secondary weapons.
@@ -207,19 +212,38 @@ Checks if medical evacuation is possible based on various conditions such as pla
 - **Returns**: None
 
 ## Events
-The `mrxplayer` module subscribes to and fires several engine events:
 
-### Subscribed Events
-1. **PlayerJoined**: Triggered when a player joins the game. Handled by `OnPlayerJoined`.
-2. **PlayerLeft**: Triggered when a player leaves the game. Handled by `OnPlayerLeft`.
-3. **ObjectHibernation**: Used to manage object hibernation states.
-4. **TimerRelative**: Used for timing various actions, such as retrying player initialization after 2 seconds.
+**Player join/leave are not `Event.*` subscriptions** — `Start()` registers them as engine callbacks
+(`Player.SetPlayerJoinedCallback(OnPlayerJoined)` / `Player.SetPlayerLeftCallback(OnPlayerLeft)`), and `Reset()`
+removes them. Don't look for `Event.Create(Event.PlayerJoined, ...)`; it isn't there.
 
-### Firing Events
-1. **MedevacComplete**: Triggered when the medical evacuation process is completed by `_CompleteMove`.
+Real `Event.*` usage:
+- **`Event.CreatePersistent(Event.ObjectDeath, {uChar}, PlayerDied, {iPlayerId, uChar})`** — set up per hero in
+  `OnPlayerInit`; this is how the module reacts to a player character dying.
+- **`Event.Create(Event.ObjectHibernation, {..., "awake"/"a"}, ...)`** — deferred outfit set (`OnPlayerJoined`),
+  ammo restore (`LoadSingleton`), i.e. "run once the object is streamed in".
+- **`Event.Create(Event.GameStateChange, {"WaitForStreaming", "exit"}, ...)`** and short `Event.TimerRelative`
+  timers drive the medevac / revive-nag flow (`_evReviveNag` at 30 s, `_evCancelTimer` at 60 s).
+
+Events **posted** (other modules subscribe): `mpPlayerJoin`, `mpPlayerLeft` (the same `mpPlayerJoin` that
+[`MrxFactionManager`](mrxfactionmanager) listens for to sync a joiner), `MedevacComplete`, and `ClientKill`.
+
+## Network events
+`NetEventCallback` handles a small integer catalog (module-level constants): `NETEVENT_CLIENTSELECTMEDEVAC = 0`,
+`NETEVENT_CLIENTDONESTREAMING = 1`, `NETEVENT_HOST_SELECT_MEDEVAC = 2`, `NETEVENT_CLIENTKILL = 3`,
+`NETEVENT_CLIENT_OUT_BOUNDARY_DEATH = 4`. Sent via `Net.SendCustomEvent("MrxPlayer", <id>, ...)`.
 
 ## Notes for modders
-- **Call-order requirements**: Ensure that `Init` is called before any other functions to properly initialize the player module.
-- **Pitfalls**: Be cautious with network events, as incorrect handling can lead to desynchronization issues. Always ensure that client and server states are kept in sync.
-- **Tunables**: The cost of medical evacuation (`GetMedEvacCost`) is a tunable parameter that can be adjusted based on the game's balance needs.
-- **Decompiler artifacts**: Some local variables may appear unused or have redundant operator groupings, which are decompiler artifacts and should not be interpreted as intentional logic.
+- **Medevac price** is the hard-coded `return 10000` in [`GetMedEvacCost`](#getmedevaccost); override it to
+  change the cost. It's charged through [`MrxPmc.AddCashQty`](mrxpmc) with reason `"[Generic.Medevacs]"`.
+- **`CanMedEvac()` is a gate you can read** before offering a medevac UI — it returns `false` if anyone is
+  dead/in a cinematic, in transit ([`MrxTransit`](mrxtransit)), mid-hijack
+  ([`MrxActionHijack`](mrxactionhijack)), the PMC interior is locked or you're inside it, you're in an HQ
+  ([`MrxHqManager`](mrxhqmanager)), [`MrxState`](mrxstate) is locked, or you're a network client.
+- **Default respawn loadout** is set by `ResetWeapons`: primary `"Pistol"` (unless `sNewWeapon` is passed),
+  plus `"Grenade"` and `"C4"` — change these three template names to reskin the revive kit.
+- **`_tCharacterMap`** holds the three heroes' upgrade templates and costume model lists (Mattias/Chris/Jen);
+  `SetCharacterMap` swaps the whole table. Costume/upgrade indices from `tCharacterConfig` index into it via
+  `GetTemplateAndModelName`.
+- Decompiler note: `_RestoreEquipment` is defined without `local` **inside** `LoadSingleton`'s loop, so it leaks
+  as a global each load; harmless because it's only called from that same loop.

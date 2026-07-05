@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, gunner]
 verified: true
-verified_note: spot-checked against source, no changes needed — all functions and events confirmed present
+verified_note: 'deeper pass: corrected the Instance pattern (bare uEvent[uGuid] bookkeeping, not "stateless"), split the two Event.ObjectInSeat Gunner enter/exit subscriptions, surfaced the Graphics.Camera.SetFocusParams(0,0,2,2,600,4,0) tunable + "Gunner" seat, and replaced vacuous Notes with the real camera lever + local-player-only caveat'
 ---
 
 # Emplaced
@@ -21,7 +21,10 @@ The `Emplaced` module manages the behavior of emplaced weapons, specifically han
 - Imports: `none`
 
 ## Instance pattern
-This is a stateless manager/utility module (no per-instance tables). It tracks event handles in the `uEvent` table, keyed by `uGuid`.
+Bare `tGuids`-style bookkeeping, **not** stateless and **not** the `Inheritable` rich-instance pattern.
+State lives in one module-level global table, `uEvent`, keyed by `uGuid` (`uEvent[uGuid] = uEvent[uGuid] or
+{}`), holding just two handles per active weapon: `uEvent[uGuid].Enter` and `uEvent[uGuid].Exit`. There is no
+`Create`/`setmetatable`/`tInstance` factory. `Init()` seeds the table and `Deinit()` drops it wholesale.
 
 ## Functions
 ### `Init()`
@@ -52,11 +55,24 @@ Handles the event where a player exits the gunner seat. It checks if the charact
 Called when an emplaced weapon instance is deactivated. It deletes any stored enter and exit events associated with the specified `uGuid`.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Activate` when the object leaves hibernation.
-- Listens for `Event.ObjectInSeat` (enter) to call `Enter` when a player enters the gunner seat.
-- Listens for `Event.ObjectInSeat` (exit) to call `Exit` when a player exits the gunner seat.
+- **Creates** `Event.ObjectHibernation` (`OnActivate`) to call `Activate` when the object leaves hibernation.
+- **Creates** `Event.ObjectInSeat` with the `"Gunner"` seat + `"enter"` filter (`CreateEnterEvent`) to call
+  `Enter`. Stored as `uEvent[uGuid].Enter`.
+- **Creates** `Event.ObjectInSeat` with the `"Gunner"` seat + `"exit"` filter (`CreateExitEvent`) to call
+  `Exit`. Stored as `uEvent[uGuid].Exit`. The enter/exit listeners are re-armed alternately (`Enter` creates
+  the exit listener, `Exit` re-creates the enter listener), so only one is live at a time.
+- `OnActivate`/`OnDeactivate` are engine lifecycle callbacks, not `Event.*` subscriptions.
+
+## Module constants & tunables
+- Seat name filter: `"Gunner"` (both enter and exit events).
+- Camera on entering the seat: `Graphics.Camera.SetFocusParams(0, 0, 2, 2, 600, 4, 0)`; on exit:
+  `Graphics.Camera.RestoreFocusParams(0, 0)`. These seven numbers are the whole "zoom/focus feel" of manning
+  the emplaced weapon — the only real tuning lever in the file.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage event lifecycle.
-- Customize camera focus parameters by modifying the values passed to `Graphics.Camera.SetFocusParams`.
-- Be aware that non-local players triggering these events will result in debug messages being logged.
+- The single meaningful mod lever is the camera call: change the `Graphics.Camera.SetFocusParams(...)`
+  arguments to alter how the view snaps when the player mounts the gun (see the
+  [Camera namespace](../namespaces/camera) / [Graphics namespace](../namespaces/graphics)).
+- Only **local player** characters trigger the focus change — non-players and remote players hit an early
+  return with a `Debug.Printf` log line ("A non-player triggered this event!"), so don't rely on this for AI
+  gunners.

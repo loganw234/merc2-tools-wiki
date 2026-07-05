@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, airstrike]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: separated the module-level local defaults (sProjectileName/sExplosionName/sDeliveryVehicle) from the settable instance fields, flagged the unused nSpeedScale and dead sExplosionName, documented the CreateDebris distance/client gate; parent of MrxMOAB; cross-linked Airstrike/MrxSupport'
 ---
 
 # MrxDaisyCutter
@@ -14,11 +14,15 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxdaisycutter.lua*
 
 ## Overview
-The `MrxDaisyCutter` module is responsible for managing the Daisy Cutter support operation in the game. It handles the designation, delivery, and explosion of Daisy Cutter projectiles using an aerial vehicle (C130). The module integrates with the MrxSupport system to manage player ownership and designator functionality.
+`MrxDaisyCutter` drops a single guided **"Daisy Cutter Projectile"** from a C-130 onto a smoke-marked target,
+then kicks off a delayed dust-fall effect near the impact. It's a thin subclass of [`MrxSupport`](mrxsupport)
+and is itself the **parent of [MrxMOAB](mrxmoab)** (which reuses this whole drop pipeline with a different
+projectile). The screen-flash grade is the separate
+[Airstrike_Atmosphere_Daisycutter](airstrike_atomsphere_daisycutter) object.
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportDesignatorSmoke`, `MrxUtil`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke), [`MrxUtil`](mrxutil)
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
@@ -32,26 +36,58 @@ registry. It tracks the following key fields:
 - `uJet`: The GUID of the aircraft performing the flyby.
 - `uSpawnedBomb`: The GUID of the spawned bomb projectile.
 
+## Module constants & tunables
+Three **module-level `local`s** hold the *defaults* (unreachable from outside — see the
+[function-override deep dive](../deep-dives/function-override)):
+- `sProjectileName = "Daisy Cutter Projectile"`
+- `sExplosionName = "Explosion (Daisy Cutter)"` — **declared but never used** (dead constant).
+- `sDeliveryVehicle = "Support Vehicle (C130)"`
+
+`Create` copies these onto the instance as `self.sBomb`/`self.uBomb`/`self.sDeliveryVehicle`/
+`self.uDeliveryVehicle`, and `DropBomb` fires `Airstrike.SpawnOrdnance(self.uBomb, …)`. So the **instance
+fields** are the real customization surface — reassign `oInstance.uBomb` / `oInstance.uDeliveryVehicle`
+before firing rather than trying to touch the `local` defaults.
+
+{: .warning }
+> `DropBomb` declares `local nSpeedScale = 20` but then passes the **unscaled** normalized vector
+> (`nVectorX, nVectorY, nVectorZ`) to `SpawnOrdnance` — the `nSpeedScale` is never applied. This looks like a
+> decompiled-source bug; the daisy cutter's projectile therefore launches at unit speed, relying on the
+> template's own physics rather than the intended ×20 boost.
+
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Creates a new per-instance table for the Daisy Cutter support operation. Initializes the designator with validation and AATestLevel settings, sets the owner, recruit, module name, delivery vehicle, and bomb details.
+Class-factory constructor. Builds a smoke designator with `_NoValidation` + `"basic"` AA test, sets owner /
+recruit `"Fiona"` / module name, and copies the projectile and delivery-vehicle defaults onto the instance.
 
 ### `DesignationCallback(self)`
-Called when the designation is complete. Calculates spawn and target points using the camera position, initiates a flyby with the C130 aircraft, and schedules the bomb drop.
+Computes spawn (300 behind, alt 100) and target (at camera, alt 100) via `Pg.FindPointFromCamera`, flies the
+C-130 with `Airstrike.Flyby(self.uDeliveryVehicle, …, 80, DropBomb, {self})`, and plays an (empty) VO via
+[`MrxSupport.PlayAirstrikeVO`](mrxsupport).
 
 ### `DropBomb(self)`
-Drops the Daisy Cutter bomb from the aircraft. Retrieves the current position of the aircraft and the designated target, calculates the normalized vector towards the target, spawns the bomb projectile, and sets up the explosion callback.
+Reads jet + designator target, normalizes the direction, and spawns the projectile with
+`Airstrike.SpawnOrdnance(self.uBomb, …, uTarget, "impact", self.uOwner, BombExplodes, {self})` (see the
+unscaled-velocity warning above).
 
 ### `BombExplodes(self)`
-Called when the bomb explodes. Creates a timer event to trigger debris creation after a delay.
+Detonation callback — schedules `CreateDebris` **1.5 s** later via `Event.TimerRelative`.
 
 ### `CreateDebris(self)`
-Creates debris effects at the bomb's impact location if the player is nearby or on the client side. Uses particle effects to simulate dustfall.
+Draws a `Graphics.Effect.Terrain("global_particle_dustfall", 20, 0.005, …)` dust cloud at the *local
+player's* feet — **but only if** this is not a network client and the local hero is within **150 units** of
+the target (`MrxUtil.GetDistanceToObject(...) > 150` early-returns). A purely cosmetic, host-side, near-player
+effect.
 
 ## Events
-- Listens for custom events triggered by designator and bomb operations (not explicitly listed in the provided code).
+- **No `Event.Create` subscriptions.** The only `Event.*` use is the `Event.TimerRelative` that delays
+  `CreateDebris` by 1.5 s. The other functions are wired by the parent designation flow and the
+  `Airstrike.Flyby`/`Airstrike.SpawnOrdnance` callbacks.
 
 ## Notes for modders
-- Ensure that `Create` is called with a valid player GUID to initialize the support operation.
-- Customize the delivery vehicle and bomb details by modifying the `sDeliveryVehicle` and `sBomb` fields.
-- Be aware of network synchronization (`Net.IsClient`) when creating debris effects to avoid client-server discrepancies.
+- **To change the bomb, reassign the instance field `uBomb` (and `sBomb`) — not the `local`
+  `sProjectileName`.** [MrxMOAB](mrxmoab) does exactly this: it inherits this module and just points
+  `sBomb`/`uBomb` at `"MOAB Projectile"`.
+- The `nSpeedScale = 20` in `DropBomb` is dead code (see warning) — if you override `DropBomb` to give the
+  projectile a real launch velocity, that's the value the original author appears to have intended.
+- `CreateDebris` is host-only and gated to a **150-unit** radius; on a dedicated client or a far-away player
+  it does nothing. Keep that in mind if you're relying on it for gameplay feedback.

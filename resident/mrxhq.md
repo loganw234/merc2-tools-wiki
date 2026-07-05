@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [hq, briefing, ui]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: rewrote the Events section (no Event.BriefingModuleLoaded/PlayerEnteredHQ/PlayerExitedHQ constants exist — the real sub is Event.CreatePersistent(Event.ContextAction) in SetPortal plus TimerRelative timers; module posts parkingLotStart), pinned the fixed interior spawn pos {3750,450,-3840} and 50-unit draw-distance default, described _tAssetPreload; all functions/Imports re-confirmed"
 ---
 
 # mrxhq
@@ -213,13 +213,41 @@ Unloads layers, removes interior assets, and unloads the starter object associat
 
 ## Events
 
-- **Event.BriefingModuleLoaded**: This module listens for this event and calls `NetSafeBriefingModuleLoaded` when the briefing module is loaded.
-- **Event.PlayerEnteredHQ**: This module listens for this event and handles player entry into the HQ interior by calling `_OnEnter`.
-- **Event.PlayerExitedHQ**: This module listens for this event and handles player exit from the HQ interior by calling `ExitBegin` and then `ExitEnd`.
+The real event **subscription** is the portal's enter-prompt, created in `SetPortal`:
+
+- **`Event.CreatePersistent(Event.ContextAction, {0, uGuid}, fCallBackFunc, {self})`** — fires when the player
+  triggers the portal's context action; routes to `_OnEnter` when unlocked or `_LockedOnEnter` when locked
+  (which shows a lock-status tutorial message). Deleted whenever the portal is re-configured or disabled.
+
+The module also uses one-shot **`Event.TimerRelative`** timers for the locked-message auto-hide (5 s in
+`_LockedOnEnter`), the exit sequence (2 s in `ExitEnd`), and the "all load stages done" kickoff (1 s in
+`_KickoffStarter`), and it **posts** `Event.Post("parkingLotStart", {entrance, parkingLotPoint, heliPoint})`
+in `ExitEnd` after accepting missions.
+
+{: .note }
+> There is no `Event.BriefingModuleLoaded`/`Event.PlayerEnteredHQ`/`Event.PlayerExitedHQ` — an earlier draft
+> invented those. Entry/exit are driven by the context-action subscription above and by direct calls
+> (`_OnEnter` → `_CompleteOnEnter`; `ExitBegin`/`ExitEnd`). Briefing loading uses `dynamic_import("MrxBriefing", ...)`,
+> not an event.
+
+## Module constants & tunables
+- `_tAssetPreload` — the briefing asset manifest preloaded for the HQ: per-hero briefing **animations**
+  (Chris/Jennifer/Mattias plus generic Male/FemaleStarter idle/greeting/spiel/goodbye sets), facefx animation
+  sets, and the `"vo_job_heros"` wavebank/soundbank. Passed to `MrxBriefing`'s load/unload asset calls.
+- Interior spawn position is the fixed literal `{3750, 450, -3840}` in `_LoadInterior` (via
+  `MrxUtil.SpawnActor(..., "HqInterior", ...)`).
+- `GetDrawDistance()` defaults to `50` (used in `Graphics.Camera.SetNearFar(0, 0.3, drawDist, 0)`).
+- Radar/PDA blip icons switch to `sRadarIconLocked`/`sPdaIconLocked` when the HQ is locked; HUD marker icon
+  sets differ for boss-starter HQs (`HUD_HQ_*`) vs regular starters (`HUD_Outpost_*`), with `_locked` variants.
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `NetSafeLoadAssets()` is called before attempting to use any briefing-related functionality. The module must be in the `STATE_WAITFORGAME` state to properly load assets.
-- **Pitfalls**: Be cautious when modifying faction attitudes or mission availability, as these can affect the UI display and player interactions with the HQ portal.
-- **Tunables**: There are no specific tunable parameters exposed for this module. However, modifying the `_tAssetPreload` table can impact asset loading times and performance.
-- **Decompiler artifacts**: The function `NetSafeLoadAssets1` has a local variable `mModule` that appears unused. This is likely a decompiler artifact and should be ignored.
+- **Portal lock/unlock is faction-attitude driven.** `RefreshUiDisplay`/`SetPortal` unlock a mutable-faction HQ
+  only when relation to `"Pmc"` is `>= "Neutral"` (regular) or `>= "Friendly"` (boss starter) — see
+  [`MrxFactionManager.TestAttitude`](mrxfactionmanager). Boss HQs also require free-play and available content.
+- **Entering an HQ is a global mode switch**: `GlobalEnter`/`GlobalExit` disable faction reporting, flip
+  `WifVzBoundary` interior mode, toggle HUDs, disable/enable hero weapons, and set/clear invincibility on every
+  player. If you script anything during an HQ visit, expect those to be in effect.
+- Server-authoritative: `RefreshUiDisplay` early-returns on clients; blips are replicated via
+  `Net.SendEvent_AddHqPdaBlip`/`Net.SendEvent_RemoveHqPdaBlip` and marker objectives via `Net.SendEvent_Add/RemoveMarkerObjective`.
+- Decompiler note: `NetSafeLoadAssets1`'s `mModule` param is unused (artifact).

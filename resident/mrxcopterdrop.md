@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, delivery]
 verified: true
-verified_note: added tCopterData faction table + module-level globals (nAltitude live, others dead) to Instance pattern; flagged self={} global leak in DeliveryComplete; confirmed Events list against source
+verified_note: 'spot-checked in deeper pass, confirmed accurate; cross-linked MrxSupport, noted the hardcoded 0.5 Ai.Deliver drop height, and clarified this is the standalone coordinate-driven cousin of MrxSupportDelivery (not part of the catalog inheritance chain)'
 ---
 
 # MrxCopterDrop
@@ -14,11 +14,19 @@ verified_note: added tCopterData faction table + module-level globals (nAltitude
 *Module: mrxcopterdrop.lua*
 
 ## Overview
-The `MrxCopterDrop` module is responsible for managing the delivery of cargo using helicopters. It handles the spawning of both the helicopter and the cargo, deploying the winch to attach the cargo, and ensuring the delivery process completes successfully.
+The `MrxCopterDrop` module is responsible for managing the delivery of cargo using helicopters. It handles
+the spawning of both the helicopter and the cargo, deploying the winch to attach the cargo, and ensuring the
+delivery process completes successfully.
+
+Unlike the catalog-driven [`MrxSupportDelivery`](mrxsupportdelivery) family, this is a **standalone,
+function-call helper**: a mission script calls `MrxCopterDrop.Create(sFaction, sCargo, nDesX, nDesY, nDesZ,
+...)` with explicit coordinates and gets back the spawned heli/cargo GUIDs. It runs the same winch-and-drop
+sequence but has no designator, no cost/recruit gating, and no per-instance object — it borrows only
+`GoHome` from [`MrxSupport`](mrxsupport).
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxSupport`
+- Imports: [`MrxSupport`](mrxsupport)
 
 ## Instance pattern
 This is a stateless manager/utility module — no `OnActivate`/`Awake`/`tInstance`/`setmetatable` anywhere
@@ -42,7 +50,10 @@ Spawns a helicopter and cargo for delivery. It checks if the current client is t
 Called when the helicopter is awake. It deploys the winch on the helicopter and sets up a timer event to wait for the cargo to become active before proceeding with further delivery steps.
 
 ### `_WaitCallback(uHeli, uCargo, nDesX, nDesY, nDesZ, bCareless)`
-Called after the cargo becomes active. It aligns the cargo's yaw with the helicopter's, attaches the cargo to the winch, and initiates the delivery process using AI control.
+Called after the cargo becomes active. It aligns the cargo's yaw with the helicopter's, attaches the cargo
+to the winch, and issues `Ai.Deliver(driver, nDesX, nDesY, nDesZ, 0.5, bCareless)`. **The drop height is
+hardcoded to `0.5` here** (unlike [`MrxSupportDelivery`](mrxsupportdelivery), which stores it as
+`self.nCargoDropHeight`) — there's no parameter to change it without editing this line.
 
 ### `DeliveryComplete(uHeli)`
 Called when the delivery is complete. It detaches the cargo from the winch and calls a function from `MrxSupport` to return the helicopter home.

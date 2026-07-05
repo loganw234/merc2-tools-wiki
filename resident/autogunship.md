@@ -6,7 +6,7 @@ nav_order: 1
 inherits: OrientedBlippable
 tags: [vehicle, ai]
 verified: true
-verified_note: found likely bug — Start(uGuid) references uRuntimeOwner, which is not a parameter of Start and is never assigned anywhere in the file (always nil in practice); corrected Instance pattern to note tColor/uLastTarget/uTarget/nRelation are plain module-level globals, not fields set on oInstance
+verified_note: deeper pass — re-confirmed the Start(uGuid)/uRuntimeOwner undeclared-variable bug and the module-level tColor/uLastTarget/uTarget/nRelation globals; added a module-constants block surfacing sTexture/nSize/tColor* plus the unused tTemplates leftover and the salvo tunables (200m radius, 4 shots, 0.25s/3s timers, speed 100, ±5 scatter); cross-linked OrientedBlippable/MrxUtil
 ---
 
 # Autogunship
@@ -17,8 +17,12 @@ verified_note: found likely bug — Start(uGuid) references uRuntimeOwner, which
 The `Autogunship` module represents an AI-controlled gunship that targets and attacks ground vehicles. It manages the gunship's blip on the radar, its targeting logic, and missile firing behavior.
 
 ## Inheritance
-- Inherits from: `OrientedBlippable`
-- Imports: `MrxUtil`
+- Inherits from: [`OrientedBlippable`](orientedblippable) (→ [`Blippable`](blippable) → [`Inheritable`](inheritable))
+- Imports: [`MrxUtil`](mrxutil)
+
+Note this file inherits `OrientedBlippable` **directly**, not [`VehicleBlippable`](vehicleblippable) — so it
+does not get VehicleBlippable's driver/attitude auto-recoloring, and instead reimplements a cut-down version
+of the same ally/neutral/enemy color logic locally in `Start`.
 
 ## Instance pattern
 This is a per-instance object module (keyed by `uGuid`) — `Start` calls `oPrototype:Create(uGuid, uRuntimeOwner)`,
@@ -32,6 +36,23 @@ active autogunship rather than tracked per-`uGuid`:
   `oInstance`, so they're effectively shared/last-write-wins state if multiple gunships are active
   simultaneously, not truly per-gunship.
 - `nRelation`: also a bare global, computed fresh each time in `Start` and not read afterward.
+
+## Module constants & tunables
+Declared at the top of `autogunship.lua`:
+
+| Constant | Value | Notes |
+|---|---|---|
+| `sTexture` | `"temp_radar_icon_airplane"` | radar blip texture (read up the chain by `Blippable.AddObjective` as `self.sTexture`) |
+| `nSize` | `5` | radar blip size |
+| `tColorAlly` | `{0, 127, 255}` | blip color when relation ≥ 60 |
+| `tColorNeutral` | `{200, 200, 200}` | blip color when -60 < relation < 60 |
+| `tColorEnemy` | `{255, 0, 0}` | blip color when relation ≤ -60 |
+| `tTemplates` | `{China = "Chinese Paratrooper", Allied = "Allied Paratrooper"}` | **declared but never read anywhere in this file** — a leftover; the autogunship fires shells (see `LaunchMissile`) and never drops paratroopers |
+
+Other in-code tunables worth knowing (all hard-coded in the function bodies, not named constants): the salvo
+collects targets within a **200m** radius of the player (`Pg.FastCollectGroundVehicles(..., 200)`), fires
+**4** missiles per salvo **0.25s** apart, repeats every **3s**, and each shot spawns at speed **100**
+(`nSpeedScale`) with **±5** aim scatter on X and Z (`math.randi(5) - math.randi(5)`).
 
 ## Functions
 ### `OnActivate(uGuid)`

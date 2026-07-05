@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [cheats, menu, beginner-friendly]
 verified: true
-verified_note: fully live-tested -- every direct-call row (cash, fuel, LZ unlock, rewards, support item, faction relation via SetAttitudeMutable, DebugTeleport outdoor-only) plus the full "The Works!" snippet
+verified_note: "deeper pass: re-confirmed the _G.Cheat = {DisplayOptions=...} and _G.DebugTeleport surface, all 16 imports, the cash/fuel preset lists, and the exact 'The Works!' body against source; all prior live-test results left intact; cross-linked the cheat-menu top-level page and the imported resident modules that have wiki pages"
 ---
 
 # MrxCheatBootstrap
@@ -34,6 +34,8 @@ _G.Cheat.DisplayOptions()
 That's the entire public entry point — the module registers itself as `_G.Cheat` at the bottom of the
 file (`_G.Cheat = {DisplayOptions = DisplayOptions}`). Run that one line from the console while in a
 level and the game's own cheat menu should open on-screen, exactly as it would for a developer build.
+For the full walkthrough of the on-screen menu (screenshots, every option), see the
+[Cheat Menu](../cheat-menu) top-level page.
 
 ## Even quicker: skip the menu, call the actions directly
 
@@ -154,9 +156,12 @@ sudden teleport) — treat "safe outdoors, unsafe indoors" as the operating rule
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxFactionManager`, `MrxLayerManager`, `MrxMultiPageMenu`, `MrxPlayState`, `MrxRewardData`,
-  `MrxTaskState`, `MrxTransit`, `MrxUtil`, `WifMissionData`, `WifMissionFlow`, `WifVzBoundary`,
-  `WifCheatStockpile`, `MrxPmc`, `MrxSupportData`, `WifPmcInterior`, `Munitions`
+- Imports (16): [`MrxFactionManager`](mrxfactionmanager), [`MrxLayerManager`](mrxlayermanager),
+  [`MrxMultiPageMenu`](mrxmultipagemenu), [`MrxPlayState`](mrxplaystate), [`MrxRewardData`](mrxrewarddata),
+  [`MrxTaskState`](mrxtaskstate), [`MrxTransit`](mrxtransit), [`MrxUtil`](mrxutil), `WifMissionData`,
+  `WifMissionFlow`, `WifVzBoundary`, `WifCheatStockpile`, [`MrxPmc`](mrxpmc),
+  [`MrxSupportData`](mrxsupportdata), `WifPmcInterior`, [`Munitions`](munitions). (The `Wif*` modules
+  are level/campaign data with no wiki pages of their own.)
 
 ## Instance pattern
 

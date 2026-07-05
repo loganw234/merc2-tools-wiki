@@ -6,7 +6,9 @@ nav_order: 1
 inherits: none
 tags: [playstate, mission]
 verified: true
-verified_note: spot-checked against source; tightened IsValidState bug description (always returns true for any nState, not just non-null/free/mission) and confirmed Events/Instance-pattern/function-list sections already accurate, no other changes needed.
+verified_note: 'deeper pass: added the _kn* state-constant values (-1/0/1) + cross-links; re-confirmed the
+  IsValidState always-true bug and SetCurrentMission''s IsContract() gate against source; Events/Instance-
+  pattern/function-list all still accurate.'
 ---
 
 # MrxPlayState
@@ -21,11 +23,25 @@ The `MrxPlayState` module manages the game's play state between free-play and mi
 - Imports: `MrxHqManager`, `MrxStarterManager`, `WifPmcInterior`, `WifFreePlay`, `MrxMusic`
 
 ## Instance pattern
-This is a stateless manager/utility module. It tracks the following key fields:
-- `_nCurrState`: The current play state (free-play or mission).
+This is a stateless singleton module (module-level globals, no `Create`/`uGuid`). It tracks:
+- `_nCurrState`: The current play state — one of the state constants below.
 - `_oCurrMission`: The current mission object if in mission mode.
 - `_uSessionStartTimestamp`: Timestamp for the start of the current session.
 - `_nTimeElapsedInPriorSessions`: Total time elapsed across prior sessions.
+
+## Module constants
+The three play-state values (the `nState` passed to `Set`/compared by `Get`/`IsFree`):
+
+| Constant | Value | `GetStateDisplayName` |
+| --- | --- | --- |
+| `_knNull` | `-1` | `"null"` |
+| `_knFree` | `0` | `"free"` |
+| `_knMission` | `1` | `"mission"` |
+
+Entering `_knMission` is done via `Set(MrxPlayState._knMission)` — confirmed called by
+[`MrxTaskContract.Activated`](mrxtaskcontract) when a contract starts (which also calls `SetCurrentMission`
+with itself). Returning to `_knFree` is what [`WifMissionFlow`](mrxmissionflow)'s container
+complete/cancel handlers do at the end of a contract.
 
 ## Functions
 ### `IsValidState(nState)`
@@ -41,7 +57,9 @@ Sets the current play state. Updates music, UI elements, and mission-related set
 Returns the current play state.
 
 ### `SetCurrentMission(oMission)`
-Sets the current mission if the provided object is a valid contract. Returns true if successful, false otherwise.
+Sets `_oCurrMission` only if `oMission.IsContract` exists **and** `oMission:IsContract()` returns true —
+so jobs (which return `false` from `IsContract`) are rejected here; the "current mission" tracked by this
+module is specifically the active contract. Returns true on success, false (with a debug log) otherwise.
 
 ### `GetCurrentMission()`
 Returns the current mission object.
@@ -74,7 +92,14 @@ Returns the total time elapsed in prior sessions.
 - None
 
 ## Notes for modders
-- Ensure that play state transitions are handled correctly to maintain game balance and UI consistency.
-- Use `SetCurrentMission` to manage mission-related logic.
-- Customize music and UI settings by modifying the module's internal functions or extending them.
-- Be aware of the decompiled-source quirk in `IsValidState`, which always returns true due to incorrect logical operators.
+- **`Set` has real side effects beyond storing the value:** switching to `_knFree` clears `_oCurrMission`,
+  starts freeplay music ([`MrxMusic.EnterFreeplayMusic`](mrxmusic)) and the freeplay nag; switching to any
+  other state stops the nag. It also toggles whether the PDA map allows changing the tracked mission
+  (`Pda.Map:SetMissionChangeAllowed` — only allowed in free-play) and refreshes HQ objective markers. `Set`
+  no-ops (returns false) if the requested state equals the current one.
+- **`IsValidState` always returns `true`** (see its entry) — because of this, `Set` never rejects an `nState`
+  as invalid; the only reason `Set` returns false is the "already in this state" check.
+- **`GetTotalTimeElapsed`** falls back to `Sys.MainTime()` if the prior/this-session numbers aren't both
+  numbers — safe to call before `StartSessionTimer` has run.
+- **`Reset`** does more than clear state: it re-enters freeplay music and calls
+  [`MrxStarterManager.DestroyAllStarters`](mrxstartermanager). Call it on teardown, not mid-mission.

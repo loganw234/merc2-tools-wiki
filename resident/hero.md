@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [player, survival, tutorial]
 verified: true
-verified_note: confirmed all 26 top-level functions and all Event.* constants against 401-line source; noted SurvivalModeCallback is dead code (zero call sites anywhere in corpus, not the undefined-callback bug pattern); added untracked globals (uRiderEvent, nRiders, _uHideMessage, CueTable) to Instance pattern
+verified_note: "deeper pass: re-confirmed all 26 functions and Event.* constants against 401-line source; surfaced the health/survival tuning constants, pickup-marker sizes, transfer vehicle-label gate, and grapple-tutorial CueTable/string; SetTimeScale (do return end) and SurvivalModeCallback confirmed dead; replaced vacuous Notes boilerplate"
 ---
 
 # Hero
@@ -134,8 +134,37 @@ Disables the grappling hook trigger and shows a tutorial message if the player d
 - Listens for `Event.TimerRelative` to manage heal timers and tutorial message delays.
 - Posts custom events like `SurvivalMode`, `SurvivalCooldownEnded`.
 
+## Module constants & tunables
+All are file-scoped `local`s at the top of the source (values as decompiled):
+
+| Constant | Value | Role |
+| --- | --- | --- |
+| `nInitialDelay` | `7.5` | delay before the first heal pulse (out of survival) |
+| `nSurvivalDelay` | `4` | heal pulse spacing while in survival mode |
+| `nHealingFactor` | `0.03` | fraction of missing health regenerated per pulse (`×1.5` if attitude > 2) |
+| `nVehicleFactor` | `2` | heal multiplier while `Object.InSeat` |
+| `nTic` / `nMinTic` | `2.5` / `0.3` | derive the next-pulse interval (`Math.max(nTic/nHeal, nMinTic)`) |
+| `nSurvivalThreshold` | `10` | health below which survival mode starts / at or above which it ends |
+| `nSurvivalCooldown` | `3` | seconds of invincible red-screen before survival kicks in (`×1.5` if attitude > 2) |
+| `nSurvivalAlpha` | `100` | alpha of the red `FadeToColor` overlay |
+| `nMinTimeScale` / `nMaxTimeScale` | `1` / `0.45` | consumed only by the dead `SetTimeScale` — no effect in this build |
+
+Other hardcoded values: pickup markers are configured 3s after activate via
+`Gui.SetPickupMarkerVisibleDistance(20, false)` and `Gui.SetPickupMarkerSize(18, ...)`. The grapple tutorial
+uses string `"[Tutorial.Grapple.Key1]"` and per-character VO cues in `CueTable`
+(`mattias→"Mattias.Grapple01"`, `jennifer→"Jen.Grapple"`, `chris→"Chris.Grapple01"`).
+
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage player-specific systems.
-- Customize health regeneration settings by adjusting constants like `nHealingFactor` and `nVehicleFactor`.
-- Use the transfer system to allow players to enter vehicles as passengers.
-- Be aware of tutorial message handling and disable conditions for specific equipment.
+- **Regen feel:** `nHealingFactor`, `nVehicleFactor`, `nTic`/`nMinTic`, and the two heal delays are the main
+  knobs for how fast/steady health comes back. Regen only applies to the **local** player.
+- **Survival mode:** `nSurvivalThreshold` sets the trigger/exit health; `nSurvivalCooldown` sets the
+  invincible window; `nSurvivalAlpha` tints the red overlay. Screen fades go through
+  [MrxGui](mrxgui)`.FadeToColor`/`.FadeFromColor` and audio through [MrxSound](mrxsound)`.BeginSurvivalMode`/`.EndSurvivalMode`.
+- **Passenger transfer** (`SetupTransferSystem`/`EnterPassengerCallback`): only vehicles labelled `"Car"` or
+  `"Truck"` are eligible, and the seat must have a driver-seat link; edit those checks to widen support.
+  Note the transfer event is a single shared `Event.CreatePersistent` (`uRiderEvent`) with a `nRiders`
+  refcount — genuinely global, not per-player.
+- **Dead code to ignore:** `SetTimeScale` opens with `do return end` and `SurvivalModeCallback` has an empty
+  body with no callers — neither runs. Don't wire mod logic through them expecting an effect.
+- **Grapple tutorial:** `DisableGrappleTriggered` only fires if the player lacks `"GrapplingHook"`
+  (`MrxPmc.HasEquipment`). Change `CueTable` / the `"[Tutorial.Grapple.Key1]"` string to alter it.

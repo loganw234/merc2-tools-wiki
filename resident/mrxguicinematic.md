@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, cinematic]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: fixed Imports (MrxGuiBase/MrxGui/MrxGuiManager/MrxSound, not MrxUtil); rewrote Events (removed hallucinated Event.ObjectHibernation/Event.InputEvent — only Event.Create(Event.TimerRelative)/Event.Delete are real; input is a "ControllerInput" widget handler); added net-sync, 01_VIK_01 subtitle special-case, and 30fps/fade tunables'
 ---
 
 # MrxGuiCinematic
@@ -14,11 +14,13 @@ verified_note: corrects the Instance pattern section (singleton, not per-uGuid -
 *Module: mrxguicinematic.lua*
 
 ## Overview
-The `MrxGuiCinematic` module is responsible for managing the display of cinematic movies and subtitles within the game's GUI. It provides functions to show, hide, and manage the lifecycle of these cinematic elements, including handling fade-in and fade-out animations, subtitle rendering, and input events.
+The `MrxGuiCinematic` module is responsible for managing the display of cinematic movies and subtitles within the game's GUI. It provides functions to show, hide, and manage the lifecycle of these cinematic elements, including handling fade-in and fade-out animations, subtitle rendering, and input events. The actual widget tree it drives (the "Cinematic Placeholder" root, its movie/subtitle/text children) is defined in the paired layout file [MrxGuiCinematicLayout](mrxguicinematiclayout), which binds this module's `_HandleInitializationEvent` and `_InitializeSubtitleBuffer` to those widgets.
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`
+- Imports: `MrxGuiBase`, `MrxGui`, `MrxGuiManager`, `MrxSound` (the source's `import(...)` lines — the previous draft's "MrxUtil" was wrong)
+
+See [MrxGuiBase](mrxguibase) (widget/animation primitives, `Joystick` button constants, control focus), [MrxGui](mrxgui) (fade helpers), [MrxGuiManager](mrxguimanager) (`ToggleHud`/`GetHudState`), and [MrxSound](mrxsound) (`EnterCinematicState`/`ExitCinematicState`).
 
 ## Instance pattern
 **Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry anywhere
@@ -149,24 +151,42 @@ This function handles the update of subtitles based on the elapsed time (`nDelta
 
 ## Events
 
-- **`Event.ObjectHibernation`**: Listens for object hibernation events to manage widget visibility and resource cleanup.
-- **`Event.InputEvent`**: Handles input events, such as button presses, to control movie playback and hiding.
-- **`Event.TimerRelative`**: Used for timing fade-in and fade-out effects, subtitle updates, and other timed actions.
+The only real event-system call in this file is a **retry timer**: when `ShowMovie` is asked to play
+while a movie is already visible/fading, it schedules itself again in 0.05 s via
+`Event.Create(Event.TimerRelative, {0.05}, ShowMovie, {...})`, storing the handle on
+`oWidget.retryEvent`; `_Hide` cancels it with `Event.Delete`. There are **no** `Event.ObjectHibernation`
+or `Event.InputEvent` subscriptions — the previous draft invented those.
+
+Everything else is widget-level, not `Event.*` engine events:
+- **Input** is wired with `oWidget:SetEventHandler("ControllerInput", _HandleInputEvent)`; the skip
+  button is `MrxGuiBase.Joystick.BUTTON_PAD2_D`, and only fires on the server / in single-player.
+- **Subtitle ticking** uses `oSubtitle:SetEventHandler("GuiUpdate", HandleSubtitleUpdate)` — a per-frame
+  GUI callback, not a timer.
+- **Multiplayer sync**: the server calls `Net.SendEvent_ShowMovie(sFile, nFadeInTime, nFadeOutTime, bSubtitles)`
+  on start and `Net.SendEvent_HideMovie()` on hide, so clients mirror the cinematic; clients that don't
+  yet have subtitles loaded bail early instead of playing unsynced.
 
 ## Notes for modders
 
-1. **Call Order Requirements**:
-   - Ensure that `ShowMovie` or `Show` is called before attempting to play or pause the movie.
-   - Subtitle data should be properly formatted and passed to `ShowMovie` if subtitles are enabled.
-
-2. **Pitfalls**:
-   - Do not attempt to directly manipulate widget properties without using the provided functions, as this can lead to inconsistent state management.
-   - Be cautious with subtitle timing; ensure that subtitle events do not overlap or conflict with each other.
-
-3. **Tunables**:
-   - Adjust `nFadeInTime` and `nFadeOutTime` parameters in `ShowMovie` and `Show` functions to control the duration of fade effects.
-   - Modify subtitle display times within the subtitle data table to fine-tune when subtitles appear on screen.
-
-4. **Decompiler Artifacts**:
-   - Unused parameters (`oUnused`, `nPlaceholder`) are present in some internal functions but do not affect functionality.
-   - Local variables that appear unused or are assigned but never read may be due to decompiler artifacts and can be ignored.
+- **Movies are Scaleform `.gfx` clips**, set by name with `oMovie:SetMovie(sFile)`. `sFile` is the movie
+  identifier (e.g. `"01_VIK_01"`), not a `.md`/texture path.
+- **Subtitle files are loaded dynamically** via `dynamic_import("Subtitles_" .. sFile, ...)`. There is one
+  hard-coded special case: movie `"01_VIK_01"` loads subtitle module `"TECHNOV"` instead of
+  `"Subtitles_01_VIK_01"`. If you add a movie and want subtitles, ship a matching `Subtitles_<name>` module
+  (returning a `SubtitleData` table) or pass `tSubtitles` directly.
+- **Subtitle table row format** (confirmed from `HandleSubtitleUpdate`): `{startTime, text, duration, bSuper}`.
+  `startTime` is compared against movie time; `bSuper` (index 4) routes the line to the top "supersubtitle"
+  band and, when false, the line is also skipped entirely if the player has subtitles disabled
+  (`Sys.SubtitlesEnabled()`). Default duration if `[3]` is nil is `3` seconds.
+- **Movie time is derived from frame count** as `0.033333335 * oMovie:GetCurrentFrame()`, i.e. the code
+  assumes **30 fps** — subtitle `startTime` values are in that 30-fps timebase.
+- **Fade tunables**: `nFadeInTime`/`nFadeOutTime` default to **0.2 s** when not a number (in both `Show` and
+  `ShowMovie`). `Show` also pins subtitle/text baseline at `nBottom = 400`.
+- **`Show` vs `ShowMovie`**: `Show` displays a still texture + text (no `.gfx`); `ShowMovie` plays an actual
+  movie and, on the server, auto-hides via `oMovie:SetEndCallback(HideSlow, {oWidget})`. `Hide`/`HideSlow`
+  are the same function (aliased in `_HandleInitializationEvent`); `_Hide` is the immediate teardown.
+- **HUD is force-off during playback**: `_ActivateCinematicState` records each player's HUD state in
+  `CustomData.tHudStates` and restores it on hide via `MrxGuiManager.ToggleHud(uPlayer, true)`. It also
+  requests game state `"cinematic"` (restored to `"ingame"` on hide) and toggles `MrxSound` cinematic state.
+- **Decompiler artifacts**: `oUnused`/`nPlaceholder` params on some internal callbacks are unused; the local
+  `sTexture` referenced in `ShowMovie` is never assigned there (dead branch). Harmless — don't rely on them.

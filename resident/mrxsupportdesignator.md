@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, economy]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory via Create(self, oNewDesignator)/setmetatable, same pattern as MrxSupport -- not per-uGuid, no tInstance registry)
+verified_note: "deeper pass: confirmed all functions/tables against source; cross-linked the 5 subtypes + Airstrike.EquipDesignator; documented the per-type field matrix (sDesignationType/sAATestLevel/validation/GetType) so the variants read as a family"
 ---
 
 # MrxSupportDesignator
@@ -14,11 +14,22 @@ verified_note: corrects the Instance pattern section (class-factory via Create(s
 *Module: mrxsupportdesignator.lua*
 
 ## Overview
-The `MrxSupportDesignator` module is a base class for support designators in the game. It handles the designation of drop zones and landing zones for various types of cargo and delivery vehicles. This module is crucial for managing the logistics of air strikes and supply drops.
+`MrxSupportDesignator` is the base class for the five things a player throws/places to mark a strike target: a [beacon](mrxsupportdesignatorbeacon), a [flare](mrxsupportdesignatorflare), a [laser](mrxsupportdesignatorlaser) painter, a [satellite](mrxsupportdesignatorsatellite) mini-game mark, or [smoke](mrxsupportdesignatorsmoke). It owns the shared machinery — target coordinates, the completion-callback list, drop-zone/landing-zone validation, and equipping the physical designator weapon — while each subtype overrides `Create`/`GetType` and (some) `Commence` to add its own behavior. A [`MrxSupport`](mrxsupport) strike holds one designator instance and fires its `DesignationCallback` when the designator completes.
+
+## The five subtypes at a glance
+Every subclass just re-runs `Create` to stamp a fixed set of fields, then overrides `GetType`. The differences that matter:
+
+| Subtype | `sDesignationType` | `sAATestLevel` | `fValidationFunction` | Notable extra |
+|---|---|---|---|---|
+| [Beacon](mrxsupportdesignatorbeacon) | `"Beacon Designator"` | `"jammer"` | `nil` | `bDesignateOnDeath = false` |
+| [Flare](mrxsupportdesignatorflare) | `"Flare Designator"` | `"none"` | `ValidateWaterDropZone` | spawns `"Flare Projectile Stage 2"` on complete |
+| [Laser](mrxsupportdesignatorlaser) | `"Laser Designator"` | `"medium"` | (inherited) | custom `Commence` + `LaserFinished` (fuel/recruit checks) |
+| [Satellite](mrxsupportdesignatorsatellite) | `"Satellite Designator"` | (per-support) | (inherited) | PDA-map mini-game, cost, zoom |
+| [Smoke](mrxsupportdesignatorsmoke) | `"Smoke Designator"` | `"basic"` | `ValidateGroundDropZone` | colored smoke emitter, 10s lifetime, net-synced |
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: none
+- Imports: none (calls the [Airstrike](../namespaces/airstrike) engine namespace for `EquipDesignator`)
 
 ## Instance pattern
 **Not per-`uGuid` — same class-factory pattern as [`MrxSupport`](mrxsupport)**: `Create(self, oNewDesignator)`
@@ -111,7 +122,10 @@ Returns the parent support object that owns this designator.
 Configures the designator with options provided in a table. If an option is not present in the table, it retains its current value.
 
 ### `Commence(self, bFireImmediately)`
-Starts the designation process by equipping the designator and setting the reserve ammo for the weapon. Returns the GUID of the equipped weapon or `false` if the owner is invalid.
+Starts the designation process. Calls `Airstrike.EquipDesignator(self.uOwner, self.sDesignationType, nil, nil, bFireImmediately)` to give the player the physical designator item, then `Weapon.SetReserveAmmo(self.uWeaponGuid, 1)` so it's a single-use throw. Returns the equipped weapon guid, or `false` if `uOwner` isn't a `userdata` handle. The [Laser](mrxsupportdesignatorlaser) and [Satellite](mrxsupportdesignatorsatellite) subtypes override this to pass their own completion callback into `EquipDesignator` instead of `nil`.
+
+{: .note }
+> `Airstrike.EquipDesignator` is a real engine call used by every designator subtype but is **not yet documented on the [Airstrike](../namespaces/airstrike) namespace page** (that page enumerates only `SpawnOrdnance`/`SpawnTargettedOrdnance` from grepped call sites). Confirmed signature from usage: `uWeaponGuid = Airstrike.EquipDesignator(uOwner, sDesignationType, fCompleteCallback, tCallbackData, bFireImmediately)`.
 
 ### `GetType(self)`
 Returns the type of the designator, which is "none" in this base class.

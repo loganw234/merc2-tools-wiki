@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [fuel, fx]
 verified: true
-verified_note: corrected Events section — OnStateChange is an engine-invoked lifecycle hook (naming convention shared with oilrig.lua/islandfortress.lua/others), not something this file subscribes to via Event.Create; only Event.TimerRelative is a real Event.Create call here
+verified_note: 'deeper pass: re-confirmed both functions; added a Module constants section (trigger state hash 0x7687DF41, emitters fx_EmitFlameOilrigTower/fx_EmitSmokeStack, 12-20s delay) and actionable Notes, cross-linked oilrig/islandfortress; prior Events fix (OnStateChange is an engine hook, only Event.TimerRelative is a real Event.Create) still holds'
 ---
 
 # Fueltank
@@ -34,7 +34,20 @@ Helper invoked only via the timer set up in `OnStateChange`. Stops the emitter n
 - `OnStateChange(uiGuid, uiNodeHashName, uiStateHashName)` is an engine-invoked callback, not something this file registers with `Event.Create` — the same naming/signature convention appears across other resident files (e.g. `oilrig.lua`, `islandfortress.lua`). No `Event.StateChange` constant is referenced anywhere in this file.
 - `Event.TimerRelative` — the only real `Event.Create` call in this file, used to delay `_StartSmoke` after the flame starts.
 
+## Module constants & tunables
+- Trigger state hash: `"0x7687DF41"` — `OnStateChange` only reacts when the incoming state hash stringifies to
+  this value; every other state is ignored.
+- Emitters (looked up via `ObjectState.GetStringHash`): flame `"fx_EmitFlameOilrigTower"` (started on the
+  trigger) then `"fx_EmitSmokeStack"` (swapped in by `_StartSmoke`). Swap these two strings to re-skin the
+  burn.
+- Flame-to-smoke delay: `Math.randf(12, 20)` seconds (inline literal).
+
 ## Notes for modders
-- Ensure that `OnStateChange` is called appropriately to manage the visual effects of the fuel tank.
-- Customize the flame and smoke emitters by modifying the associated effect names in the code.
-- Be aware that the random timer interval affects when the smoke emitter starts.
+- The two emitter template strings are the whole mod lever here — change `"fx_EmitFlameOilrigTower"` /
+  `"fx_EmitSmokeStack"` to alter the flame/smoke visuals, or the `Math.randf(12, 20)` range to change how long
+  the flame burns before it becomes a smoke stack.
+- `OnStateChange` is engine-invoked and gated on the exact hash `"0x7687DF41"`; if you retarget it to a
+  different world-state, change that literal to match the new state's hash.
+- The same `OnStateChange(uiGuid, uiNodeHashName, uiStateHashName)` emitter-swap convention shows up on
+  [oilrig](oilrig) and [islandfortress](islandfortress) — those are the pages to compare against for the
+  wider destructible-FX pattern.

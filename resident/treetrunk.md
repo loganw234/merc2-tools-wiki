@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [tree, animation]
 verified: true
-verified_note: removed fabricated Event.ObjectStateChange claim (file only references Event.ObjectIsReady; OnStateChange is engine-invoked by naming convention) and corrected the Inheritance/Imports line (String/Object are engine namespaces, not imported modules)
+verified_note: 'deeper pass: re-confirmed the whole file (2 functions, one Event.ObjectIsReady subscription); surfaced the two trigger state names + the "global_env_treeplaza03_anim" material anim; documented the near-identical relationship to treetrunkpalm (different anim name, no debug line); cross-linked treetrunkpalm/Object/Event namespaces.'
 ---
 
 # Treetrunk
@@ -14,7 +14,13 @@ verified_note: removed fabricated Event.ObjectStateChange claim (file only refer
 *Module: treetrunk.lua*
 
 ## Overview
-The `Treetrunk` module is responsible for handling the state changes of tree trunks in the game. Specifically, it triggers animations when a tree trunk transitions into a "FireDebrisState" or "FireDestroyedState". This helps in visually representing the destruction and debris left after a fire.
+The `Treetrunk` module is a small set-dressing script: when a tree trunk enters a fire state
+(`"FireDebrisState"` or `"FireDestroyedState"`), it plays a material animation on the trunk to show
+the charred/debris look. That's the whole module — two functions, one deferred animation.
+
+This is nearly identical to its sibling [`treetrunkpalm`](treetrunkpalm); the only real differences
+are the animation name (`global_env_treeplaza03_anim` here vs. `global_env_treepalm_anim`) and that the
+palm version also prints a debug line. See "Module constants" below.
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
@@ -26,10 +32,14 @@ This is a stateless utility module. It does not track any per-instance state; in
 
 ## Functions
 ### `OnStateChange(uiGuid, uiNodeHashName, uiStateHashName)`
-Called when the state of an object changes. If the new state is either "FireDebrisState" or "FireDestroyedState", it schedules `_PlayMaterialAnims` to be called once the object is ready.
+Engine lifecycle callback. Compares `uiStateHashName` against `String.GetHash("FireDebrisState")` and
+`String.GetHash("FireDestroyedState")` (i.e. it hashes the state *name* strings and compares hashes,
+rather than converting the incoming hash to a string). On a match it schedules `_PlayMaterialAnims`
+via `Event.ObjectIsReady`. `uiNodeHashName` is unused.
 
 ### `_PlayMaterialAnims(uiGuid)`
-Plays a material animation on the specified tree trunk object (`uiGuid`). The animation used is "global_env_treeplaza03_anim".
+Calls [`Object.PlayMaterialAnimation(uiGuid, "global_env_treeplaza03_anim", false)`](../namespaces/object)
+— the trailing `false` means non-looping (play once).
 
 ## Events
 - `Event.ObjectIsReady` (in `OnStateChange`, via `Event.Create`) — the only `Event.*` call in this file.
@@ -39,7 +49,14 @@ Plays a material animation on the specified tree trunk object (`uiGuid`). The an
   directly by the engine as a naming-convention callback on the world-object script, the same way
   `OnActivate`/`OnDeath` are called on other modules.
 
+## Module constants & tunables
+- **Trigger states**: `"FireDebrisState"` and `"FireDestroyedState"` (compared as hashes via
+  `String.GetHash`). These are the authored object states that fire the animation.
+- **Material animation**: `"global_env_treeplaza03_anim"`, played once (non-looping).
+
 ## Notes for modders
-- Ensure that the tree trunk's state transitions are correctly handled in your game logic.
-- Customize the animation by changing the animation name in `_PlayMaterialAnims`.
-- Be aware of any potential performance impacts from frequent state changes and animations.
+- Change the animation by editing the `"global_env_treeplaza03_anim"` string in `_PlayMaterialAnims`;
+  change *when* it plays by editing the two state names in `OnStateChange`.
+- The animation is deliberately deferred with `Event.ObjectIsReady` — the object may not be ready to
+  animate at the instant its state changes, so don't call `Object.PlayMaterialAnimation` directly from
+  `OnStateChange`.

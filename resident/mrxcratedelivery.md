@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupportDelivery
 tags: [support, delivery]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: corrected the Events section (parent has no "Awake" function; the real chain is ObjectHibernation/ObjectWinched via MrxSupportDelivery), documented that this is the workhorse ground-crate subclass used by ~90 catalog items, and replaced boilerplate notes with the ground-drop-zone-validation + blue-smoke + AA-off specifics'
 ---
 
 # MrxCrateDelivery
@@ -14,11 +14,17 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxcratedelivery.lua*
 
 ## Overview
-The `MrxCrateDelivery` module is a specialized support delivery system for ground-based cargo drops. It inherits from the base `MrxSupportDelivery` class and adds specific behaviors such as ground drop-zone validation, blue smoke markers, and disabling anti-aircraft (AA) tests.
+`MrxCrateDelivery` is the ground-crate variant of the standard helicopter cargo delivery, and the workhorse
+of the supply-drop economy — [`MrxSupportData`](mrxsupportdata) instantiates it for the overwhelming
+majority of catalog items (every `Supply` crate, plus most `Light`/`Heavy`/`Civilian` vehicle drops that
+arrive winched under a copter). Like [`MrxBoatDelivery`](mrxboatdelivery) it's a thin subclass of
+[`MrxSupportDelivery`](mrxsupportdelivery): the whole file is one `Create`. All delivery logic is inherited;
+this module only sets a **ground drop-zone validation** function on the designator, blue smoke, and disables
+AA testing.
 
 ## Inheritance
-- Inherits from: `MrxSupportDelivery`
-- Imports: `MrxSupportDesignator`
+- Inherits from: [`MrxSupportDelivery`](mrxsupportdelivery)
+- Imports: [`MrxSupportDesignator`](mrxsupportdesignator)
 
 ## Instance pattern
 **Same class-factory pattern as [`MrxSupportDelivery`](mrxsupportdelivery), not per-`uGuid`** —
@@ -29,15 +35,28 @@ cargo and vehicle, configuring the designator, and handling specific validation 
 
 ## Functions
 ### `Create(oSelf, uOwnerGuid)`
-Constructs a new per-instance table for the crate delivery system. It initializes the base support delivery with the specified owner GUID, sets the cargo to deliver, configures the delivery vehicle, and applies specific settings such as ground drop-zone validation, blue smoke markers, and disabling AA tests.
+The only function in the file. Calls `MrxSupportDelivery:Create(uOwnerGuid)` for the base object, then
+copies the caller-prototype's cargo (`SetCargo(oSelf.sCargoToDeliver)`), delivery vehicle
+(`SetDeliveryVehicle(oSelf.sDeliveryVehicle)`) and careless flag (`SetCareless(oSelf.bCareless)`) onto it.
+It then reconfigures the **existing** designator (the blue-smoke one the parent already built — fetched via
+`GetDesignator()`, not replaced): installs `MrxSupportDesignator.ValidateGroundDropZone` as the validation
+function, sets smoke color `"blue"`, and AA test level `"none"`. Sets the module name and returns the object.
 
 ## Events
-- Listens for `Event.ObjectHibernation` (inherited from `MrxSupportDelivery`) to call `Awake` when the object leaves hibernation.
-- Inherits other event handling functions from `MrxSupportDelivery`.
+None of its own. The delivery sequence — `Event.ObjectHibernation` (heli wake, then cargo wake) and
+`Event.ObjectWinched` (`"Detach"` → cargo dropped) — is entirely inherited from
+[`MrxSupportDelivery`](mrxsupportdelivery)'s `_DesignatorCallback` → `_DeployWinch` → `_WaitCallback` →
+`CargoDropped` chain. (There is no `Awake` function anywhere in the parent; an earlier version of this page
+claimed one.)
 
 ## Notes for modders
-- Ensure that the `Create` function is called with the appropriate owner GUID to properly initialize the delivery system.
-- Customize the cargo and vehicle by setting the `sCargoToDeliver` and `sDeliveryVehicle` fields before calling `Create`.
-- The ground drop-zone validation ensures that the drop location is suitable for a ground-based delivery. Modders should be aware of this behavior if they need to override or extend it.
-- Blue smoke markers are used during the delivery process, which can be useful for visual feedback in the game world.
-- Disabling AA tests means that anti-aircraft defenses will not interfere with the delivery process, which is specific to ground-based deliveries.
+- **Cargo/vehicle come from the caller's prototype**, not from fields you set on the returned object. The
+  catalog ([`MrxSupportData`](mrxsupportdata)) configures `SetCargo(...)`, optionally
+  `SetDeliveryVehicle("Mi26 (PMC) (Driver)")` for heavy vehicles, and `SetCareless(true)` for crates, all on
+  the prototype before `Create` copies them across.
+- **Ground drop-zone validation** (`MrxSupportDesignator.ValidateGroundDropZone`) is the crate-specific
+  gate — a designation over water/invalid terrain is rejected. Swap or clear the validation function on the
+  designator if you need to allow other terrain.
+- **Drop mechanics live on the parent** — for drop height (and its documented `SetCargoDropHeight` bug),
+  cargo random-selection from a list, and the winch/`Ai.Deliver` sequence, see
+  [`MrxSupportDelivery`](mrxsupportdelivery).

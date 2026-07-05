@@ -13,7 +13,7 @@ tags: [task, delivery]
 
 verified: true
 
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — REPLACED a fabricated Events section (OnActivate/OnDeactivate/OnDeath/OnUse/OnEnter/Event.PlayerInVehicle none exist) with the real events (ObjectDeath, ObjectProximity, Boundary, HumanStateTransition, ObjectWinched, ObjectInSeat, ScriptEvent); corrected imports (MrxFollow/MrxUtil/MrxTutorialManager); surfaced config tunables (fDist default 5, bStop, bDetach, bUseDestRing, bHumansFollow, vDestLoc/vDestRegion) and NETEVENT_* codes
 
 ---
 
@@ -35,28 +35,29 @@ The `MrxTaskObjectiveDeliver` module is responsible for managing task objectives
 
 ## Inheritance
 
-- Inherits from: `MrxTaskObjective`
-- Imports: `MrxUtil`
+- Inherits from: [`MrxTaskObjective`](mrxtaskobjective)
+- Imports: [`MrxFollow`](mrxfollow), `MrxUtil`, [`MrxTutorialManager`](mrxtutorialmanager)
 
 
 
 ## Instance pattern
 
 **Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
-inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
-rather than a world-object GUID. Key fields tracked via the config table:
+inherited from [`MrxTask`](mrxtask); see that page). Real per-instance fields used here:
 
-- `sGlobalDiscCount`: A global counter used to generate unique IDs for destination blips.
+- `self._tTargets[uGuid]` — inherited target table, extended with delivery bookkeeping per target
+  (`oFollower`, `tEvents`, `bAtDestination`, `bWinched`, `bPlayerInVehicle`, `bIsLabelFilter`, `uMarker`).
 
-- `tTargetData`: Table containing data about targets, including their GUIDs and delivery status.
+- `self._iNumAttached` — count of targets currently "attached" (following/winched/ridden); drives when the
+  destination blip turns on.
 
-- `nAttachedTargets`: Number of currently attached targets.
+- `self.uRing` — the [`Marker`](../namespaces/marker) disc drawn around the destination when
+  `bUseDestRing` is set; `self.discCount` its slot id.
 
-- `bDestinationBlipEnabled`: Boolean indicating whether the destination blip is enabled.
-
-- `bTargetBlipsEnabled`: Boolean indicating whether target blips are enabled.
-
-- `tConfig`: Configuration settings for the task objective, including delivery type and criteria.
+{: .warning }
+> `sGlobalDiscCount = 1` is a **module-level global**, not a per-instance field — it is a shared counter
+> (wrapping at `8192`) for destination-ring ids across *all* live deliver objectives. `NETEVENT_EXITVEHICLE`
+> / `NETEVENT_UNWINCH` / `NETEVENT_CLEARTUTORIAL` are likewise module globals (`0`/`1`/`5`).
 
 
 
@@ -490,36 +491,52 @@ rather than a world-object GUID. Key fields tracked via the config table:
 
 ## Events
 
+All are `Event.Create` / `Event.CreatePersistent`, chosen per target kind. Which fire depends on the target
+(player / human / vehicle / object / label filter):
 
+- **`Event.ObjectDeath`** (persistent, on the target filter) → an inline handler or `_OnStatusChange` with
+  `"destroyed"` — cancels delivery when the carried target dies.
 
-- **`OnActivate(uGuid, uRuntimeOwner, iArg)`**: This module listens for this event to initialize the task objective when it is activated.
+- **`Event.ObjectProximity`** (`vDestLoc`) / **`Event.Boundary`** (`vDestRegion`) → `_TargetAtDestination`
+  / `_TargetLeftDestination` / `_TargetDelivered` — the core "did it reach the drop-off?" test.
 
-- **`OnDeactivate(uGuid)`**: This module listens for this event to clean up resources and deactivate the task objective.
+- **`Event.HumanStateTransition`** (`"*"` → `"subdued.idle"`) → `_OnStatusChange` `"subdued"` — a followed
+  human being knocked out.
 
-- **`OnDeath(uGuid)`**: This module listens for this event to handle the death of a target object, which may trigger cleanup or status updates.
+- **`Event.ObjectWinched`** (persistent) → `_OnObjectWinched` — track/attach state for winched cargo.
 
-- **`OnUse(uGuid, ...)`**: This module listens for this event if there are specific interactions with the task objective that need handling.
+- **`Event.ObjectInSeat`** → `_OnPlayerInVehicle` — whether a player is still in the delivered vehicle.
 
-- **`OnEnter` / `OnExit`**: These events are not explicitly mentioned but could be used to handle player or trigger volume enter/exit related to the delivery task.
+- **`Event.ScriptEvent`** (`"mpPlayerLeft"`) → re-fires `_OnPlayerInVehicle` when a remote player drops out
+  of a target vehicle in co-op.
 
-- **`OnStateChange`**: This module listens for state changes in targets, such as attachment status or winch state, to update delivery status accordingly.
+{: .warning }
+> A previous version of this page listed `OnActivate`/`OnDeactivate`/`OnDeath`/`OnUse`/`OnEnter`/`OnExit`/
+> `OnStateChange`/`OnPlayerJoined`/`OnPlayerLeft` and `Event.PlayerInVehicle` here. **None of those exist in
+> this file** — they were fabricated. The real events are the ones listed above.
 
-- **`OnPlayerJoined` / `OnPlayerLeft`**: These events are not explicitly mentioned but could be used to handle player session changes affecting the delivery task.
-
-- **`Event.ObjectWinched`**: This module listens for this event to handle when an object is winched, which may affect its delivery status.
-
-- **`Event.PlayerInVehicle`**: This module listens for this event to handle when a player enters or exits a vehicle, which may affect vehicle delivery checks.
-
-
+`NetEventCallback(nEventType, tArgs)` is the module's custom-net handler (`NETEVENT_EXITVEHICLE`/`UNWINCH`/
+`CLEARTUTORIAL`) driving the "[objective.Deliver.*]" tutorial hints via
+[`MrxTutorialManager`](mrxtutorialmanager) — not an engine event subscription.
 
 ## Notes for modders
 
+- **Destination is `vDestLoc` (a point, default proximity `fDist = 5`) or `vDestRegion` (a boundary
+  volume).** Label-filter deliveries (many objects, filtered by label) require a `vDestLoc` — delivering a
+  label filter to a *region* is explicitly unsupported (logs `"WARNING: Cannot deliver label filter to
+  region"`).
 
+- **Key config toggles** (all via `MrxUtil.SetDefault`): `bStop` (must be stationary to count, default
+  `true`), `bDetach` (default = `bStop`), `bXZOnly` (ignore height, default `false`), `bUseDestRing` (draw a
+  ground ring at the drop, default on when `bStop` and `vDestLoc`), `bHumansFollow` (escorted humans follow
+  the player, default `true`), `bDisplayHelpText` (tutorial nudges like "unwinch"/"exit vehicle", default
+  `true`).
 
-1. **Call-order requirements**: Ensure that the `Activated` function is called before any other functions to properly initialize the task objective.
+- **Delivering different target types takes different paths**: humans get an [`MrxFollow`](mrxfollow)
+  escort; vehicles must have the player *out* to count (`_VehicleDeliveryCheck`); winched objects must be
+  *un*winched (`_ObjectDeliveryCheck`). Wrong-state deliveries show the matching
+  `"[objective.Deliver.vehicleExit]"` / `"[objective.Deliver.winch]"` hint instead of completing.
 
-2. **Pitfalls**: Be cautious with enabling and disabling blips as it can affect player visibility of targets and destinations. Always ensure that cleanup functions are called when deactivating or deleting the task objective to avoid memory leaks or resource conflicts.
-
-3. **Tunables**: The module uses configuration settings for various behaviors, such as delivery checks and blip visibility. Modifying these settings can change how the task behaves in-game.
-
-4. **Decompiler artifacts**: There are no known decompiler artifacts affecting the functionality of this module. All functions and variables appear to be used correctly within the context of the script.
+- Destination blip art reuses the base action icons for the *carried* target and a distinct set for the
+  *destination* (`_GetDestinationRadarIcon` → `"objective_deliverable"`, world
+  `"HUD_objective_deliverable"`, PDA `"icon_deliverable_1_mc"`/`"_2_mc"`).

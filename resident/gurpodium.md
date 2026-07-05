@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [vehicle, speech]
 verified: true
-verified_note: corrected Events section — CueFinished is a plain VO.CueWithoutSubtitles callback, not an Event.Create listener; confirmed no Create/setmetatable anywhere (genuinely stateless, uGuid-keyed plain tables only); all 9 functions and event constants verified against source
+verified_note: "deeper pass: re-confirmed all 9 functions, the 3 Event.Create types (ObjectDeath/ObjectInSeat/TimerRelative) and the VO.CueWithoutSubtitles/VO.Cancel calls against source; surfaced the 5 hardcoded cue strings and 1.5s timer as tunables; replaced lifecycle boilerplate in Notes with actionable levers"
 ---
 
 # Gurpodium
@@ -57,7 +57,11 @@ Called when the vehicle dies. It cancels any ongoing speech cue and deactivates 
 Callback passed to `VO.CueWithoutSubtitles` (not an `Event.Create` listener — see Events below). Called when a speech cue finishes playing. Only runs its body if `tSpeechIndex[uGuid]` is still set (guards against a cue finishing after `OnDeactivate`/`OnExit` already cleared state). Increments the speech index, wraps from 6 back to 1, and schedules `StartNextCue` after a fixed 1.5s persistent-looping timer (`Event.TimerRelative, {1.5, true}`).
 
 ### `StartNextCue(uGuid)`
-Starts the next speech cue for the specified vehicle instance. If there is no speaker or the speech index is out of range, it logs an error message. It also sets up a timer event to handle the cue finishing.
+Starts the next speech cue for the vehicle. If a speaker exists, it plays `tSpeech[tSpeechIndex[uGuid]]` via
+`VO.CueWithoutSubtitles(uSpeaker, cue, CueFinished, {uGuid}, false, false)` — passing `CueFinished` as the
+completion callback. If there is no speaker it logs `"Starting cue on non-existent speaker"` via
+`Debug.Printf`. It then clears `myEvents.eStartNext` (the timer that fired it). Note: it does **not** create
+the finish timer — that is done in `CueFinished`.
 
 ### `CancelCue(uGuid)`
 Cancels any ongoing speech cue for the specified vehicle instance and deletes the associated timer event.
@@ -71,8 +75,19 @@ Cancels any ongoing speech cue for the specified vehicle instance and deletes th
 - `CueFinished` itself is **not** an engine event — it's passed as a plain function-pointer callback to
   `VO.CueWithoutSubtitles`, a voice-over system API, not `Event.Create`.
 
+## Module constants & tunables
+- **Speech cues** (`tSpeech`, defined in `Init`): a fixed array of 5 strings,
+  `"GuerillaSoldier_Rebecca01_Guerilla Soldier_Prop1"` through `Prop5`. Shared across all vehicles.
+- **Cue delay:** `1.5` seconds — the `Event.TimerRelative, {1.5, true}` gap between one cue finishing and
+  the next starting (in `CueFinished`).
+- **Wrap point:** index wraps from 6 back to 1 (`if tSpeechIndex[uGuid] > 5 then ... = 1`), i.e. the 5 cues
+  loop indefinitely while a rider is aboard.
+
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the lifecycle of speech cues.
-- Customize the list of speech cues by modifying the `tSpeech` array.
-- Be aware that speech cues are tied to specific rider characters, so ensure that the correct player is speaking at any given time.
-- The module uses a timer event to schedule the next speech cue after a delay; adjust the delay as needed for different pacing.
+- **Change what's said:** edit the 5 `tSpeech` strings in `Init` — they are voice-over cue names, spoken by
+  the rider character (`tSpeakers[uGuid]`) via `VO.CueWithoutSubtitles`.
+- **Change the pacing:** the `1.5` in `CueFinished` is the inter-cue delay; the `true` makes the
+  `Event.TimerRelative` looping/persistent.
+- **Speaker binding:** the current speaker is `tSpeakers[uGuid]`, set to the first rider found in
+  `OnActivate` (via `Vehicle.GetRiders`) or the entering rider in `OnEnter`. `OnExit`/`OnDeath` cancel the
+  in-flight cue via `VO.Cancel`.

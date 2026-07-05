@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [sound, initialization]
 verified: true
-verified_note: fixed fabricated Event.GameExit (no Event.* anywhere in source; ExitGame is a direct call from src/vz/xQ!L.lua:612, not event-driven); confirmed all 5 functions and no undefined callbacks
+verified_note: "deeper pass: corrected imports (added missing MrxSoundCategories), surfaced reverb preset 1/CITY_KG_LIGHT_REFLECTIONS and the seven default mu_src_radio cues; all 5 functions and the no-Event.* finding re-confirmed"
 ---
 
 # MrxSoundBootstrap
@@ -18,7 +18,9 @@ The `MrxSoundBootstrap` module is responsible for initializing and managing the 
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxSound`, `MrxMusic`, `MrxSoundBanks`
+- Imports: [`MrxSound`](mrxsound), [`MrxMusic`](mrxmusic), [`MrxSoundCategories`](mrxsoundcategories),
+  [`MrxSoundBanks`](mrxsoundbanks) (the previous version omitted `MrxSoundCategories`, which `Init` uses
+  heavily for its pitch/fade category setup)
 
 ## Instance pattern
 This is a stateless utility module (no per-instance tables). It does not track any specific state but manages global sound system settings and resources.
@@ -28,8 +30,9 @@ This is a stateless utility module (no per-instance tables). It does not track a
 ### Init()
 - **Description**: Initializes the sound system by defining reverb presets, setting pitch and fade categories, binding music cues for various factions and freeplay scenarios, enabling duck-on-global-table-load, loading required sound banks, registering music playlists, and initializing the sound engine.
 - **Steps**:
-  - Defines a reverb preset `CITY_KG_LIGHT_REFLECTIONS` with specific parameters.
-  - Sets the reverb preset based on the library version.
+  - Defines reverb preset `1` / `"CITY_KG_LIGHT_REFLECTIONS"` (`Sound.DefineReverbPreset`) with fixed
+    parameters.
+  - Selects it by name if `Sound._GetLibVersion() >= 10`, otherwise by numeric id `1`, then `Sound.SetReverb(1)`.
   - Configures pitch categories for different modes (e.g., survival mode).
   - Sets fade categories for various sound sequences and actions.
   - Binds music cues for multiple factions (`an`, `oc`, `gr`, `ch`, `pmc`) and freeplay scenarios (`freeplay_city`, `freeplay_jungle`, `freeplay_water`).
@@ -50,7 +53,11 @@ This function is responsible for loading various sound banks and wave banks rela
 This function unloads the same set of sound banks and wave banks that were loaded by `LoadBanks()`. It calls `MrxSoundBanks.UnloadWaveBank` and `MrxSoundBanks.UnloadSoundBank` with the corresponding bank names to free up resources when they are no longer needed.
 
 ### SetPmcRadio(sInsertedCue)
-This function sets up a music playlist for the PMC radio. It clears any existing playlist named "mu_src_radio" using `MrxMusic.ClearMusicPlaylist`. Then, it binds several predefined music cues to this playlist using `MrxMusic.BindPlaylistCue`. If an additional cue (`sInsertedCue`) is provided as an argument, it also binds this cue to the playlist. This function is used to manage the radio's music selection and ensure that the correct tracks are played.
+Rebuilds the `"mu_src_radio"` playlist. Clears it (`MrxMusic.ClearMusicPlaylist`), then re-binds the seven
+default PMC-HQ cues (`MU_SRC_PMC_HQ_01` through `_05`, plus `MU_SRC_UP_OP_04_for_HQ` and
+`MU_SRC_UP_OP_03_for_HQ`). If `sInsertedCue` is provided, it's bound last — so the extra cue is added on top
+of the standard rotation, not a replacement. Called once with no argument during `Init`, and repeatedly
+with a mission VO cue from the mission flow (see below).
 
 ## Events
 

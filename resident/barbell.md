@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: spot-checked against source (3-line file), no changes needed.
+verified_note: 'deeper pass: confirmed the whole 3-line source; clarified UnUse is an engine-invoked un-use callback (not an Event.* subscription), cross-linked the Object namespace, and pruned vacuous Notes boilerplate'
 ---
 
 # Barbell
@@ -14,22 +14,30 @@ verified_note: spot-checked against source (3-line file), no changes needed.
 *Module: barbell.lua*
 
 ## Overview
-The `Barbell` module provides a utility function to detach the barbell from an object that is holding it. This is likely used in scenarios where a player or another entity releases the barbell.
+The entire `barbell.lua` is a single function: when the player stops "using" the barbell prop, detach it
+from whoever was holding it. This is a minimal world-prop script — the barbell is a hold-and-carry object,
+and this is the one bit of scripted behaviour it needs.
 
 ## Inheritance
 - Inherits from: none — base/utility module
 - Imports: none
 
 ## Instance pattern
-This is a stateless manager/utility module with no per-instance fields.
+Stateless. No module-level tables, no per-`uGuid` bookkeeping, no `setmetatable`/`tInstance` factory — just
+one global function the engine calls.
 
 ## Functions
 ### `UnUse(objectGuid, holdersGuid)`
-Detaches the barbell identified by `objectGuid` from the object that is holding it, identified by `holdersGuid`. This function is called when the barbell is released or detached from its holder.
+Calls `Object.Detach(holdersGuid, objectGuid)` to release the barbell (`objectGuid`) from its holder
+(`holdersGuid`). `UnUse` is an engine-invoked lifecycle callback fired when the "use" interaction ends — it
+is **not** an `Event.*` subscription and is never called from within this file.
 
 ## Events
-- Listens for: none — this module does not subscribe to any engine events
+- Subscribes to: none. `UnUse` is an engine callback, not an `Event.Create` listener.
 
 ## Notes for modders
-- Ensure that `UnUse` is called appropriately when the barbell needs to be detached from its holder.
-- This function is a simple utility and does not have any additional side effects or dependencies.
+- The whole prop reduces to one `Object.Detach` call — see the [Object namespace](../namespaces/object) for
+  the attach/detach primitives (`Object.Attach`/`Object.Detach`) if you want to build a similar
+  pick-up/put-down prop.
+- Note the argument order: `Object.Detach(holdersGuid, objectGuid)` takes the **holder first**, then the
+  attached object — the reverse of the `UnUse(objectGuid, holdersGuid)` parameter order.

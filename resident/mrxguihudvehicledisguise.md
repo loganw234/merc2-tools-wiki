@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: re-confirmed all functions + zero Event.* calls; corrected Instance pattern (stateless module + per-widget CustomData, not singleton); surfaced the STATE_* enum, faction-GUID→texture map with real GUIDs, bar colors (gaining 255,102,102 / losing 200,255,200), pulse/name-time constants, default icon temp_radar_icon_pmc, and the Player.GetVehicleDisguise() visibility gate; noted dead _knMoveTime'
 ---
 
 # MrxGuiHudVehicleDisguise
@@ -18,19 +18,19 @@ The `MrxGuiHudVehicleDisguise` module is responsible for managing the vehicle di
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxGui`
+- Imports: `MrxGui` (via [`import("MrxGui")`](../glossary#importname)). Also calls the [Player](../namespaces/player) namespace (`Player.GetVehicleDisguise`) and `StringToGuid` (from [stdlib](../lua-bridge-api/stdlib)) for the faction GUID lookups.
 
 ## Instance pattern
-**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
-anywhere in source. This is one shared HUD element, not something spawned per world object. Key fields:
-- `nValue`: The current disguise level.
-- `nBasePoint`, `nRedPoint`: Animation points for color transitions.
-- `oIcon`, `oIconCross`: Widgets representing the faction icon and crossed-out icon, respectively.
-- `oBarBack`, `oBarFront`: Widgets representing the background and front of the disguise bar.
-- `oIdentifier`: Widget representing the vehicle name identifier.
-- `nLastDisguiseLevel`, `nNewDisguiseLevel`: Track the current and new disguise levels.
-- `bIsDisguised`, `bWasDisguised`: Flags indicating whether the vehicle is currently disguised.
-- `bPulse`: Flag indicating if red pulsing animation is active.
+**Stateless module + per-widget `CustomData`.** No `tInstance`/metatable. All state (`nValue`, `nBasePoint`/`nRedPoint` animation points, the child-widget references `oIcon`/`oIconCross`/`oBarBack`/`oBarFront`/`oIdentifier`, `nLastDisguiseLevel`/`nNewDisguiseLevel`, `bIsDisguised`/`bWasDisguised`, `bPulse`) lives in `oWidget.CustomData`, populated by `_Initialize`. Methods are copied onto the widget (`oWidget.SetDisguiseLevel = SetDisguiseLevel`, `oWidget.SetVehicleName = SetVehicleName`, `oWidget.PulseRed = _PulseRed`, etc.). The only true module-level names are the constants below and the `_tFactionTextures` map (built by `Init()`).
+
+### Module constants (the tunables)
+- `_knPulseTime = 0.4` — normal red-pulse half-cycle; `_knPulseTimeFast = 0.1` — used when disguise level `< 25` (urgent flashing as cover blows).
+- `_knMoveTime = 2` — **declared but never referenced** (dead constant).
+- `nVehicleNameTime = 3` — seconds the vehicle-name identifier stays up before auto-hiding.
+- **State enum** (module globals, used by `DisguiseUpdate`): `STATE_DISGUISED = 1`, `STATE_UNDISGUISED = 2`, `STATE_GAINING = 3`, `STATE_LOSING = 4`.
+- **Bar colors**: gaining disguise = `(255, 102, 102)` red-ish; losing disguise = `(200, 255, 200)` green-ish. The identifier auto-hides once disguise drops below `50` while disguised.
+- **Default/fallback icon**: `temp_radar_icon_pmc` (used when no faction or an unmapped faction is passed).
+- **`_tFactionTextures`** (faction GUID → HUD icon texture, built by `Init()` via `StringToGuid`): `0xbbc34ef4 → HUD_faction_AN` (Allies), `0x41359cce → HUD_faction_CH` (China), `0xe947b797 → HUD_faction_OC` (Oil), `0xb10d73ce → HUD_faction_GR` (Guerrilla/PLAV), `0xc18215fe → HUD_faction_PR` (Pirate), `0xdcc8b14d → HUD_faction_CV` (Civilian), `0xb4420059 → HUD_faction_VZ` (VZ), `0x30e4a26f → HUD_faction_PMC` (PMC).
 
 ## Functions
 ### `_Initialize(oWidget)`
@@ -85,12 +85,16 @@ Sets the text of the identifier widget to the provided name. If no name is provi
 Initializes the module by populating the `_tFactionTextures` table with faction GUIDs and their corresponding texture names.
 
 ## Events
-- Listens for `GuiUpdate` to call `DisguiseUpdate`.
-- Listens for custom event `HandleVehicleNameUpdate(oWidget, sName, uFaction)` to update the vehicle name.
-- Listens for custom event `HandleDisguiseUpdate(oWidget, nLevel, bDisguised)` to update the disguise level.
+
+{: .note }
+> No `Event.*` engine calls appear in this file. The wiring is widget event handlers via `SetEventHandler` (a widget `EventHandlers` key, not an engine `Event.*` constant):
+
+- `SetVehicleName` registers `"GuiUpdate"` → `DisguiseUpdate` when a name is set (per-frame bar/icon/state animation), and clears it (`SetEventHandler("GuiUpdate", nil)`) when the name is cleared.
+- `HandleVehicleNameUpdate(oWidget, sName, uFaction)` and `HandleDisguiseUpdate(oWidget, nLevel, bDisguised)` are handler-callback entry points (wired to named widget events in the HUD layout); they just forward to `SetVehicleName` / `SetDisguiseLevel`. `_HandleVehicleChange` similarly forwards to `SetVehicleName`.
 
 ## Notes for modders
-- Ensure that `_Initialize` is called appropriately to set up the widget's initial state.
-- Use `SetVehicleName` and `SetDisguiseLevel` to control the display of vehicle name and disguise level.
-- Customize faction icons by modifying the `_tFactionTextures` table.
-- Be aware that red pulsing animations can be controlled using `_PulseRed`, `_HaltPulse`, and related functions.
+- **Driving the display**: call `SetVehicleName(oWidget, sName, uFaction, bDisguised)` to show the panel (name + faction icon) and `SetDisguiseLevel(oWidget, nValue, bDisguised)` to update the meter (`nValue` is clamped to `0..100`). Passing `sName = nil` to `SetVehicleName` hides everything and unregisters the update handler.
+- **Final visibility is gated by `Player.GetVehicleDisguise()`**: even after `DisguiseUpdate` decides which children to show, all four (icon, cross, bar front/back) are `SetVisible(Player.GetVehicleDisguise())`. If that returns false the panel stays hidden regardless — this is the master on/off for the whole disguise HUD.
+- **Re-skin faction icons**: edit the texture names in `_tFactionTextures` (`Init()`). The keys are faction GUIDs decoded from hash strings via `StringToGuid` — to add a faction, add its GUID hash and a `HUD_faction_*` texture.
+- **Pulse tuning**: `_PulseRed`/`_PulseRedLoop`/`_HaltPulse` drive the low-disguise red flash. It speeds up (`_knPulseTimeFast = 0.1` vs `_knPulseTime = 0.4`) once `nLastDisguiseLevel < 25`. `_HaltPulse(oWidget, true)` snaps back to base color immediately.
+- **State thresholds**: the identifier text hides when disguise `< 50` while disguised; the undisguised "crossed-out icon" shows for `1`s (`nIconTimeUntilHide`) then hides. Adjust those literals in `DisguiseUpdate` to change the feedback timing.

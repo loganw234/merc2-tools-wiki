@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [pickup, support]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: corrected Events section (ObjectInSeat is Event.ObjectInSeat not a "custom event"; DesignationCallback is the framework hook), surfaced the tCues per-faction Land/Inc/Leave VO table + tFactionToId map + the pluggable-callback set, noted the 30s auto-return timeout; all functions re-confirmed'
 ---
 
 # MrxSupportPickup
@@ -14,11 +14,23 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsupportpickup.lua*
 
 ## Overview
-The `MrxSupportPickup` module manages the extraction helicopter support system in the game. It handles the spawning, landing, and destruction of the extraction heli, as well as managing voice-over cues for different factions. The module also supports pluggable callbacks for various events related to the heli's lifecycle.
+The `MrxSupportPickup` module manages the extraction helicopter support system: it flies an extraction heli
+to a designated point, lands it, waits for a prisoner/passenger to board, and returns home. It handles
+spawning, landing, destruction, and per-faction voice-over, and exposes a set of **pluggable callbacks** so
+mission scripts can hook the heli's lifecycle (spawned / landed / damaged / destroyed / pilot-killed). It
+inherits from [`MrxSupport`](mrxsupport). [`MrxSupportData`](mrxsupportdata) wires one instance per faction as
+the `Extraction_*` freebies, and [`MrxChiCon001Rescue`](mrxchicon001rescue) subclasses it.
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportManager`, `MrxSupportDesignatorSmoke`, `MrxUtil`, `MrxTutorialManager`, `MrxVoSequence`, `MrxFactionManager`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: `MrxSupportManager`, [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke), `MrxUtil`, `MrxTutorialManager`, `MrxVoSequence`, `MrxFactionManager`
+
+Module constants (file scope): `sDeliveryVehicle = "UH1 Transport (PMC) (Driver)"`; `nAltitude = 250`
+(declared but unused — spawn height comes from `MrxSupport.GetSpawnHeight()`); `tCues`, a per-faction table
+of extraction VO cues split into `Land`/`Inc`/`Leave` sub-lists (`Allied`/`China`/`Guerilla`/`OC` full;
+`Pirate`/`PMC` have only `Inc`); and `tFactionToId`, mapping engine faction names to the short IDs used for
+`SetFaction` (`Allied`→`All`, `China`→`Chi`, `Guerilla`→`Gur`, `OC`→`Oil`, `Pirate`→`Pir`, `PMC`→`Pmc`,
+`VZ`→`Vza`, `Civ`→`Civ`).
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uOwnerGuid)` builds a new
@@ -73,12 +85,32 @@ Handles the callback when the heli lands. Sets up idle roles for the driver and 
 Handles the callback when the driver exits the helicopter. Cleans up any events and callbacks associated with the heli and pilot.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `_WaitCallback` after the heli leaves hibernation.
-- Listens for custom event `ObjectInSeat` to handle the exit of the driver from the helicopter.
-- Listens for `Event.ObjectDeath` to handle the destruction of the heli or pilot.
+Confirmed from source. `DesignationCallback` is the [`MrxSupport`](mrxsupport) framework hook (spawns the
+heli), not an event. Real subscriptions, all set up in `_WaitCallback` / `_VehicleLanded` and torn down in
+`DriverExited`:
+
+- **`Event.ObjectHibernation`** (`"awake"`) — heli wakes → `_WaitCallback`.
+- **`Event.ObjectHealth`** — if a heli-damaged callback was registered, fires it once health drops by 25
+  (`Object.GetHealth(uHeli) - 25`).
+- **`Event.ObjectDeath`** — on the heli (heli-destroyed CB) and on the pilot (via the inherited
+  `MrxSupport.SetupPilotKilledEvent`, plus an optional pilot-killed CB).
+- **`Event.ObjectInSeat`** — two handles in `_VehicleLanded`: `("Prisoner", uHeli, "Any", "Enter")` →
+  `MrxSupport.GoHome` (someone boarded, leave), and `("Human", uHeli, "Driver", "x")` → `DriverExited`
+  (cleanup).
+- **`Event.TimerRelative`** `{30}` — if nobody boards within 30s, `MrxSupport.GoHome` sends the heli back.
 
 ## Notes for modders
-- Ensure that callbacks are set up correctly using `SetHeliDestroyedCB`, `SetPilotKilledCB`, etc., to handle specific events in the extraction process.
-- Customize the delivery vehicle and final destination by calling `SetPickupVehicle` and `SetFinalDestination`.
-- Be aware of faction-specific voice-over cues, which can be modified or extended for different factions.
-- The module uses pluggable callbacks, allowing modders to extend or override default behavior.
+- **Pluggable lifecycle callbacks** are the main extension point — register with `SetHeliSpawnedCB`,
+  `SetHeliLandedCB`, `SetHeliDamagedCB`, `SetHeliDestroyedCB`, `SetPilotKilledCB` (each takes `fCallback,
+  tArgs`). The damaged CB fires on a 25-point health drop, not a percentage.
+  {: .note }
+  > Two setters have a decompiled-artifact quirk: `SetHeliSpawnedCB` and `SetHeliDamagedCB` store the args
+  > table under `self.fHeliSpawnedCBArgs` / `self.fHeliDamagedCBArgs` (an `f` prefix), while `_WaitCallback`
+  > reads `self.fHeliDamagedCBArgs` for the damaged case — consistent there — but the *destroyed* and
+  > *pilot-killed* paths read `self.tHeliDestroyedCBArgs` / `self.tPilotKilledCBArgs`. If a callback's args
+  > arrive empty, check you're setting the field name the read side expects.
+- **Auto-return timeout is 30s** after landing (the `Event.TimerRelative {30}` in `_VehicleLanded`).
+- **Faction is auto-derived** from the pickup vehicle: `SetPickupVehicle` looks up the vehicle's faction and
+  maps it through `tFactionToId` into `SetFaction`, so choosing an Allied extraction heli tags the support
+  Allied automatically.
+- Extraction VO is per-faction in `tCues` (`Inc` on the way, `Land` on arrival, `Leave` on takeoff).

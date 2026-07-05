@@ -6,7 +6,7 @@ nav_order: 1
 inherits: OrientedBlippable
 tags: [vehicle, blip]
 verified: true
-verified_note: color/relation thresholds and instance-vs-module-level state read directly from source
+verified_note: deeper pass — re-confirmed all functions/events/color thresholds against source; surfaced the five tColor* module constants as a tunables block and cross-linked OrientedBlippable/Blippable/Inheritable up the chain
 ---
 
 # VehicleBlippable
@@ -17,8 +17,12 @@ verified_note: color/relation thresholds and instance-vs-module-level state read
 The `VehicleBlippable` module is responsible for managing radar and off-screen world markers for vehicles. It handles the blip color based on the driver's relation to the PMC faction, ensuring that the vehicle's blip accurately reflects its status (ally, neutral, enemy, empty, or PMC). This module also listens for driver enter/exit events and faction attitude changes to update the blip accordingly.
 
 ## Inheritance
-- Inherits from: `OrientedBlippable`
-- Imports: `MrxUtil`, `MrxFactionManager`
+- Inherits from: [`OrientedBlippable`](orientedblippable) (which extends [`Blippable`](blippable) → [`Inheritable`](inheritable))
+- Imports: [`MrxUtil`](mrxutil), [`MrxFactionManager`](mrxfactionmanager)
+
+The actual blip drawing/teardown (`AddObjective`/`RemoveObjective`, the `tInstance[uGuid]` registry) lives up
+this chain in [`Blippable`](blippable)/[`Inheritable`](inheritable); this module only decides the *color* and
+wires the driver/attitude events that trigger a recolor.
 
 ## Instance pattern
 This is a per-instance object module (keyed by `uGuid`). Genuine per-instance fields, set in `Create`:
@@ -35,6 +39,18 @@ they're plain module-level constants declared once at the top of `vehicleblippab
 reads the same shared tables (reachable via `self.tColorAlly` etc. through the prototype-inheritance
 fallback, same mechanism as [`Inheritable`](inheritable)); nothing ever writes a different value onto a
 specific instance.
+
+## Module constants & tunables
+The five blip colors are plain module-level tables declared at the top of `vehicleblippable.lua`. Change one
+here and every vehicle using this module recolors at once (see Notes for modders):
+
+| Constant | RGB | Used for |
+|---|---|---|
+| `tColorPmc` | `{0, 255, 0}` | PMC-labelled vehicle or driver (green) |
+| `tColorAlly` | `{0, 127, 255}` | driver relation to PMC ≥ 60 (blue) |
+| `tColorNeutral` | `{230, 230, 255}` | -60 < relation < 60 (near-white) |
+| `tColorEnemy` | `{255, 0, 0}` | relation ≤ -60 (red) |
+| `tColorEmpty` | `{100, 100, 100}` | no driver (gray) |
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`

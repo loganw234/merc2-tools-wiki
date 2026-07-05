@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [weapon, timer]
 verified: true
-verified_note: corrected Instance pattern (module-level tEvents keyed by uGuid, not the setmetatable/tInstance pattern) and clarified Events section (OnActivate/OnDeactivate are engine lifecycle hooks, not Event.* listeners).
+verified_note: 'deeper pass: re-confirmed the whole source; added Module constants (material animation "global_weapon_beacon", sound cue "wpn_bomb_timer_01_armed", 1s arm timer) and replaced vacuous Notes with actionable levers; Instance pattern + Events already correct'
 ---
 
 # Beacon
@@ -45,6 +45,18 @@ Called when the beacon object is deactivated by the engine. It stops the materia
   cue. The handle is stored in `tEvents[uGuid]` and deleted via `Event.Delete` in `OnDeactivate`.
 - **Fires:** none
 
+## Module constants & tunables
+- Material animation: `"global_weapon_beacon"` — started (looping, `true`) in `OnActivate` via
+  `Object.PlayMaterialAnimation`, stopped in `OnDeactivate` via `Object.StopMaterialAnimation`. Swap this
+  string to change the beacon's visual pulse.
+- Sound cue: `"wpn_bomb_timer_01_armed"` — cued via `Sound.CueSound` 1 second after activation, stopped via
+  `Sound.StopSound` on deactivate.
+- Arm delay: the `Event.TimerRelative` fires after `1` second (inline literal, not a named constant).
+
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called in the correct order when extending or modifying beacon behavior.
-- The `tEvents` table is used to manage event handles, so be cautious when modifying it directly.
+- Both real levers are the two template strings above: the visual (`"global_weapon_beacon"`) and the audio
+  (`"wpn_bomb_timer_01_armed"`). Change either to re-skin the beacon without touching its logic.
+- `OnActivate` and `OnDeactivate` are engine lifecycle hooks (see [Object](../namespaces/object) and
+  [Sound](../namespaces/sound) for the primitives used) — the engine pairs them, so if you override
+  `OnActivate` remember to also stop the animation/sound and delete the timer in `OnDeactivate` or the beacon
+  will keep pulsing/beeping after it despawns.

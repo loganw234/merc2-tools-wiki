@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, support]
 verified: true
-verified_note: found duplicate OnDeactivate definition (second silently overrides first, shadowing the tEvents cleanup logic); OnDeath/OnDeactivate rely on MrxSupport.RemoveAntiAir, confirmed defined; events list confirmed against source.
+verified_note: "deeper pass: re-confirmed the duplicate-OnDeactivate bug and all 7 functions; surfaced the animation name (global_gpsjammer_anim), the two sound cues, the [ContextAction.UseAlarm] prompt, and the \"jammer\" anti-air tag as tunables; replaced vacuous Notes bullet"
 ---
 
 # Jammer
@@ -21,7 +21,10 @@ The `Jammer` module represents a context-toggle GPS jammer in the game. It manag
 - Imports: `MrxSupport`
 
 ## Instance pattern
-This is a stateless manager utility module (no per-instance table). It tracks events associated with each jammer instance in the `tEvents` table.
+Not the `Inheritable` rich-instance pattern — no `Create`/`setmetatable`/`tInstance` registry. State lives
+in one module-level global `tEvents` (`tEvents = tEvents or {}`), keyed by `uGuid`; each entry holds up to
+two `Event.ContextAction` handles, `.uActivate` and `.uDeactivate`, that are swapped as the jammer toggles
+between off and on.
 
 ## Functions
 ### `OnActivate(uGuid, iArg)`
@@ -56,14 +59,26 @@ Stops the sound associated with the jammer, plays a different sound cue, plays t
 Called when the object instance dies. It removes anti-air support (`MrxSupport.RemoveAntiAir`).
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `SetupActivationEvents` when the object leaves hibernation.
-- Listens for `Event.ContextAction` (twice, via different handles) to call `OnUse` when first designated as
-  "in use", and later `AlarmDeactivated` once the alarm is active — both wired through
-  `Pg.AddContextAction`/context-action prompts rather than a raw player-input event.
+- `Event.ObjectHibernation` — registered in `OnActivate` (`{uGuid, "awake"}`) to call `SetupActivationEvents`
+  once the object leaves hibernation.
+- `Event.ContextAction` — registered twice (via different handles, `tEvents[uGuid].uActivate` /
+  `.uDeactivate`), both filtered on `{Player.GetAnyCharacter(), uGuid}`: one calls `OnUse` (turn on) while
+  the jammer is off, the other calls `AlarmDeactivated` (turn off) while it's on. These pair with
+  `Pg.AddContextAction`/`Pg.RemoveContextAction` prompts, not raw input events.
+
+## Module constants & tunables
+- **Material animation:** `"global_gpsjammer_anim"` — played via `Object.PlayMaterialAnimation` (last arg
+  `true`/`false` toggles the on/off pose) in the activate/use/deactivate paths.
+- **Sound cues** (in `AlarmDeactivated`): stops `"fol_alarm_bldg_01"` and cues `"fol_bldg_alarm_activate"`.
+- **Context prompt:** `"[ContextAction.UseAlarm]"` — the localized on-screen "use" prompt.
+- **Anti-air tag:** `"jammer"` — passed to [MrxSupport](mrxsupport)`.AddAntiAir`/`.RemoveAntiAir`; this is
+  what actually creates/removes the jamming effect on the support system.
+- **Vehicle part:** `"CtrlRotation"` — toggled on/off via `Vehicle.SetParts` to spin/stop the dish.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the jammer's lifecycle.
 - **Be aware of the duplicate `OnDeactivate` definition** (see Functions above) — only the second one in
-  file order (anti-air removal only) is reachable; the `tEvents` cleanup body earlier in the file never runs.
-- Customize animations and vehicle parts behavior by modifying the animation names and part settings in the functions.
-- Be aware that adding and removing anti-air support (`MrxSupport.AddAntiAir` and `MrxSupport.RemoveAntiAir`) may affect gameplay mechanics.
+  file order (anti-air removal only) is reachable; the `tEvents` cleanup body earlier in the file never
+  runs, so activate/deactivate event handles are never freed on deactivation (only on the toggle cycle).
+- **Reskin/retime:** swap `"global_gpsjammer_anim"` for a different material animation, or change the two
+  sound cues, to restyle the jammer. The `"jammer"` tag is the gameplay hook — change it to route the
+  effect through a different [MrxSupport](mrxsupport) anti-air category.

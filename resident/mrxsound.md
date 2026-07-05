@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, sound]
 verified: true
-verified_note: fixed Events section (only one real Event.* call; readiness callback is Sound.RegisterReadyCallback, not an Event); confirmed all 29 functions, no undefined callbacks
+verified_note: "deeper pass: re-confirmed all 30 functions + the single Event.GameStateChange subscription against source; pruned vacuous 'call things appropriately' notes; documented the survival-mode sound cue (sfx_survival_lp) and the shell/ui bank set loaded by EnterShellState; cross-linked MrxMusic/MrxSoundCategories/MrxSoundBanks and the Sound namespace"
 ---
 
 # MrxSound
@@ -18,14 +18,23 @@ The `MrxSound` module is responsible for managing audio-related functionalities 
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `MrxMusic`, `MrxSoundCategories`, `MrxSoundBanks`
+- Imports: [`MrxMusic`](mrxmusic), [`MrxSoundCategories`](mrxsoundcategories), [`MrxSoundBanks`](mrxsoundbanks)
+
+This module is the high-level **state façade** over the audio system: game states (shell, pause,
+cinematic, PDA, attract, interior, transit, satellite/scope view, action-hijack, survival) each get an
+`Enter…`/`Exit…` pair that orchestrates the three imported modules plus the engine's own
+[`Sound`](../namespaces/sound) namespace. It holds almost no data of its own — it delegates.
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but manages global audio settings and transitions.
+This is a stateless manager/utility module. It does not track per-instance state but manages global audio
+settings and transitions. A few module-level flags gate behavior: `_bExitingGame`, `_bSurvivalModeStarted`,
+`_bSoundSystemReady`, `_bWaitForSoundAssets`, and the one-shot callback `_funcSoundReadyCallback`.
 
 ## Functions
 ### `EnterShellState()`
-Enters the shell state by loading required sound banks, setting the master volume, and transitioning to the "shell" music state.
+Sets master volume to full, transitions music to `"silence"`, calls `MrxSoundBanks._LoadRequiredAssetsCommon()`,
+then loads six banks — the `"ui_shell"`, `"ui_hud"`, and `"music"` sound- **and** wave-banks — each with
+`_StartShellMusic` as the batch-complete callback (so shell music starts only once every bank finishes loading).
 
 ### `ExitShellState()`
 Exits the shell state by unloading sound banks, resetting the master volume, and transitioning to silence.
@@ -73,10 +82,13 @@ Begins an action hijack by fading in the "actionhijack" category and transitioni
 Ends an action hijack by transitioning to either "hijack_success" or "action" music states based on success status and fading out the "actionhijack" category.
 
 ### `BeginSurvivalMode()`
-Begins survival mode by setting the survival mode flag, fading in the "survivalmode" category, playing a looped sound effect, and adjusting pitch settings.
+Calls `Sound.SetSurvivalMode(true)`, fades in the `"survivalmode"` category, plays the looped cue
+`Sound.CueSound(0, "sfx_survival_lp")`, applies the survival-mode pitch bend, and sets `_bSurvivalModeStarted`.
 
 ### `EndSurvivalMode()`
-Ends survival mode by resetting the survival mode flag, fading out the "survivalmode" category, stopping the looped sound effect, and restoring pitch settings.
+Guarded on `_bSurvivalModeStarted` (no-op if survival mode was never started). Clears survival mode, fades
+the `"survivalmode"` category back out, stops the looped `"sfx_survival_lp"` cue via `Sound.StopSound(0, …)`,
+and restores pitch. The `0` first arg to `CueSound`/`StopSound` is the sound-slot handle both calls share.
 
 ### `EnterInterior()`
 Enters an interior by resetting music, locking action level music, and transitioning to silence.
@@ -112,7 +124,10 @@ Sets a callback function to be called when the sound system is ready. Optionally
 Checks if the sound system is ready and calls the registered callback if conditions are met.
 
 ### `Initialize()`
-Initializes the music system, sets up additional fade settings, and prepares for game exit.
+The bring-up entry point: calls `MrxMusic._InitializeMusic()` (registers every music state/cue with the
+engine — see [MrxMusic](mrxmusic)), `MrxSoundCategories._AdditionalFadeSetup()` (registers the credits
+sfx/vo fades), and `_SetupGameExit()` (wires the game-exit volume fade). Must run before the state
+`Enter…`/`Exit…` functions are meaningful.
 
 ## Events
 Only one real `Event.*` reference exists in this file:
@@ -125,9 +140,13 @@ Sound-asset/system-readiness notification is **not** event-based — it's a plai
 this file, so there's no undefined-callback issue.
 
 ## Notes for modders
-- Ensure that audio-related functions are called appropriately to manage transitions between different states (e.g., pause, cinematic, PDA).
-- Use the provided functions to control music states and sound effects effectively.
-- Be aware of the dependencies on other modules like `MrxMusic` and `MrxSoundCategories`.
+- `Initialize()` is the required bring-up call; the `Enter…`/`Exit…` state functions are the actual
+  levers — pair them (every `Enter` has a matching `Exit`). Leaving a state un-exited leaves dynamic
+  music disabled or the listener position locked.
+- Swap the survival-mode loop by changing the cue string `"sfx_survival_lp"` in `BeginSurvivalMode`/
+  `EndSurvivalMode` (both must match — one cues, one stops the same slot `0`).
+- The shell bank set is hardcoded in `EnterShellState`/`ExitShellState`: `"ui_shell"`, `"ui_hud"`,
+  `"music"` (each loaded as both a sound- and wave-bank). Add a bank here if a shell mod needs extra audio.
 - `_bExitingGame` is **not** unused — `ExitingGame()` exposes it as a getter, and it gates logic in
   `mrxplayer.lua` (two call sites check `not MrxSound.ExitingGame()` before running hero-death/local-player
   checks), so it's a real cross-module flag, not decompiler dead weight.

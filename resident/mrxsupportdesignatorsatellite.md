@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupportDesignator
 tags: [satellite, support]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: surfaced module-level defaults (zoom 170, radius 100, cost 5000), documented the PDA-map mini-game flow (BeginSatelliteDesignation -> end/cancel callbacks -> PostEndStep gate), the satellite view enter/exit sounds; flagged the sAATestLevel = bil typo; cross-linked base + consumers"
 ---
 
 # MrxSupportDesignatorSatellite
@@ -14,11 +14,11 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsupportdesignatorsatellite.lua*
 
 ## Overview
-The `MrxSupportDesignatorSatellite` module is responsible for handling the satellite designator support type in the game. It manages the mini-game mechanics, zoom levels, radius, and cost associated with using a satellite to designate targets.
+`MrxSupportDesignatorSatellite` is the most elaborate [designator](mrxsupportdesignator) subtype: instead of throwing an item, the player enters a top-down PDA/satellite view and targets through a mini-game (rotating dial into success sectors). It manages zoom, radius, cost, the satellite-view enter/exit sounds, and the end/cancel/gate callback flow. Used by [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb), [`MrxSurgicalStrike`](mrxsurgicalstrike), and [`MrxRocketArtillery`](mrxrocketartillery).
 
 ## Inheritance
-- Inherits from: `MrxSupportDesignator`
-- Imports: `MrxSupport`, `MrxGuiManager`, `MrxSupportManager`, `MrxPmc`, `MrxGuiSatellite`, `MrxSound`
+- Inherits from: [`MrxSupportDesignator`](mrxsupportdesignator)
+- Imports: [`MrxSupport`](mrxsupport), [`MrxGuiManager`](mrxguimanager), [`MrxSupportManager`](mrxsupportmanager), [`MrxPmc`](mrxpmc), [`MrxGuiSatellite`](mrxguisatellite), [`MrxSound`](mrxsound)
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupportDesignator`, not per-`uGuid`** — `Create(self, oNewDesignator)`
@@ -48,7 +48,10 @@ Sets or updates the cost associated with using the satellite designator.
 Returns true to suppress icon animation when the satellite designator is used directly.
 
 ### `Create(self, oNewDesignator)`
-Creates a new per-instance table for the satellite designator using the module's prototype. Initializes various fields such as owner, designation type, validation function, and other parameters.
+Stamps the satellite fields (`sDesignationType = "Satellite Designator"`) plus the zoom/radius/cost/sector values, carrying the module-level defaults through unless the prototype overrides them.
+
+{: .warning }
+> `Create` sets `oNewDesignator.sAATestLevel = bil` — `bil` is an **undefined global**, so this evaluates to `nil`. The likely intent was `nil` anyway (satellite strikes leave AA-gating to the parent support / `PostEndStep`), so the effect is harmless, but `bil` is a decompile typo, not a real variable. Don't reference `bil`.
 
 ### `Commence(self, bFireImmediately)`
 Begins the process of using the satellite designator. It equips the designator to the player and sets up the PDAMap mode with appropriate parameters.
@@ -75,10 +78,18 @@ Delays the completion of the designation if the recruit is available.
 A trivial function that does nothing. Used as a placeholder callback.
 
 ## Events
-- Listens for custom events related to satellite targetting end and cancellation.
+No `Event.Create` subscriptions. The flow is callback-driven: `Commence` → `Airstrike.EquipDesignator(..., BeginSatelliteDesignation, ...)`; targeting end/cancel are registered via `Player.SetPDAMapModeCallback` / `SetPDAMapModeCancelCallback` and `MrxGuiManager.SetSatelliteSuccessCallback`. The only timer is a single `Event.TimerRelative` of **0.2s** in `SatelliteTargettingEnd` before `PostEndStep` runs.
+
+## Module constants & tunables
+Module-level globals (top of file) — these are real defaults you can read/override:
+- `nStartZoom = 170`, `nMinZoom = 170`, `nMaxZoom = 170` — all equal by default, i.e. **zoom is locked** unless a support calls `SetZoomLimits`.
+- `nRadius = 100` — designated-area radius.
+- `tSectors = false` — no mini-game sectors by default (direct targeting); a support sets them via `SetMinigameSectors`.
+- `nCost = 5000` — default satellite cost (overridden per-support: e.g. [`MrxSatelliteGuidedBomb`](mrxsatelliteguidedbomb) uses 1000, [`MrxSurgicalStrike`](mrxsurgicalstrike) uses 0).
+- Satellite view audio: `MrxSound.EnterSatelliteView()` / `ExitSatelliteView()` bracket the PDA session.
 
 ## Notes for modders
-- Ensure that `Commence` is called appropriately to start the satellite designator process.
-- Customize zoom levels, radius, and cost by using `SetZoomLimits`, `SetRadius`, and `SetCost`.
-- Be aware of AA level and fuel requirements when using this support type.
-- The mini-game data can be customized by setting `tSectors`.
+- The three default zoom values are identical, so zoom does nothing until a support widens them with `SetZoomLimits(nMin, nMax, nStart)` — a common "why won't it zoom" gotcha.
+- `tSectors = false` means the mini-game is off unless a support supplies sectors; the number and width of sectors is the difficulty knob (compare the wide sectors in [`MrxSurgicalStrike`](mrxsurgicalstrike) vs. the narrow ones in [`MrxRocketArtillery`](mrxrocketartillery)).
+- The affordability/AA/recruit gate lives in `PostEndStep` (runs 0.2s after targeting ends): it routes denials through [`MrxSupport.DenialMessage`](mrxsupport) and only calls `CompleteDesignation` if the recruit is available.
+- `_DelayDesignationComplete` and `DoNothing` are helpers (`DoNothing` is a placeholder callback handed to `SetPDAMapModeCallback` after targeting, to avoid re-entry).

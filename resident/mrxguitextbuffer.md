@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, text buffer]
 verified: true
-verified_note: constructor bug and the working replacement confirmed by live testing (CoopChatUI); AddMessage parameter meanings confirmed directly from source, not independently exercised argument-by-argument
+verified_note: 'deeper pass: re-confirmed the InstantiateTextBuffer bug + working HandleInstantiationEventForTextBuffer path; added module constants (kScrollSpeed=50, english_18 font, border 12/backdrop α128), the special "Subtitle Buffer"/"PDA Subtitle Buffer" name behaviors, and the HandleAddMessageEvent/HandleE3HudModeEvent handler entry points'
 ---
 
 # MrxGuiTextBuffer
@@ -107,6 +107,19 @@ hand it, via `CustomData`. Key fields once initialized: `CurrentMessages` (array
 widgets), `PendingMessages` (5 priority-bucketed queues, indices 1-5), `MessageIndex` (message-id lookup
 for `ModifyPendingMessage`/`RemovePendingMessage`), `nRemainingSpace`, `bFlowDown`, `bHasBackdrop`.
 
+## Module constants & tunables
+- `kScrollSpeed = 50` (module local) — base scroll speed; the buffer advances at `±kScrollSpeed` px/sec
+  (sign flips with `bFlowDown`).
+- Font is hard-coded `"english_18"` at scale `1` (`CustomData.sTextFont`/`nTextScale`) — change these on the
+  widget's `CustomData` after init to restyle message text.
+- Backdrop, when enabled: the working `HandleInstantiationEventForTextBuffer` path uses `nBorder = 12` and
+  translucency `128`. (The broken `InstantiateTextBuffer` path uses `nBorder = 20`, color `(16,16,32)` at α
+  `192` — but you can't reach it; see below.)
+- Special widget names change routing (matched against `oWidget.BasicData.name`): `"MessageBox"` turns the
+  backdrop on; `"Subtitle Buffer"` and `"PDA Subtitle Buffer"` suppress the per-message
+  `SetOwner`/`MrxGuiManager.AddWidgetToHud` calls (so they render as plain non-HUD text) — relevant if you
+  reuse this for cinematic subtitles rather than a HUD log.
+
 ## Functions
 
 ### `HandleInstantiationEventForTextBuffer(oWidget, tEvent)`
@@ -154,15 +167,24 @@ then clears `fCallback` so it can't fire twice.
 ### `GetCurrentMessageId(oTextBuffer)`
 Returns an array of the numeric IDs of every message currently visible (not pending).
 
-### `HandleTextBufferUpdateEvent` / `PushMessageIntoTextBuffer` / `GetMessageHeight` / `WrapText` / `IsEmpty` / `MboxAbs` / `ValidateParameter` / `HandleE3HudModeEvent` / `HandleAddMessageEvent` / `DrawDebugRectangle`
+### `HandleAddMessageEvent(oWidget, tEvent)` / `HandleE3HudModeEvent(oWidget, tEvent)`
+Widget-event entry points (bind via `oWidget:SetEventHandler(...)` in a layout file, not called directly).
+`HandleAddMessageEvent` adds a message from an event payload: `oWidget:AddMessage(tEvent.sMessage, nil, tEvent.nDuration)`.
+`HandleE3HudModeEvent` hides/shows the buffer's first child and its current messages when `tEvent.bOn`
+toggles — a demo/screenshot "clean HUD" mode.
+
+### `HandleTextBufferUpdateEvent` / `PushMessageIntoTextBuffer` / `GetMessageHeight` / `WrapText` / `IsEmpty` / `MboxAbs` / `ValidateParameter` / `DrawDebugRectangle`
 Internal plumbing — fade/scroll animation, pulling queued messages into the visible list, text
 measurement/wrapping, and small utility helpers. Not things a mod needs to call directly; documented in
-the decompiled source if you're extending the buffer's own behavior rather than just using it.
+the decompiled source if you're extending the buffer's own behavior rather than just using it. Note
+`PushMessageIntoTextBuffer` is where an over-tall message gets `:SplitIntoLines()` into multiple queued
+messages so it can scroll through a short buffer.
 
 ## Events
 - `HandleTextBufferUpdateEvent` is wired to the widget's own `"GuiUpdate"` event by
   `HandleInstantiationEventForTextBuffer` — this is what drives fading and scrolling frame to frame. You
   don't need to hook this yourself.
+- No engine `Event.*` calls exist in this file; everything is widget-level `SetEventHandler`.
 
 ## Notes for modders
 - **Never call `InstantiateTextBuffer` — see above.** Build the widget by hand and call

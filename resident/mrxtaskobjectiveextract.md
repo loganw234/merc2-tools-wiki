@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, extraction]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — flagged that the extraction event handles (eHeliClose/eHeliFar/uHeliHurt/eHeliFailsafe/eAIenter1/eAIenter2/_evClientJoined/tEnterGoal) are MODULE-LEVEL globals not per-instance fields (two concurrent extract objectives would collide); confirmed all events and the MrxSupportData "Extraction_AL" freebie; documented the fixed radii (40/70/150) and heli-abort thresholds
 ---
 
 # MrxTaskObjectiveExtract
@@ -22,11 +22,15 @@ The `MrxTaskObjectiveExtract` module is responsible for handling the extraction 
 
 ## Instance pattern
 **Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
-inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
-rather than a world-object GUID. Key fields:
-- `_uTgtObjFilter`: Filter for the target object.
-- `oFollower`: Follower object managing the extraction process.
-- `eHeliClose`, `eHeliFar`, `eHeliHurt`, `eHeliFailsafe`, `eAIenter1`, `eAIenter2`: Event handles for various events related to the extraction process.
+inherited from [`MrxTask`](mrxtask); see that page). Genuine per-instance fields:
+- `self._uTgtObjFilter` — the person to extract (inherited).
+- `self.oFollower` — the [`MrxFollow`](mrxfollow) escort managing the prisoner while awaiting pickup.
+
+{: .warning }
+> **The extraction event handles are module-level globals, not per-instance fields:** `eHeliClose`,
+> `eHeliFar`, `uHeliHurt`, `eHeliFailsafe`, `eAIenter1`, `eAIenter2`, `_evClientJoined`, and `tEnterGoal`
+> are all assigned as bare globals (no `self.`/`local`). Two extract objectives running at the same time
+> would overwrite each other's handles — this is a real latent bug in the corpus, not a per-instance design.
 
 ## Functions
 ### `Activated(self)`
@@ -70,7 +74,14 @@ Cleans up the module by removing the freebie associated with the extraction task
 - Listens for `Event.ObjectInSeat` to handle scenarios where the target enters the helicopter.
 
 ## Notes for modders
-- Ensure that `Activated` and `Cleanup` are called appropriately to manage the lifecycle of the extraction task objective.
-- Customize the behavior of the extraction process by modifying the configuration values in `tConfig`.
-- Be aware that network synchronization (`Net.IsServer`) may affect multiplayer behavior.
-- The module relies on various engine events and functions, such as `Ai.Goal` and `Event.CreatePersistent`, to manage the extraction process.
+- **`Activated` grants a free extraction airstrike** via `MrxSupportData.AddFreebie("Extraction_AL")` (the
+  Allied extraction heli), removed again in `Cleanup`. That is what makes the pickup chopper available while
+  the objective is live.
+- **Extraction geometry is hardcoded** (no config knobs): the heli must come within `40` m to trigger the
+  run-for-it, the run aborts if it drifts past `70` m or loses `> 25` health, with a `50` s failsafe timer;
+  entering the heli completes the part after a `4` s delay.
+- Default config (via `MrxUtil.SetDefault`): `fDist = 40`, `bStop = false`, `bXZOnly = false`,
+  `bHumansFollow = true`; pass `oFollower` to reuse an existing [`MrxFollow`](mrxfollow) instead of spawning
+  one.
+- **Don't run two extract objectives concurrently** — see the module-globals warning above; the second
+  would clobber the first's heli event handles.

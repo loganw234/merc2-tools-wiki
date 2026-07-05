@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: corrected Events section (no Event.Create in file; _PauseScreenLoaded/ExitMultiplayer are plain load/callback wiring, not engine events); noted oPauseModule global-leak on line 18
+verified_note: 'deeper pass: re-confirmed all thin MrxGuiManager forwards + the Events section (plain load-callback wiring, no Event.*); surfaced the MrxGuiPauseLayout asset name; flagged a real bug — DeleteAllHuds calls MrxGuiManager.DeleteAddGuis() which does not exist (the real function is DeleteAllGuis); oPauseModule global-leak still noted; pruned vacuous notes'
 ---
 
 # MrxGuiBootstrap
@@ -43,7 +43,13 @@ Creates a new GUI for the specified player GUID (`uPlayerGuid`) using the `MrxGu
 Deletes the GUI associated with the specified player GUID (`uPlayerGuid`) using the `MrxGuiManager`.
 
 ### `DeleteAllHuds()`
-Deletes all created GUIs using the `MrxGuiManager`.
+Intended to delete all created GUIs via `MrxGuiManager`.
+
+{: .warning }
+> **Real bug:** the body calls `MrxGuiManager.DeleteAddGuis()`, but no such function exists —
+> [`mrxguimanager.lua`](mrxguimanager) defines `DeleteAllGuis` (all-G-u-i-s), not `DeleteAddGuis`. Calling
+> `DeleteAllHuds()` will therefore error with `attempt to call field 'DeleteAddGuis' (a nil value)`. If you need
+> to tear down every player HUD, call `MrxGuiManager.DeleteAllGuis()` directly instead.
 
 ### `GetNumberOfPlayersFromShellSelection()`
 Returns the number of players selected in the shell (likely referring to the multiplayer selection screen).
@@ -65,7 +71,12 @@ plain function-callback wiring, not the engine event system:
   `ExitMultiplayer`/`SetExitMultiplayerCallback` functions.
 
 ## Notes for modders
-- Ensure that `Init` and `Deinit` are called appropriately during the game's lifecycle.
-- Use `ToggleHud`, `CreatePlayerHud`, and `DeleteHud` to manage player HUDs dynamically.
-- Customize the GUI behavior by setting up appropriate callbacks using `SetOnGuiLoadedFunc`.
-- Be aware that modifying the satellite overlay may affect multiplayer gameplay.
+- **This module is a thin forwarding facade over [`MrxGuiManager`](mrxguimanager).** Every function here
+  (`ToggleHud`, `CreatePlayerHud`, `DeleteHud`, `SetSatelliteOverlay`, `SetOnGuiLoadedFunc`) just calls the
+  matching `MrxGuiManager` function — the real HUD lifecycle logic lives there, so read that page for behavior.
+- **Only concrete asset loaded here: `"MrxGuiPauseLayout"`** (the pause screen), loaded in `Init()` via
+  `MrxGuiBase.LoadGUIFile`. Its `_PauseScreenLoaded` callback immediately closes the pause screen (via
+  `MrxGuiPauseScreen.ClosePauseScreen`) and stashes the module in the global `oPauseModule`.
+- `SetOnGuiLoadedFunc(fFunc, tArgs)` → `MrxGuiManager.SetLoadingCompleteCallback` is the hook to run your own
+  code once the player HUD finishes loading — fired immediately if a GUI already exists, else deferred.
+- Avoid `DeleteAllHuds()` — it's broken (see the warning above); call `MrxGuiManager.DeleteAllGuis()` instead.

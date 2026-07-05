@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Blippable
 tags: [pickup, support]
 verified: true
-verified_note: confirmed real per-uGuid instance pattern (Blippable -> Inheritable chain); added tMunitions/module-level fields, fixed Delete/OnDeath details; events list confirmed against source, no invented events found.
+verified_note: "deeper pass: re-confirmed the per-uGuid Blippable->Inheritable instance pattern and all 5 functions; surfaced the exact blip/marker constants set in Awake (radar_Munition/pickup_munitions textures, colors, sizes 8/48) and the full 21-entry tMunitions table shape; VO cues and the WeaponEvent filter re-confirmed"
 ---
 
 # Laptop
@@ -31,8 +31,12 @@ it in `Inheritable`'s `tInstance` registry keyed by `uGuid`. Per-instance fields
 
 Module-level (not per-instance) state:
 - `_kDistance = 150`: blip visibility distance constant.
-- `tMunitions`: an array of munition/resource templates (strings like `"artillery"`, `"moab"`, or
-  tables like `{nFuel = 50}`, `{nCash = 100000}`) indexed by `nStock`.
+- `tMunitions`: a 21-entry array indexed by `nStock`. Entries 1–17 are support-type strings (`"artillery"`,
+  `"bombingrun"`, `"bunkerbuster"`, `"carpetbomb"`, `"clusterbomb"`, `"combatairpatrol"`, `"cruisemissile"`,
+  `"daisycutter"`, `"fuelairbomb"`, `"harm"`, `"laserguidedbomb"`, `"moab"`, `"rocketartillery"`,
+  `"smartbomb"`, `"strategicmissile"`, `"surgicalstrike"`, `"tankbuster"`); entries 18–21 are resource
+  tables (`{nFuel = 50}`, `{nFuel = 500}`, `{nFuel = 5000}`, `{nCash = 100000}`). `Awake` receives `nStock`
+  and this is the value handed to `MrxPmc.AddSupportQty` on pickup.
 - `_nTagged`: a running count of currently-tagged laptop markers, decremented in `Delete`.
 - `_tStatusList`: initialized empty in `OnDeath` if `nil`; not otherwise read/written in this file.
 
@@ -72,8 +76,22 @@ random voice-over cue (`"Fiona.Support.Munitions02"` or `"Fiona.Support.Munition
 - Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
 - Listens for custom event `WeaponEvent` with parameters `"hero", "pickup", "Laptop"` to trigger `PickupMunitions`.
 
+## Module constants & tunables
+Set on the prototype in `Awake` (so every laptop shares them):
+- **Radar blip:** `sTexture = "radar_Munition"`, `tColor = {51, 102, 51}` (dark green),
+  `tFlash = {255, 255, 255}` (white), `nSize = 8`.
+- **Map marker** (`tMarker`): `sTexture = "pickup_munitions"`, `tColor = {153, 255, 153}` (light green),
+  `nSize = 48`.
+- **Pickup VO:** one of `"Fiona.Support.Munitions02"` / `"Fiona.Support.Munitions03"`, chosen at random.
+- **Pickup trigger:** `Event.WeaponEvent` filtered `{"hero", "pickup", "Laptop"}`.
+
 ## Notes for modders
-- There is no `OnDeactivate` defined in this file — lifecycle here is just `OnActivate` -> `Awake` -> (eventually) `Delete`/`OnDeath`.
-- Customize the stock types by modifying the `tMunitions` table (index corresponds to the `nStock` argument passed into `OnActivate`).
-- Be aware of network synchronization: `Delete` only sends `Net.SendEvent_RemoveMarkerObjective` when `Net.IsServer()` is true.
-- The `_kDistance` constant (150) is defined but not read anywhere in this file — likely consumed by `Blippable` or the radar/blip engine subsystem, not visible here.
+- **What it gives you:** the payout is `tMunitions[nStock]` — either a support type (added via
+  [MrxPmc](mrxpmc)`.AddSupportQty`) or a `{nFuel=...}`/`{nCash=...}` resource. Change the `tMunitions`
+  entry (or the `nStock` passed into `OnActivate`) to change the reward. This is a great "free supplies"
+  mod lever.
+- **Restyle the blip/marker:** edit the `sTexture`/`tColor`/`nSize` and `tMarker` values in `Awake`.
+- No `OnDeactivate` in this file — lifecycle is `OnActivate` → `Awake` → (eventually) `Delete`/`OnDeath`.
+- Network: `Delete` only sends `Net.SendEvent_RemoveMarkerObjective` when `Net.IsServer()` is true.
+- The `_kDistance` constant (150) is defined but not read anywhere in this file — likely consumed by
+  [Blippable](blippable) or the radar/blip engine subsystem, not visible here.

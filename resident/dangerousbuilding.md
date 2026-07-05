@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, world entity]
 verified: true
-verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tDBs[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
+verified_note: 'deeper pass: fixed the Events section (removed a non-existent RemoveDangerousBuilding *listener*; documented the real Event.ObjectHibernation + Event.ObjectHealth subscriptions and the outgoing Net.SendEvent_* calls); added a full Module constants section (radar textures/colours temp_radar_icon_db grey 170s vs temp_radar_icon_dbactive red 250,0,0, nMaxDBs=8, rarity magic strings, VZ Tower spawn tuning, reward toast); replaced vacuous Notes with SetProperties keys + the inverted-rarity gotcha; bare tDBs[uGuid] pattern re-confirmed'
 ---
 
 # DangerousBuilding
@@ -18,7 +18,8 @@ The `DangerousBuilding` module manages dangerous buildings in the game. It handl
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGui`, `MrxPmc`, `MrxUtil`
+- Imports: [`MrxGui`](mrxgui) (kill-reward toast), [`MrxPmc`](mrxpmc) (cash payout),
+  [`MrxUtil`](mrxutil) (`CallWithOptionalArgs` for the optional wakeup function)
 
 ## Instance pattern
 **Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
@@ -55,7 +56,10 @@ Activates a random dangerous building by turning on attached spawners with speci
 Called when the object instance is deactivated. It removes the dangerous building if it's not permanent and deletes associated events.
 
 ### `Delete(oSelf)`
-Deletes the dangerous building instance by calling `RemoveDB`.
+Calls `RemoveDB(oSelf.uGuid)`. Note the `oSelf.uGuid` access is the `Inheritable`-style calling convention,
+but this module has no `Create`/`setmetatable` factory — so `Delete` is only meaningful if something external
+passes it a table with a `.uGuid` field; it is not wired to the bare `tDBs[uGuid]` lifecycle used elsewhere
+in this file.
 
 ### `OnDeath(uGuid)`
 Handles the death of a dangerous building by removing it and rewarding the player if applicable.
@@ -100,11 +104,48 @@ Sets the rarity value for the specified dangerous building or updates the global
 Updates the faction settings for attached spawners of the specified dangerous building.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
-- Listens for custom event `RemoveDangerousBuilding` to remove buildings when they are deactivated or destroyed.
+- **Creates** `Event.ObjectHibernation` (`OnActivate`) to call `Start` when the object leaves hibernation.
+  The handle is stored as `tDBs[uGuid].WakeEvent`.
+- **Creates** `Event.ObjectHealth` (`SetupOccupied`, server only) with comparator `"<"` against the
+  building's current health, so `TurnOn` fires when the occupied building takes any damage. Stored as
+  `tDBs[uGuid].HealthEvent`.
+- `OnActivate`/`OnDeactivate`/`OnDeath`/`Delete`/`ClearProperties` are engine lifecycle callbacks, not
+  `Event.*` subscriptions.
+
+{: .note }
+> The `Net.SendEvent_AddDangerousBuilding` / `Net.SendEvent_RemoveDangerousBuilding` /
+> `Net.SendEvent_AddRandomDangerousBuilding` / `Net.SendEvent_SetOccupiedDangerousBuilding` calls are
+> **outgoing** engine net-events (server → clients), not `Event.Create` subscriptions this module listens
+> for. (A previous version of this page incorrectly listed a `RemoveDangerousBuilding` *listener* — there is
+> none; only the send exists.)
+
+## Module constants & tunables
+- Caps/tuning: `nMaxDBs = 8` (max simultaneously-active random DBs), `nDefaultRarity = 16`,
+  `nGlobalRarity` (starts at `nDefaultRarity`), `nDefaultCashReward = 0`, `nDBCount` (live counter).
+- Inactive/occupied radar blip: texture `"temp_radar_icon_db"`, colour `170,170,170` (grey), size `8x8`,
+  `nSortOrder = 3`, `bSticky = false`.
+- Active radar blip: texture `"temp_radar_icon_dbactive"`, colour `250,0,0` (red), size `8x8`, then pulsed via
+  `Hud.Radar:AnimateObjectiveSize` (`nDuration = 5`, width/height oscillating `4`–`12`).
+- Blip name key: `"db_" .. tostring(uGuid)`.
+- Random-DB spawner tweak (`TurnOnRandomDB`): `SpawnerType = "Once"`, `RadiusType = "RADIUS_PLAYER_2D"`,
+  `ActiveRadius = 100`, `SkipPercentChange = 100`, `SpawnList = "Spawnlist (VZ Tower)"`; also turns the
+  `"ground"` spawner group off.
+- Kill reward message: `"[green]Occupied building destroyed! +$" .. nReward` (4s), paid via
+  `MrxPmc.AddCashQty(nReward, true)` — only when `nReward > 0`.
+- `SetRarity` magic strings: `"never"` → `-1` (never activates), `"always"` → `0`, `"default"` →
+  `nDefaultRarity`; and `uGuid` of `"default"`/`"all"`/`"global"` sets `nGlobalRarity` instead of a per-object
+  rarity.
 
 ## Notes for modders
-- Ensure that `OnActivate`, `OnDeactivate`, and `OnDeath` are called appropriately to manage the lifecycle of dangerous buildings.
-- Use `SetProperties` to customize properties such as density, faction, reward, and spawner settings.
-- Be aware that network synchronization (`Net.IsClient()` and `Net.IsServer()`) may affect multiplayer behavior.
-- The global rarity (`nGlobalRarity`) affects the activation probability of random dangerous buildings. Adjust it carefully to balance gameplay.
+- `SetProperties(uGuid, tProps)` is the main authoring lever — recognized keys include `Density` (0–100,
+  converted to `ChanceNotActive`/`SkipPercentChance`), `Faction`, `Reward`, `Rarity`, `WakeupFunction`,
+  `Group`, and any spawner fields passed straight to [`Ai`](../namespaces/ai)`.TweakAttachedSpawners`.
+- Activation is probabilistic: `Start` rolls `math.randf() * nMaxDBs * iRarity` and only turns the building
+  on if that is `< nMaxDBs`, so **larger `Rarity` means *less* likely** (and `< 0` / `"never"` disables it).
+- Cash rewards flow through [`MrxPmc`](mrxpmc)`.AddCashQty` and the on-screen toast through
+  [`MrxGui`](mrxgui)`.AddMessage`; the default reward is `0`, so buildings pay nothing unless a per-object
+  `Reward` is set via `SetProperties`.
+- `Permanent` buildings survive `OnDeactivate` (early return) — set via `TurnOn(..., bPermanent=true)`.
+- This is the module [Alarm](alarm) calls into: `DangerousBuilding.TurnOn(tBuildings, true, false, true)`
+  activates every occupied building near a tripped alarm.
+- Debug helpers `GetAllDBs()` and `GetRarity(uGuid)` are handy from the console for inspecting live state.

@@ -6,15 +6,7 @@ nav_order: 1
 inherits: none
 tags: [layer management, world state]
 verified: true
-verified_note: read directly from source in full (mrxlayermanager.lua is only 360 lines) -- corrects the
-  Instance pattern wording, documents the exact Mark/Process two-phase commit mechanism, a real confirmed
-  parameter-passing bug in Remove(), and adds a categorized catalog of ~650 real layer names found across
-  the corpus, built while investigating whether the Alamo/Dynasty-class ships' appearance is gated behind
-  a layer. Retains the earlier confirmed note on _AddRequest's graceful culling of nonexistent layer names,
-  found via the [Custom Contract deep dive](../deep-dives/custom-contract). Adds a second, independently-
-  sourced boot-time layer manifest (170 static + 246 default-dynamic names) read directly, verbatim, from
-  vz/xQ!L.lua's own literal _tStaticLayers/_tDefaultDynamicLayers tables -- found while investigating the
-  Pg.Spawn coverage gap documented in the [World Inspector deep dive](../deep-dives/world-inspector).
+verified_note: "deeper pass: re-read the whole 360-line source and re-confirmed the Remove() loading-screen bug, the two-phase Mark/Process commit, the nonexistent-layer culling, and every function/import; added the module request-type/status constants and the RemoveAllLayers input-mutation gotcha. The ~649-name corpus catalog and the vz/xQ!L.lua boot manifest (170 static + 246 default-dynamic) are retained as previously sourced."
 ---
 
 # MrxLayerManager
@@ -46,6 +38,12 @@ copy of this module's four tracking tables for the whole running game:
 - `_tLayersToBeAdded`: layers staged via `MarkForAddition`, not yet actually requested.
 - `_knLayersToProcessCap` (`local`, = 10): a hard concurrency cap — genuinely `local`, not reachable or
   tunable from outside this file.
+
+Module constants (all module-level globals except the cap): `_knRequestTypeAdd = 1`, `_knRequestTypeRemove = 2`
+(the `nRequestType` tag threaded through `_AddRequest`/`_tOpQueue`), and the never-actually-read status enum
+`_knLayerStatusUnloaded = 1` / `_knLayerStatusPending = 2` / `_knLayerStatusLoaded = 3` (declared but the code
+tracks state via `_tLoadedLayers` booleans instead). `_nLayersBeingProcessed` is the live in-flight counter the
+throttle checks against `_knLayersToProcessCap`.
 
 ## Functions
 
@@ -80,6 +78,11 @@ what you pass as its fourth argument** — that parameter silently goes nowhere.
 ### `RemoveDynamicLayers(fCallback, tCallbackArgs)` / `RemoveAllLayers(tStaticLayers, fCallback, tCallbackArgs)`
 Convenience wrappers: the first removes every currently-loaded dynamic layer (walks `_tLoadedLayers`); the
 second does the same but also folds in a caller-supplied list of static layers to remove alongside them.
+
+{: .warning }
+> `RemoveAllLayers` does `local tLayers = tStaticLayers` and then `table.insert`s every loaded dynamic layer
+> **into that same table** — it mutates the caller's `tStaticLayers` argument in place rather than copying it.
+> If you pass a table you intend to reuse, copy it first (`MrxUtil.CopyTable`) before calling.
 
 ### `MarkForRemoval(vLayers)` / `MarkForAddition(vLayers)`
 **These do not load or unload anything by themselves** — they only stage intent into the tracking tables,

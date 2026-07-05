@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud, message]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: CORRECTED imports (source imports MrxGui/MrxGuiBase/MrxGuiManager/MrxHqManager — MrxUtil is NOT imported); rewrote Events section (no ObjectHibernation/PlayerInput/PlayerJoined — the real calls are Event.Create/CreatePersistent(Event.TimerRelative | Event.Button) + Event.Delete); surfaced the Scaleform .swf movie names (fanfare_contract/mission/wager/support_unlocked/new_contact/…_businesscard, text_effect) and the _tEventTitles/_tEventTextures/_tEventSounds/_tEventTextureWidths tables; documented module dimension globals'
 ---
 
 # MrxGuiHudMessage
@@ -14,22 +14,31 @@ verified_note: corrects the Instance pattern section (singleton, not per-uGuid -
 *Module: mrxguihudmessage.lua*
 
 ## Overview
-The `MrxGuiHudMessage` module is responsible for managing various types of HUD messages and fanfares in the game. It provides functionality to display different kinds of messages, such as text-based fanfares, event fanfares, and support-related fanfares. The module handles the creation, initialization, and cleanup of these messages, ensuring they are displayed correctly with appropriate animations and callbacks.
+The `MrxGuiHudMessage` module drives the game's on-screen **messages and fanfares** — the full-screen contract/mission/wager payout fanfares, "new contact / new shop item / new landing zone" unlock pop-ups, business-card reveals, big "COMPLETED"/"FAILED" stamps, sliding two-line text fanfares, and the "classy text" effect. It is heavily **Scaleform-backed**: the big fanfares are `MrxGui.FlashWidget`s that load `.swf`/`.gfx` movies and are driven through ActionScript callbacks (`CallActionScriptCallback`, `SetFlashEventHandler`). Simpler messages use native `MrxGui.ImageWidget`/`TextWidget`s.
+
+There is one shared "flash" fanfare at a time — `_gFanfareFlashWidget` is a module global, and `CreateFanfare` returns `false` if one is already active.
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGui`, `MrxUtil`
+- Imports (via [`import()`](../glossary#importname)): `MrxGui`, `MrxGuiBase`, `MrxGuiManager`, `MrxHqManager` — see [MrxGui](mrxgui), [MrxGuiBase](mrxguibase), [MrxGuiManager](mrxguimanager), [MrxHqManager](mrxhqmanager). It also calls the [Net](../namespaces/net), [Player](../namespaces/player), [Sys](../namespaces/sys), [Sound](../namespaces/sound), [Object](../namespaces/object), and [Gui](../namespaces/gui) namespaces, plus the internal `_GuiInternal` and `Pda` singletons and `LTILibName.ChangeShellState`.
+
+{: .note }
+> The earlier draft listed `Imports: MrxGui, MrxUtil`. **`MrxUtil` is not imported.** The real import list is the four modules above. Corrected.
 
 ## Instance pattern
-**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
-`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD message/fanfare
-system, not something spawned per world object. Key fields:
-- `nGlobalWidth`, `nGlobalHeight`: Dimensions for the fanfare widget.
-- `nX`, `nY`: Position coordinates for the fanfare widget.
-- `nMagnification`: Magnification factor for the fanfare widget.
-- `nAnimationTimeLength`, `nLifeTime`, `nFadeTime`: Time-related parameters for animations and transitions.
-- `_gFanfareFlashWidget`, `_gFullscreenFadeWidget`: Global references to the flash and fullscreen fade widgets used in fanfares.
-- Various other fields related to specific types of fanfares (e.g., support, contact, card) to store their state and configuration.
+**Stateless module + module-global singletons + per-widget `CustomData`.** No `tInstance`/metatable pattern. The active flash fanfare lives in the module global `_gFanfareFlashWidget` (plus `_gFullscreenFadeWidget` for the black slow-mo fade); everything else is per-widget `CustomData`. The `_ev*` locals (`_evSkip`, `_evLSLeft`, `_evLSRight`, `_evSelect`) hold live event handles for teardown by `_DeleteFanfareEvents`.
+
+### Module constants & tunables
+- **Default geometry/timing**: `nGlobalWidth = 256`, `nGlobalHeight = 128`, `nX = 320`, `nY = 340`, `nMagnification = 5` (the zoom-in scale factor for `ShowMessage`), `nAnimationTimeLength = 0.1`, `nLifeTime = 3` (default on-screen seconds), `nFadeTime = 1`. `nGlobalWidth`/`Height`/`nX`/`nY` are **overwritten at runtime** by `HandleInitialization` from the announcement widget's authored size/position.
+- **Fanfare Scaleform movies** (`.swf`/`.gfx`, chosen by `sType` in `CreateFanfare`): `fanfare_contract`, `fanfare_mission`, `fanfare_wager`, `fanfare_support_unlocked`, `fanfare_new_contact`, and `fanfare_new_contact_<faction>_businesscard` (faction must be one of `an`/`ch`/`oc`/`gr`/`pr`). The classy-text effect uses the `text_effect` movie.
+- **Event-fanfare lookup tables** (keyed by event `sType`, used by `ShowEventFanfare`/`GetEventFanfareTitle`):
+  - `_tEventTitles`: localized title tokens (`[Fanfare.Common.NewContact]`, `[Fanfare.Common.NewShopItem]`, `[Fanfare.Common.NewStockpileItem]`, `[Fanfare.Common.NewLandingZone]`, `[Fanfare.Common.HvtCaptured]`, `[Fanfare.Common.HvtKilled]`, `[Fanfare.Common.NewBounties]`, `[Fanfare.Common.NewOutfit]`, `[Fanfare.Common.NewHighScore]`).
+  - `_tEventTextures`: icon texture per type (`unlockables_newcontact`, `unlockables_newshopitem`, `unlockables_newstockpileitem`, `unlockables_landingzone`, `unlockables_hvtcaptured`, `unlockables_hvtkilled`, `unlockables_newbounties`, `unlockables_newoutfit`, `unlockables_leaderboardupdated`).
+  - `_tEventSounds`: `ui_signal_ding` for most, `ui_signal_generic` for `hvtcapture`/`hvtkill`.
+  - `_tEventTextureWidths`: per-type pixel widths (398/456/512/512/432/365/428/370/512).
+  - `_knTextQueueFadeTime = 0.5` — cross-fade time between queued event-fanfare text lines.
+- **Classy-text geometry**: `_nClassyTextWidth = 566.6667`, `_nClassyTextHeight = 33.333336`.
+- **Fonts**: `Init()` loads `fanfare_36`; text fanfares use font `fanfare_36`, event fanfares `english_18`.
 
 ## Functions
 
@@ -281,26 +290,26 @@ This function removes and deletes the animated widget from the text fanfare.
 
 ## Events
 
-This module subscribes to and fires several engine events:
+{: .warning }
+> The earlier draft listed `Event.ObjectHibernation`, `Event.PlayerInput`, and `Event.PlayerJoined` — **none of these appear in the source.** Removed. (`OnPlayerJoined()` here is an engine *lifecycle callback*, not an `Event.PlayerJoined` subscription.)
 
-- **`Event.ObjectHibernation`**: Listens for object hibernation events to manage fanfare activation and deactivation.
-- **`Event.TimerRelative`**: Used for scheduling delays, animations, and other timed events within the fanfares.
-- **`Event.PlayerInput`**: Captures player input to handle skipping or retrying fanfares.
-- **`Event.PlayerJoined`**: Responds to player join events to manage active fanfare widgets.
+The real engine-event usage in this file (see [Event](../namespaces/event)):
+- **`Event.Create(Event.TimerRelative, {nSeconds[, bRealtime]}, fCallback, tData)`** — the workhorse for all scheduled steps: fanfare scroll-out (3s), card fanfare stages, widget deletion delays, the announcement auto-remove (0.5s in `HandleInitialization`), and the text-fanfare done timer. Fire-and-forget one-shots.
+- **`Event.Create(Event.Button, {uPlayer, sButton, "press", true}, fCallback, tData)`** and **`Event.CreatePersistent(Event.Button, ...)`** — bound in `_SkipFanfare` (skip on `cancel`/`selection`) and `_RetryEvents` (left-stick `lsleft`/`lsright` and `selection`/`cancel` mapped to `_GuiInternal.SendFlashInput`). Button choice depends on `Sys.IsConfirmOnCircle()`.
+- **`Event.Delete(handle)`** — `_DeleteFanfareEvents` tears down the stored `_ev*` handles.
+- **Widget event handlers** (not engine events): `SetEventHandler("GuiUpdate", _SlowdownUpdate)` drives the slow-mo dilation; `SetEventHandler("GuiUpdate", HandleUpdateEvent)` counts down a message's on-screen time.
+- **Flash/ActionScript handlers** (Scaleform, not engine events): `SetFlashEventHandler("closeFanfare"/"Retry"/"FanfareCountUpComplete"/"FanfareOff"/"close", ...)` and `SetEventHandler("ControllerInput", _HandleFanfareInput)`.
 
 ## Notes for modders
 
-1. **Call-order requirements**:
-   - Ensure that `CommenceFanfare` is called after setting up all necessary parameters and callbacks to ensure proper initialization and display of the fanfare.
-   - When adding items or setting parameters for specific types of fanfares (e.g., support, contact, card), make sure these functions are called in the correct order before starting the fanfare.
+- **Fanfare build sequence** (contract/mission/wager): `CreateFanfare(sType, sFaction)` → `SetFanfareParameters(...)` and repeated `AddFanfareLineItem(...)` → optional `SetFanfareCompleteCallback(...)` → `CommenceFanfare(nSlowdownDuration)`. `CommenceFanfare` locks all HQ ([`MrxHqManager.LockAllHq`](mrxhqmanager)), starts a time-dilation slow-mo (via `_SlowdownUpdate`), hides the HUD, suppresses the PDA, and disables sniper scope; `_EndFanfare` reverses all of that and `MrxHqManager.UnlockAllHq()`s. If you spawn a fanfare, make sure it can reach `_EndFanfare` or the HUD/PDA/HQ stay locked.
+- **Support / contact / card fanfares** each have a `*Commence` entry point that only actually plays once the SWF's `bLoadingComplete` fires (the `*LoadCompleteCallback` re-checks `bReadyToStart`). So calling `SupportFanfareCommence`/`ContactFanfareCommence`/`CardFanfareCommence` before the movie finishes loading is safe — it defers.
+- **Multiplayer**: many entry points call `Net.SendEvent_*` when `Net.IsServer()` (`Net.SendEvent_Fanfare`, `Net.SendEvent_CardFanfare`, `Net.SendEvent_TextFanfare`, `Net.SendEvent_ShowMessage`, `Net.SendEvent_CloseFanfare`) to mirror the fanfare to clients. See [Net](../namespaces/net).
+- **`ShowMessage` tunables**: it zooms an image in from `nMagnification` (×5) scale to normal over `nAnimationTimeLength`, holds for `nMessageDisplayTime` (default `nLifeTime` = 3s; pass a negative time to hold indefinitely), then fades over `nFadeTime`. `ShowCompletedMessage`/`ShowFailedMessage` are thin wrappers using textures `global_gui_completed` / `global_gui_failed`. `vSoundEffect` may be a single cue string or a table of them.
+- **`ShowEventFanfare(sType, vText, ...)`**: `sType` must be a key of `_tEventTextures` or it silently returns. `vText` can be a string or a table of strings shown sequentially (each held `max(1.5, 4/count)`s, cross-faded by `_knTextQueueFadeTime`).
+- **Business-card faction codes**: only `an`, `ch`, `oc`, `gr`, `pr` are valid (case-insensitive) — any other faction makes `CreateFanfare("card", ...)` return `false`.
 
-2. **Pitfalls**:
-   - Overwriting global variables such as `nGlobalWidth`, `nGlobalHeight`, etc., can lead to unexpected behavior if other parts of the game rely on these values.
-   - Failing to set up necessary event handlers or callbacks can result in incomplete or non-functional fanfares.
+{: .note }
+> **Real bug in `ShowMessage` (server→client path):** the `Net.SendEvent_ShowMessage(...)` call passes `nGlobalTime` for height and `nMessageDisplayTime or nLifeTime` positionally in a way that references the undefined global `nGlobalTime` (there is no such variable — the module defines `nGlobalHeight`/`nLifeTime`). On a dedicated-server non-local target this passes `nil` for the height argument. Local display (the common path) is unaffected. Also note `_DeleteFanfareWidget` sets `bSupressedPda` (typo) instead of clearing `bSuppressedPda`.
 
-3. **Tunables**:
-   - Adjusting time-related parameters like `nAnimationTimeLength`, `nLifeTime`, and `nFadeTime` can fine-tune the visual and temporal aspects of the fanfares.
-   - Modifying the magnification factor (`nMagnification`) can change the size of the fanfare widgets, affecting their visibility and impact on the player's experience.
-
-4. **Decompiler artifacts**:
-   - Some internal functions like `_SupportLoadCompleteCallback`, `_ContactLoadCompleteCallback`, etc., may have unused local variables or redundant operator groupings due to decompiler quirks. These should be treated as noise rather than intentional logic.
+- **Decompiler artifacts**: `DisplayClassyText` defines its `Clamp(n, nMin, nMax)` helper *inside* its own body without `local`, so it leaks as a global — harmless, only called from here. Several `*LoadCompleteCallback`s share the same defer-until-loaded shape.

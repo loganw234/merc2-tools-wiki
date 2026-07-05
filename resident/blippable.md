@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Inheritable
 tags: [blip, radar]
 verified: true
-verified_note: read directly from source; corrects an inaccuracy in the previous Events section (HideMarker is a plain function, not an event listener)
+verified_note: "deeper pass: surfaced default blip/marker constants (radar {255,51,51}; marker HUD_objective_destroy/32, near/far 140/150) and the tMarker sub-field defaults; flagged the AddObjective(bNetSync)/RemoveObjective(bDontNetSync) net-sync asymmetry in source; all functions/events re-confirmed"
 ---
 
 # Blippable
@@ -39,9 +39,11 @@ these fields on itself before calling `self:SetBlipped()`:
 - `bNetSync` — whether blip add/remove is replicated to other players (see `AddObjective`/`RemoveObjective`
   below — this gates real `Net.SendEvent_*` calls, not just a cosmetic flag).
 - `tMarker` (table, optional) — if present, also adds an off-screen world marker via `Marker.AddBlip`, with
-  its own `sTexture`/`nSize`/`tColor`/`tFlash`/`nVerticalOffset`/`nNearDist`/`nFarDist`/`nClampDist`/
-  `sGroup`/`bJust2DCheck` sub-fields (all individually defaulted if omitted — see source for exact
-  fallback values).
+  its own sub-fields (each individually defaulted if omitted): `sTexture` (default `"HUD_objective_destroy"`),
+  `nSize` (default `32`), `tColor` (defaults to the secondary-objective RGB from
+  `MrxUtil.GetSecondaryObjectiveRgb()` at alpha `255`), `tFlash`, `nVerticalOffset` (default `0`),
+  `nNearDist` (default `140`), `nFarDist` (default `150`), `nClampDist` (default `-1`), `sGroup` (default
+  `""`), `bJust2DCheck` (default `false`).
 - `bActive` — set by `SetBlipped`/cleared by `ClearBlipped`; whether the blip is currently shown.
 
 Module-level (shared across all instances, not per-object): `tHiddenGuids` — a list of GUIDs that
@@ -68,8 +70,12 @@ true. If `tMarker` is set, also removes any previous marker and adds a new one v
 the marker to other players.
 
 ### `RemoveObjective(self)`
-The inverse of `AddObjective` — removes the radar objective and, if present, the world marker, sending
-`Net.SendEvent_RemoveMarkerObjective` under the same `Net.IsServer()`/`bNetSync` conditions.
+The inverse of `AddObjective` — removes the radar objective (`Hud.Radar:RemoveObjective`) and, if a
+`uMarkerGuid` is set, the world marker (`Marker.Remove`). **Note the asymmetry with `AddObjective`:** the
+marker-removal net event here is gated on `Net.IsServer() and not self.bDontNetSync`, whereas
+`AddObjective` gates on `Net.IsServer() and self.bNetSync`. If an instance sets `bNetSync` but never sets
+`bDontNetSync`, the add path is suppressed (server-only when `bNetSync` is true) but the remove path
+fires — a real inconsistency in the decompiled source, not a documentation error.
 
 ### `HideMarker(uGuid)`
 **A plain function, not an event listener** (see the Events correction below) — call this directly to
@@ -88,6 +94,10 @@ the base `Delete` specifically to avoid leaving a stale radar objective behind w
   custom event.
 
 ## Notes for modders
+- **Default blip look** (what you get if you set nothing): radar dot color `{255, 51, 51}` (red); marker
+  texture `"HUD_objective_destroy"` at size `32`; marker near/far display distances `140`/`150`. Override
+  by setting `tColor`/`sTexture`/`nSize` on the instance (radar) or the matching keys inside `tMarker`
+  (world marker).
 - **The common pattern**: set `tColor`/`sTexture`/`nSize` (and optionally `tMarker`) on your instance, then
   call `self:SetBlipped()` to turn the blip on and `self:ClearBlipped()` to turn it off — you rarely need
   to call `AddObjective`/`RemoveObjective` directly.

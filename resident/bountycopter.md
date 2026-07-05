@@ -6,7 +6,7 @@ nav_order: 1
 inherits: VehicleBlippable
 tags: [support, winch]
 verified: true
-verified_note: confirmed real per-uGuid pattern via VehicleBlippable->OrientedBlippable->Blippable->Inheritable chain; clarified tFlash/sTexture/nSize as prototype-level config, not per-instance fields; corrected OnActivate description (no debug log call in this file); noted Create is inherited, not overridden here.
+verified_note: deeper pass — corrected Events section (_DeployWinch fires on the cargo's Event.ObjectHibernation "awake", not a timer; only the 0.1s AttachCargo delay is Event.TimerRelative); re-confirmed the cargo-label spawn table and tFlash/sTexture/nSize prototype config; added inheritance-chain cross-links.
 ---
 
 # BountyCopter
@@ -17,14 +17,15 @@ verified_note: confirmed real per-uGuid pattern via VehicleBlippable->OrientedBl
 The `BountyCopter` module is a world-spawn helper that drops supply crates via winch. It supports three types of cargo: Blueprints, Treasure, and Light MG. The copter identifies the type based on labels and spawns the appropriate supply drop.
 
 ## Inheritance
-- Inherits from: `VehicleBlippable` (which itself inherits `OrientedBlippable` -> `Blippable` -> `Inheritable`)
-- Imports: `none`
+- Inherits from: [`VehicleBlippable`](vehicleblippable) (→ [`OrientedBlippable`](orientedblippable) → [`Blippable`](blippable) → [`Inheritable`](inheritable))
+- Imports: none
 
 ## Instance pattern
 Real per-`uGuid` instance pattern, but supplied entirely by the inheritance chain — `bountycopter.lua` defines
 no `Create` of its own. `Start` calls `oPrototype:Create(uGuid, uRuntimeOwner)`, which resolves up the chain to
-`VehicleBlippable.Create` (which calls `OrientedBlippable.Create` -> `Blippable.Create` -> `Inheritable.Create`,
-the code that actually builds the instance table, `setmetatable`s it, and registers it in `tInstance`).
+[`VehicleBlippable.Create`](vehicleblippable) (which calls [`OrientedBlippable`](orientedblippable) →
+[`Blippable`](blippable) → [`Inheritable.Create`](inheritable), the code that actually builds the instance
+table, `setmetatable`s it, and registers it in `tInstance`).
 
 The module-level globals are **not** per-instance fields — they're prototype config values that every instance
 falls back to via the metatable `__index`, read by `Blippable.AddObjective` (in `blippable.lua`) as
@@ -58,9 +59,13 @@ Deploys the winch on the copter and sets up an event to attach the cargo after a
 Attaches the supply drop to the deployed winch.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
-- Listens for `Event.TimerRelative` to call `_DeployWinch` after a short delay to deploy the winch.
-- Listens for `Event.TimerRelative` to call `AttachCargo` after another short delay to attach the cargo.
+- `Event.ObjectHibernation` — registered **twice**: in `OnActivate` on the copter (`uGuid`, `"awake"`) to
+  call `Start`, and again in `Start` on the spawned cargo object (`uCargo`, `"awake"`) to call
+  `_DeployWinch` once the cargo itself wakes up. `_DeployWinch` is **not** a timer — it waits for the cargo
+  to leave hibernation, so the winch only deploys after the crate has actually spawned in.
+- `Event.TimerRelative` — in `_DeployWinch`, a fixed **0.1s** delay after `Object.SetWinchState(uGuid,
+  "deployed")` before calling `AttachCargo` (giving the winch a frame to deploy before the cargo is clamped
+  to it).
 
 ## Notes for modders
 - Ensure that `OnActivate` is called appropriately to manage the copter's lifecycle.

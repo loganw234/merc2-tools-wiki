@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [reward, economy]
 verified: true
-verified_note: reward catalog captured by live runtime dump; DispenseAllRewards confirmed by live testing via MrxCheatBootstrap; Functions section deduplicated against source (an earlier pass had left in a set of fabricated function signatures alongside the correct ones)
+verified_note: "deeper pass: completed the Imports list (added MrxPmc/MrxSupportData/MrxUnlockFanfare/WifMissionData/WifMissionFlow), surfaced the _tCashReward/_tFuelReward/_tMoodReward tier tables that many nCash/nFuel/tAttitude values resolve to, documented the reward-entry table shape (tSupport/tEquipment/tStockpile/tAttitude/wager fields); catalog + DispenseAllRewards re-confirmed"
 ---
 
 # MrxRewardData
@@ -18,7 +18,10 @@ The `mrxrewarddata` module manages reward configurations and dispenses rewards f
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`, `WifEquipmentData`, `MrxFactionManager`
+- Imports: `WifEquipmentData`, [`MrxFactionManager`](mrxfactionmanager), [`MrxPmc`](mrxpmc),
+  [`MrxSupportData`](mrxsupportdata), [`MrxUnlockFanfare`](mrxunlockfanfare), `WifMissionData`,
+  `WifMissionFlow`, [`MrxUtil`](mrxutil) (earlier drafts listed only three — the source has all eight
+  `import()` lines).
 
 ## Instance pattern
 This is a stateless utility module (no per-instance pattern). It tracks the following key fields:
@@ -30,6 +33,32 @@ This is a stateless utility module (no per-instance pattern). It tracks the foll
 - `gtAllSupport`: Cached lists of potential support items for factions.
 - `gtAllEquipment`: Cached lists of potential equipment items for factions.
 - `_bPrintRewardType`: A boolean flag to control whether reward types are printed in generated strings.
+
+## Reward tier tables & entry shape
+
+Many `nCash`/`nFuel`/`tAttitude` values in `_tRewards` are **not literals** — they reference three named tier
+tables at the top of the file, keyed by `chapter_one_*` / `chapter_two_*` size names
+(`tiny`/`small`/`medium`/`large`/`boss`) plus `none`:
+
+| Table | What it scales | Example values |
+|---|---|---|
+| `_tCashReward` | cash payouts | `chapter_one_medium = 300000`, `chapter_two_medium = 1000000`, `chapter_two_boss = 2000000`, `none = 0` |
+| `_tFuelReward` | fuel payouts | `chapter_one_medium = 250`, `chapter_two_boss = 2500` |
+| `_tMoodReward` | faction-attitude deltas | `chapter_one_small = 25`, `chapter_two_large = 75`, `*_boss = 100` |
+
+Editing one tier value in these tables re-tunes **every** reward that references it — the cheapest way to
+rebalance whole reward classes at once.
+
+A single `_tRewards[sKey]` entry is a table with any of these optional fields (all confirmed in source):
+- `nCash` / `nFuel` — flat cash/fuel grants (literal or a tier-table reference).
+- `tAttitude = { <Faction> = <delta> }` — attitude change applied via `MrxFactionManager.ChangeRelation` (server only).
+- `tSupport` / `tEquipment` — unlock lists; each element is `{sId, sFaction, bHidden}` after `Init` normalizes
+  bare-string entries (it fills in the mission's faction and `bHidden = false`).
+- `tStockpile` — grant lists; each element is `{sId, nQty, bHidden}` (`nQty` defaults to `1`), pushed via
+  `MrxPmc.AddSupportQty`.
+- `tCustomRewards` — raw localization-string keys shown in the briefing.
+- Wager fields (`nWager`/`nWagerMin`/`nWagerMax`, or the `nWagerPercent`/`...Min/MaxPercent` variants) — used
+  by `GetWagerData`; only these are persisted by `SaveSingleton`/`LoadSingleton`.
 
 ## Reward catalog
 
@@ -406,10 +435,18 @@ It constructs a prepend string with `[Generic.Level]` followed by the milestone 
 
 ## Notes for modders
 
-1. **Call-order requirements**: Ensure that `Init()` is called before any other functions in this module to properly initialize the reward data.
-2. **Pitfalls**:
-   - Modifying `_tRewards` directly can lead to unexpected behavior if not handled carefully, as changes may affect game mechanics.
-   - Be cautious when overriding cash rewards using `GrantRewardKey`, as it can impact player economy balance.
-3. **Tunables**: The module uses several tunable values such as wager percentages and minimum/maximum wager constraints. Modifying these values can affect the reward system's behavior.
-4. **Decompiler artifacts**:
-   - Some local variables in functions like `NetEventCallback` may appear unused or are assigned but never read, which is a decompiler artifact and should be ignored.
+- **Add a reward with no wiring**: put an entry in `_tRewards` keyed by the mission id (e.g.
+  `MrxRewardData._tRewards.CustomTest001 = {nCash = 5000000}`).
+  [`WifMissionFlow.UnlockMission`](mrxmissionflow) calls `GetRewards(sMissionName)` for every mission it
+  unlocks, so it's picked up automatically — confirmed live end-to-end in the
+  [Custom Contract deep dive](../deep-dives/custom-contract).
+- **`Init` normalizes entries in place** (bare-string support/equip/stockpile ids become
+  `{sId, sFaction, bHidden}` / `{sId, nQty, bHidden}`, and each entry gains `sMissionId`/`sFactionId`). If you
+  add entries *after* `Init` runs, mirror that normalized shape or the dispense/print paths may miss fields.
+- **`EnableCashRewardHalving(true)`** sets `_bHalveCashReward`, which multiplies every dispensed `nCash` by
+  `0.5` (used by New Game+ / difficulty scaling). Toggle it if you're auditing why payouts look halved.
+- Cash/fuel are granted through [`MrxPmc.AddCashQty`/`AddFuelQty`](mrxpmc) (HUD-updating); attitude changes go
+  through [`MrxFactionManager.ChangeRelation`](mrxfactionmanager) and only run on the **server**
+  (`not Net.IsClient()`), so support/equipment unlocks won't dispense on a pure client.
+- `_bPrintRewardType` (default `true`) controls whether the `_GetPrintable*String` helpers prefix item names
+  with a type markup tag (`[airstrike]`, `[supply]`, `[fuelsilo]`, …). Set it `false` for plain names.

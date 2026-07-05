@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupportPickup
 tags: [support, rescue]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: rewrote Events section (real Event.TimerRelative/ObjectInSeat subscriptions; DesignationCallback/_WaitCallback/_VehicleLanded are framework hook + Ai callbacks, not "custom events"), documented the 60m prisoner-collect radius, ValidateLandingZone validation, and that it overrides its parent DesignationCallback rather than reusing it; all functions re-confirmed'
 ---
 
 # MrxChiCon001Rescue
@@ -14,10 +14,15 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxchicon001rescue.lua*
 
 ## Overview
-The `MrxChiCon001Rescue` module defines the behavior for a rescue copter support pickup. It inherits from `MrxSupportPickup` and provides functionality to spawn a rescue helicopter, designate a landing zone, and extract prisoners within a specified radius.
+The `MrxChiCon001Rescue` module is a mission-specific rescue-copter support: it flies a heli to a designated
+landing zone, lands, and extracts any **prisoners** within 60m (ordering them to board), then flies them
+home. It subclasses [`MrxSupportPickup`](mrxsupportpickup) but **overrides** its parent's
+`DesignationCallback`/`_WaitCallback`/`_VehicleLanded` with rescue-specific versions (prisoner collection
+instead of the parent's generic pickup). It's added to the support menu by its own `AddSupport`, not through
+the [`MrxSupportData`](mrxsupportdata) catalog.
 
 ## Inheritance
-- Inherits from: `MrxSupportPickup`
+- Inherits from: [`MrxSupportPickup`](mrxsupportpickup)
 - Imports: `MrxChiCon001Rescue`, `MrxVoSequence`
 
 ## Instance pattern
@@ -46,12 +51,29 @@ Handles the designation callback when a landing zone is marked. Spawns the rescu
 A helper function that creates an AI goal for the helicopter to land at the designated target location.
 
 ### `_VehicleLanded(oSelf, uHeli, uDriver, nState)`
-Handles the event when the vehicle lands. Checks if the landing was successful and extracts prisoners within a 60m radius. If no prisoners are found or the landing fails, it aborts the operation and sends the helicopter home.
+Runs when the `HeliLand` order completes. On failure (`nState == 0`) it denies (`abortnodrop`) and sends the
+heli home. On success it idles the driver, collects `"Prisoner"` humans within `60`m
+(`Pg.FastCollectHumans`), and for each orders `Role = "Idle"` then an `Enter`/`Passenger` `Ai.Goal` into the
+heli. It then registers an `Event.ObjectInSeat` (`"Prisoner", uHeli, "Any", "Enter"`) that calls
+[`MrxSupport`](mrxsupport)`.GoHome` once a prisoner is aboard.
 
 ## Events
-- Listens for custom events related to designation and vehicle landing through internal callbacks.
+Confirmed from source — `DesignationCallback`, `_WaitCallback`, and `_VehicleLanded` are the framework hook
+and `Ai.Goal` callbacks, not events:
+
+- **`Event.TimerRelative`** `{2}` — in `DesignationCallback`, a 2-second delay after spawn/VO before
+  `_WaitCallback` issues the landing order.
+- **`Event.ObjectInSeat`** (`"Prisoner", uHeli, "Any", "Enter"`) — in `_VehicleLanded`, sends the heli home
+  when a prisoner boards.
+
+The designator uses `MrxSupportDesignator.ValidateLandingZone` (set in `Create`), so the target must be a
+valid landing spot. Note `DesignationCallback` uses the module-level `nAltitude` inherited from
+[`MrxSupportPickup`](mrxsupportpickup) for its spawn-height fallback.
 
 ## Notes for modders
-- Ensure that `AddSupport` and `RemoveSupport` are called appropriately to manage the rescue copter option in the support menu.
-- Customize the behavior by modifying fields like `sDeliveryVehicle` or adjusting the extraction radius.
-- Be aware of network synchronization settings if extending this module for multiplayer use.
+- **`AddSupport`/`RemoveSupport`** add/remove the "Rescue Copter" menu item for all players — this module is
+  wired in by mission script, not by the catalog.
+- **Extraction radius is `60`m** and it targets the `"Prisoner"` label specifically (in `_VehicleLanded`) —
+  change either to alter who gets rescued.
+- Change the rescue heli via `sDeliveryVehicle` (set on the prototype before `Create`), and the incoming VO
+  is the hardcoded `"Ewan-None-Freeplay-Support-28"` cue in `DesignationCallback`.

@@ -6,7 +6,10 @@ nav_order: 1
 inherits: none
 tags: [mission, boundary]
 verified: true
-verified_note: corrected Instance pattern — this is a class-factory (Create returns a genuine per-call self table with setmetatable), not a stateless module as previously claimed; no tInstance/uGuid registry, caller holds the returned instance
+verified_note: 'deeper pass: re-confirmed every function, both event modes (Event.Boundary region / Event.ObjectProximity
+  point+radius), the 4 callback statuses (exit/return/warning/fail), the fRadius-10 inner-hysteresis radius,
+  the tether re-arm guard, and the 15/30/3 warn/fail/tray defaults — all still accurate against source; no
+  content changes needed.'
 ---
 
 # MrxMissionBoundary

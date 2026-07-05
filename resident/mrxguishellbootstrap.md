@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, shell]
 verified: true
-verified_note: fixed fabricated Events section (zero Event.* calls exist — replaced with the real GUI-load-callback pattern); documented module-level fields (nPlayersSelected/bNeedsReloading are set/read externally by mrxguibootstrap.lua/mrxguishell.lua); flagged SetExitSingleplayerCallback's stored callback as having no consumer anywhere in the corpus
+verified_note: 'deeper pass: re-confirmed the Events section (zero Event.* — pure GUI-load-callback wiring), the module-level fields, and the unused SetExitSingleplayerCallback; added the concrete front-end layout asset names (MrxGuiLoadLayout/MrxGuiAttractLayout/MrxGuiCinematicLayout/MrxGuiLTIPrecacheLayout/MrxGuiShellLayout) and the two Sys.RequestGameState strings ("LTI_precache"/"Shell")'
 ---
 
 # MrxGuiShellBootstrap
@@ -95,8 +95,18 @@ Sets the callback function and its arguments for exiting the multiplayer game st
 ## Events
 No `Event.*` calls appear anywhere in this file. GUI-load completion is handled by plain callback functions passed as arguments to `MrxGuiBase.LoadGUIFile(sLayoutName, fCallback, ...)` — e.g. `EnterPrecache` passes `PrecacheScreenLoaded`, `EnterShell` passes `ShellScreenLoaded`, `LoadPrecache` passes `ClosePrecacheOnLoad`, `LoadShell` passes `CloseShellOnLoad`, `Init` passes `LoadMovieLayouts`. This is a direct function-reference callback, not the engine `Event` system or `MrxGui.SendEvent`'s `EventType`-table pattern seen in other GUI modules (e.g. `mrxguimanager.lua`).
 
+## Module constants & tunables
+- **Front-end layout asset names** loaded here (all via `MrxGuiBase.LoadGUIFile`):
+  `"MrxGuiLoadLayout"` (loaded first, in `Init`), `"MrxGuiAttractLayout"` + `"MrxGuiCinematicLayout"` (loaded by
+  `LoadMovieLayouts`), `"MrxGuiLTIPrecacheLayout"` (precache), and `"MrxGuiShellLayout"` (main shell). These are
+  the raw layout definitions behind the [attract](mrxguiattractlayout)/[precache](mrxguiltiprecachelayout)/
+  [shell](mrxguishelllayout) screens.
+- **Game-state strings** passed to `Sys.RequestGameState`: `"LTI_precache"` (from `PrecacheScreenLoaded`) and
+  `"Shell"` (from `ShellScreenLoaded`). These are the engine state names the front-end transitions request.
+- **Named widgets driven here:** `"LTI_precache"` (precache flash; its `CustomData.oFlash` is
+  `Restart()`/`Play()`ed on show) and `"Shell"` (the shell root, hidden + children disabled by `CloseShellOnLoad`).
+
 ## Notes for modders
-- Ensure that `Init` is called during module initialization to load initial GUI layouts.
 - Use `EnterPrecache`, `EnterShell`, and related functions to manage transitions between different game states.
 - `EnterPrecache`/`EnterShell` vs `LoadPrecache`/`LoadShell` are two different entry points into the same layouts: the `Enter*` pair makes the screen visible and requests the corresponding game state; the `Load*` pair (`LoadPrecache`/`LoadShell`) loads the layout but immediately hides it and disables its children (`ClosePrecacheOnLoad`/`CloseShellOnLoad`) — apparently a pre-warm/pre-load path distinct from actually entering that screen.
 - Customize callback functions for entering and exiting single-player or multiplayer modes by setting appropriate functions and arguments using the provided setter functions — but note `SetExitSingleplayerCallback`'s stored callback has no known consumer (see its Functions entry above).

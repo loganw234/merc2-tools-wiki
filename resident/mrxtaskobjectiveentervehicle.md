@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, vehicle]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — confirmed the per-target Event.ObjectDeath + Event.ObjectInSeat wiring (seat "d" default, "a" when bUseAnySeat; persistent all-chars path when uPlayer == GetAllCharacters); documented uPlayer/bUseAnySeat config levers and the dynamic _GetShortDescription (pilot vs enter label)
 ---
 
 # MrxTaskObjectiveEnterVehicle
@@ -36,7 +36,10 @@ Called when the task objective is activated. It sets up default player configura
 Cleans up all target events and calls the base class's cleanup method to ensure proper resource management.
 
 ### `_SetupEvents(self, uGuid)`
-Sets up events for a specific vehicle, including handling its death and entry by the player. It configures whether any seat can be used and sets up appropriate event listeners.
+Per vehicle, creates an `Event.ObjectDeath` (→ `_OnStatusChange "destroyed"`) and an `Event.ObjectInSeat`
+(→ `_TargetEntered`). Seat is `"d"` (driver) by default, or `"a"` (any) when config `bUseAnySeat` is set.
+When `uPlayer == Player.GetAllCharacters()` it sets `_bUseAllChars` and uses a **persistent** seat event
+requiring *every* player to be in the vehicle; otherwise it uses a one-shot seat event for `tConfig.uPlayer`.
 
 ### `_CleanupTargetEvents(self, tTargetData)`
 Cleans up all events associated with a target vehicle to prevent memory leaks and ensure proper event management.
@@ -47,8 +50,11 @@ Handles changes in the status of a target vehicle (e.g., death). It calls any co
 ### `_TargetEntered(self, uChar, uVehicle)`
 Called when a player enters a target vehicle. It checks if all characters are using the vehicle (if applicable), cleans up target events, removes the target, and completes the task part.
 
-### `_GetShortDescription(self)`
-Returns a short description of the task objective, including the name of the target vehicle. If no specific vehicle is found, it returns a generic description.
+### `_GetShortDescription(self)` *(instance override)*
+Unlike most subclasses' static version, this builds the label from the first target vehicle's localized
+name: `"[ContextAction.PilotVehicleName:<name>]"` if the vehicle has the `"helicopter"` label, else
+`"[ContextAction.EnterVehicleName:<name>]"`; falls back to `"[Generic.ObjectiveEnterVehicle]"` when no name
+is available.
 
 ### `_GetTargetRadarIcon()`
 Returns the radar icon for the task objective, which is used in the game's radar system to indicate the type of objective.
@@ -60,11 +66,17 @@ Returns the PDA (Personal Digital Assistant) icon for the task objective. The op
 Returns the game space icon for the task objective, which is used in the HUD (Heads-Up Display) to indicate the type of objective.
 
 ## Events
-- Listens for `Event.ObjectDeath` to handle vehicle death.
-- Listens for `Event.ObjectInSeat` to detect when a player enters a vehicle seat.
+Created **per target vehicle** in `_SetupEvents` (stored in `_tTargets[uGuid].tEvents`):
+- **`Event.ObjectDeath`** → `_OnStatusChange` (`"destroyed"`) — a destroyed target vehicle cancels the part.
+- **`Event.ObjectInSeat`** → `_TargetEntered` — one-shot for a specific `uPlayer`, or **persistent** in the
+  all-characters mode (only completes once *all* players are aboard).
+
+Inherits [`MrxTaskObjective`](mrxtaskobjective)'s `Event.TimerRelative` initial-notes timer. It uses no
+world/HUD-lifecycle callbacks.
 
 ## Notes for modders
-- Ensure that the task objective is properly activated and cleaned up to manage events and resources effectively.
-- Customize the target vehicle filter (`_uTgtObjFilter`) to specify which vehicles should be considered for the task.
-- Use the `_GetShortDescription` function to provide a clear description of the task in the game interface.
-- Be aware that network synchronization may affect multiplayer behavior, especially if multiple players are involved in entering the same vehicle.
+- **`uPlayer`** (config) selects who must enter — defaults to `Player.GetAnyCharacter()` (any one player).
+  Set it to `Player.GetAllCharacters()` to require the whole co-op team in the vehicle at once.
+- **`bUseAnySeat`** lets riding in any seat count; without it, only the driver seat completes the objective.
+- Reuses the base **action** art (radar `"objective_action"`, world `"HUD_objective_action"`, PDA
+  `"icon_action_1_mc"`/`"_2_mc"`).

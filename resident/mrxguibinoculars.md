@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, binoculars]
 verified: true
-verified_note: corrected Events section — handler names aren't Event.* constants, no Event.Create in this file; added the one real Event.Post("InFocus") call; flagged HandleFocusUpdate's Event.Post
+verified_note: 'deeper pass: added module constants (_nIntroZoomScale=3, _nIntroZoomTime=0.25) and the pointer-math magic numbers (heading/360, zoom (n-4)/-6, pitch (n-6)/100); cross-linked MrxGuiManager/MrxSound/MrxGui; re-confirmed all functions and the single Event.Post("InFocus")'
 ---
 
 # MrxGuiBinoculars
@@ -18,10 +18,19 @@ The `MrxGuiBinoculars` module manages the behavior of the binoculars GUI in the 
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `MrxGuiManager`, `MrxGui`, `MrxSound`
+- Imports: [MrxGuiManager](mrxguimanager) (`ToggleHud`/`GetHudState`), [MrxGui](mrxgui) (`GetObjectiveDescription`), [MrxSound](mrxsound) (`EnterScopeView`/`ExitScopeView`)
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but manages the binoculars GUI based on events and player interactions.
+Stateless module. All the handlers take a caller-supplied `oWidget` and stash per-scope state on that widget's `oWidget.CustomData` table (`bOn`, `bUsingZoom`, `bHudState`, cached child references, animation-point ids) — so state is per-binoculars-widget, held by the widget, not by a module registry here. There is no `Inheritable.Create`/`tInstance` pattern.
+
+## Module constants & tunables
+- `_nIntroZoomScale = 3` — how far the scope frame zooms out (the "big point" is centered at 320,240 and scaled by this ×0.5) before snapping to the real scope rect on enter.
+- `_nIntroZoomTime = 0.25` — seconds for the zoom-in animation; the reticle fades over `_nIntroZoomTime * 0.5` on enter and `* 0.9` on exit.
+
+Pointer math (inline magic numbers, not named — useful if you retune the HUD gauges):
+- Heading pointer: `nCameraHeading / 360 * width + center` (full 360° sweep).
+- Zoom pointer: `(nZoomLevel - 4) / -6 * height + center` — implies zoom runs roughly 4 (top) down through the range spanned by the `-6` divisor.
+- Vertical-scroll pointer: `(nPitch - 6) / 100 * height + center`.
 
 ## Functions
 ### `HandleBinocularsEnter(oWidget, tEvent)`
@@ -74,6 +83,7 @@ when a focus target is set.
 
 ## Notes for modders
 - The exact widget-event names these handlers are bound to live in the (non-decompiled) `MrxGuiBinocularsLayout` GUI resource, not in this `.lua` file — don't assume the names in this doc are literal `Event.*` constants.
-- Customize the appearance and behavior of the binoculars GUI by modifying the animation points, pointer positions, and other custom data fields as needed.
-- Be aware that toggling the HUD state during binoculars use may affect the player's experience, so test thoroughly in multiplayer scenarios.
-- `HandleFocusUpdate` fires a real `Event.Post("InFocus", ...)` — anything hooking into focus-target changes elsewhere in the codebase should listen for that.
+- **Child indices are load-bearing.** `HandleInitialization` caches children by number: `[1]` = pointer, `[2]` = reticle, `[3]` = focus text, `[7]` = faction texture, `[8]` = description. If you re-order the layout's children these bindings break. This is the same `bSniper`-aware scope logic used by [MrxGuiSniperScope](mrxguisniperscope) — the enter/exit handlers early-out when `tEvent.bSniper` is set (or, on exit, only run if `bOn`), so this binoculars module handles the non-sniper case.
+- **Tune the zoom feel** with `_nIntroZoomScale` / `_nIntroZoomTime` (above). The intro zoom only runs when `_GuiInternal.SetWidgetUseNewRescale` exists and set `bUsingZoom` — otherwise it snaps straight to `_FinishEnter`.
+- Toggling the HUD (`MrxGuiManager.ToggleHud(..., false, "scope")`) is guarded by `bHaveHudState`/`bHudState` so it restores exactly once on exit — test in multiplayer, as ownership is checked via `oWidget:GetOwner() == tEvent.uPlayerGuid`.
+- `HandleFocusUpdate` fires a real `Event.Post("InFocus", {uTarget, uViewer, bSniper=false})` when a focus target is set — anything hooking into look-at/focus-target changes should listen for that; the sniper scope posts the same event with `bSniper=true`.

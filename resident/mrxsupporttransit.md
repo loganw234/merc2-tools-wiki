@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, transit]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: rewrote the Events section (the old one listed ~9 On* lifecycle callbacks -- OnActivate/OnDeactivate/OnDeath/OnUse/OnEnter/OnExit/OnStateChange/OnPlayerJoined/OnPlayerLeft -- none of which exist in source; this is a class-factory module with only real Event.* subscriptions), pruned the matching "ensure OnActivate is called" boilerplate, and surfaced the NETEVENT_* constants + bUnrestrictedByFuel + timeout tunables'
 ---
 
 # MrxSupportTransit
@@ -31,11 +31,26 @@ The `MrxSupportTransit` module is responsible for managing the support transit s
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
 table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
 registry. It tracks the following key fields:
-- `sDeliveryVehicle`: The name of the delivery vehicle, set to `"UH1 Transport (Transit)"`.
-- `nAltitude`: The altitude at which the heli operates, set to `250`.
-- `tVOOnTheWay`: A table containing VO cues for when the transit is on the way.
-- `tVOGoHome`: A table containing VO cues for when the transit goes home.
-- `bTransitInterfaceActive`: A boolean flag indicating whether the transit interface is active.
+- `sDeliveryVehicle`: The name of the delivery vehicle, module-level default `"UH1 Transport (Transit)"`.
+- `bUnrestrictedByFuel`: set `true` in `Create` — this is the only support type in the category that
+  bypasses the fuel check in [`MrxSupportManager.CompleteDesignation`](mrxsupportmanager) (calling for a
+  ride home is free).
+- `bWaterPickup`: set per-designation in `DesignationCallback` (true if the owning character is swimming) —
+  switches the heli from a `HeliLand` goal to a `MoveTo` hover-pickup and skips the seat-enter/exit events.
+- Per-designation event handles: `EnterEvent`/`ExitEvent`/`PlayerLeftEvent`/`TimeoutEvent`/`DeathEvent`/
+  `HibernateEvent`/`eAbort`/`uIdleGoal` — all created in `_WaitCallback`/`_VehicleLanded` and torn down by
+  `_Cleanup`.
+
+{: .warning }
+> **`bTransitInterfaceActive` is a module-level global, not per-instance state.** It's declared at file
+> scope (`bTransitInterfaceActive = false`) and read/written directly by name — never through `self` — so
+> a single flag is shared across every transit object. In practice only one transit is ever in flight, but
+> don't assume it's isolated per delivery.
+
+Module constants (file scope): `nAltitude = 250` (unused in this file — spawn height actually comes from
+`MrxSupport.GetSpawnHeight()`); `tVOOnTheWay`/`tVOGoHome` (local Ewan freeplay-support cue lists);
+the net-event ID constants `NETEVENT_ENTERVEHICLE = 0`, `NETEVENT_EXITVEHICLE = 1`,
+`NETEVENT_SHOWMESSAGE = 2`, `NETEVENT_CLEARMESSAGE = 3`.
 
 ## Functions
 
@@ -182,28 +197,38 @@ This function handles the death of an object associated with the support transit
 
 ## Events
 
-- **`OnActivate(uGuid, uRuntimeOwner, iArg)`**: This module listens for this event when a world object instance is spawned/activated. It initializes the support system by creating a new support instance with the specified player GUID.
-  
-- **`OnDeactivate(uGuid)`**: This module listens for this event when an instance is being torn down (despawned/unloaded). It cleans up resources and removes any associated events.
+Confirmed directly from source. **There are no `On*` engine-lifecycle callbacks in this file** (an earlier
+version of this page listed `OnActivate`/`OnDeactivate`/`OnDeath`/`OnUse`/`OnEnter`/`OnExit`/`OnStateChange`/
+`OnPlayerJoined`/`OnPlayerLeft` — none of those functions exist here). Like the rest of the category this is
+a [`MrxSupport`](mrxsupport) class-factory object; everything is a one-shot `Event.Create`/
+`Event.CreatePersistent` tied to a specific in-flight heli, set up in `_WaitCallback` and cleared in
+`_Cleanup`:
 
-- **`OnDeath(uGuid)`**: This module listens for this event when the underlying object dies. It handles the death by calling `_HandleDeath`, which performs a full cleanup of all event handlers and resets the module-level state.
+- **`Event.ObjectHibernation`** — waits for the spawned heli to wake (`DesignationCallback` →
+  `_WaitCallback`); and a `"hibernated"` handle firing `_OnHibernate` to clean up + remove the heli.
+- **`Event.ObjectInSeat`** (persistent) — two handles, `"a"/"e"` (any seat, enter → `_OpenTransitInterface`)
+  and `"a"/"x"` (any seat, exit → `_PlayerExited`), on the landed heli.
+- **`Event.ObjectDeath`** — on the heli, firing `_HandleDeath` (which calls `_Cleanup`).
+- **`Event.TimerRelative`** — the auto-return timeouts (`45`s after landing in `_VehicleLanded`; `10`s after
+  the last player exits) and short VO/return delays.
+- **`Event.ScriptEvent`** `"mpPlayerLeft"` (persistent) — co-op teardown, firing `_PlayerLeftGame`.
 
-- **`OnUse(uGuid, ...)`**: This module listens for this event when the player interacts with or uses the object. It initiates the support operation by calling `Commence`.
-
-- **`OnEnter` / `OnExit`**: These events are used to handle player or trigger volume enter/exit scenarios. They manage various aspects of the transit process, such as opening the transit interface and handling player exits.
-
-- **`OnStateChange`**: This module listens for this event when a tracked state machine field changes. It manages the state transitions related to the support system.
-
-- **`OnPlayerJoined` / `OnPlayerLeft`**: These events are used to handle co-op player session changes. They manage the transit interface and timeout events accordingly.
-
-- **`Event.ObjectHibernation`**: This module listens for this event when an object hibernates. It handles the hibernation by calling `_OnHibernate`, which cleans up resources and removes the heli from the game world.
+`NetEventCallback(eventId, tArgs)` is the receiver for this module's own `Net.SendCustomEvent(
+"MrxSupportTransit", ...)` traffic (dispatched by module name, not via `Event.*`), handling the four
+`NETEVENT_*` IDs listed above — enter/exit the secondary player's vehicle and show/clear the client transit
+tutorial message.
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `OnActivate` is called before any other lifecycle events to properly initialize the support system. The sequence of events like `OnEnter`, `OnExit`, and `OnUse` should be respected to maintain the integrity of the transit process.
-  
-- **Pitfalls**: Be cautious with network events (`NetEventCallback`) as they can lead to unintended behavior if not handled correctly. Ensure that all players are properly managed during transitions, especially when exiting vehicles.
-
-- **Tunables**: The module-level state variables such as `nAltitude` and the VO cue tables (`tVOOnTheWay`, `tVOGoHome`) can be tuned to adjust the behavior of the support system. For example, changing `nAltitude` will affect the altitude at which the heli operates.
-
-- **Decompiler artifacts**: There are no known decompiler artifacts in this module that require special attention. All functions and variables appear to be correctly interpreted by the decompiler.
+- **Free rides**: `bUnrestrictedByFuel = true` is set in `Create`, so transit ignores the fuel gate that
+  every other support type respects — see [`MrxSupportManager.CompleteDesignation`](mrxsupportmanager).
+- **Water pickup vs. land**: if the owning character is swimming when they designate, `bWaterPickup` flips
+  the whole sequence to a hovering `MoveTo` pickup (no landing, no seat events) — test both paths if you
+  change the spawn/land logic.
+- **Timeouts to tune**: the heli waits `45`s on the ground after landing before auto-returning
+  (`_VehicleLanded`), or `10`s after the last player leaves it (`_PlayerExited`/`_PlayerLeftGame`). Both are
+  plain `Event.TimerRelative` literals.
+- **`bTransitInterfaceActive` is a shared module global**, not per-`self` — see the warning in Instance
+  pattern before relying on it in a multi-transit scenario.
+- **`nAltitude = 250` is dead here** — spawn height comes from `MrxSupport.GetSpawnHeight()` (250 with a
+  co-op secondary character present, else 50), not this constant.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [base, object, beginner-friendly]
 verified: true
-verified_note: read directly from source (39 lines total) -- this is the exact code quoted in the Resident Modules landing page's "how these modules actually work" section
+verified_note: "deeper pass: re-verified all 7 functions line-for-line against the 39-line source (Create/Delete/GetFromGuid signatures and the OnActivate->Event.ObjectHibernation->Awake->Create idiom all exact); no changes needed — this remains the canonical instance-pattern reference the rest of the wiki points at"
 ---
 
 # Inheritable

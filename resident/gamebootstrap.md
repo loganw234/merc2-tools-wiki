@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [init, intro]
 verified: true
-verified_note: corrected Events section (no Event.* calls in this file at all — movie sequencing uses MovieWidget:SetEndCallback, not the Event system); added tMovies/_oIntroMovieWidget to Instance pattern; all 4 functions confirmed
+verified_note: "deeper pass: surfaced startup constants (gamma 0,0.8,1; save version 3; tMovies entries) and how to skip intros, cross-linked imports, pruned vacuous notes; all 4 functions and the no-Event.* finding re-confirmed"
 ---
 
 # GameBootstrap
@@ -18,7 +18,8 @@ The `GameBootstrap` module is responsible for initializing the game environment 
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `LevelBootstrap`, `MrxSoundBootstrap`, `MrxGuiShellBootstrap`, `MrxGuiBase`
+- Imports: [`LevelBootstrap`](levelbootstrap), [`MrxSoundBootstrap`](mrxsoundbootstrap),
+  [`MrxGuiShellBootstrap`](mrxguishellbootstrap), [`MrxGuiBase`](mrxguibase)
 
 ## Instance pattern
 This is a stateless manager/utility module — no `uGuid`, no `OnActivate`/`Awake`/`Create`, no `tInstance` registry. It runs once at process/game startup and tracks module-level globals instead:
@@ -43,6 +44,12 @@ Returns the save data version number, hardcoded to `3`.
 This file contains no `Event.*` calls at all — no `Event.Create`, no engine event constants. Movie sequencing is driven entirely by `MovieWidget:SetEndCallback(_EndMovie, {sMovie})`, a widget-level callback, not the engine Event system used elsewhere in this codebase.
 
 ## Notes for modders
-- Ensure that `Init` and `Start` are called appropriately during game startup.
-- Customize the list of intro movies in `tMovies` if you want to change or add new introductory content.
-- Be aware that modifying save data version may affect compatibility with existing saves.
+- **Skip / change the intro movies via `tMovies`** — it's a plain module-level list of `{sMovieName,
+  nLoopTime}` pairs (`{"Pandemic", -1}`, `{"EA", -1}`; `-1` = play once, no loop). Empty it to boot
+  straight past the logos, or add your own entries. `Sys.PlayIntroMovies()` returning false also skips them
+  entirely (goes straight to `Start()`).
+- **The two startup constants**: default gamma is `Graphics.SetGamma(0, 0.8, 1)` and the save-data version
+  is `3` (`GetSaveDataVersion`). Bumping the save version affects compatibility with existing saves.
+- **`Start()` is the routing table for what loads next** — client/lobby/autoserver/autoload/shell, in that
+  priority order (see the function above). This is where you'd intercept to force a particular entry path.
+  Non-VZ atmosphere/faction setup is *not* here — that's [`MrxBootstrap`](mrxbootstrap).

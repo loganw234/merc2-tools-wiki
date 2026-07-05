@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, vo]
 verified: true
-verified_note: replaced vague Events section with the actual Event.* constants used (TimerRelative only); added _uDelayTimer and knPriority* constants to Instance pattern
+verified_note: "deeper pass: documented the four stage shapes Start accepts (cue / callback / delay / J-M-C identity table), the priority pre-emption rule, _nBaseDelay 0.25 default and dead _knTimeout branch; cross-linked imports; Events (TimerRelative only) re-confirmed"
 ---
 
 # MrxVoSequence
@@ -18,7 +18,7 @@ The `MrxVoSequence` module is responsible for playing voice-over (VO) sequences 
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxUtil`, `MrxSoundCategories`
+- Imports: [`MrxUtil`](mrxutil), [`MrxSoundCategories`](mrxsoundcategories)
 
 ## Instance pattern
 This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid`/`tInstance` pattern) — there is only ever one VO sequence in flight at a time, module-wide. It tracks the following key fields:
@@ -58,7 +58,17 @@ Returns a boolean indicating whether a VO sequence is currently in progress.
 - No other `Event.*` constants appear in this file; sequence advancement between non-delayed stages happens via direct recursive calls to `_ExecuteStage`, not events.
 
 ## Notes for modders
-- Ensure that `Start`, `Stop`, and `Reset` are called appropriately to manage the lifecycle of VO sequences.
-- Customize VO sequence properties by setting fields like `_nBaseDelay` and `_knTimeout`.
-- Be aware that network synchronization (`bSendNetEvent`) may affect multiplayer behavior.
-- The module uses internal state tracking, so ensure proper cleanup when stopping sequences.
+- **A stage in `vSequence` can be one of four shapes**, auto-detected by `Start`: `{sCue, vSpeaker}` (a
+  spoken cue — speaker may be a name string, a GUID, or `nil`=`0`), `{fFn, tArgs, bIgnoreOnSkip}` (a
+  callback stage, runs instantly), `{nDelay}` (a pause; negatives clamp to `0`), or a bare
+  `{J=cue, M=cue, C=cue}` table keyed by the primary character's identity (Jennifer/Mattias/Chris) — the
+  matching cue is picked automatically. This is the actual authoring surface.
+- **Priority decides who wins**: pass one of the `knPriority*` constants (they alias `VO.PRIORITY_*`).
+  A higher-priority `Start` pre-empts the current sequence; equal-or-lower is rejected and its callbacks are
+  fired as "skipped". `bCinematic = true` forces `knPriorityCinematic`.
+- **`_nBaseDelay` defaults to `0.25s`** between stages that don't specify their own delay; override
+  per-call by putting `nBaseDelay` on the sequence table itself.
+- **`_knTimeout` is dead in this file** — nothing sets it, so the per-cue timeout branch in `_ExecuteStage`
+  never runs unless native/other code assigns it. Don't rely on it as a safety net.
+- Only one sequence runs at a time module-wide; call `Stop`/`Reset` if you need to force-clear before
+  starting another at equal-or-lower priority.

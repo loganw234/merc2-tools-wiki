@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [outpost, support]
 verified: true
-verified_note: confirms the Instance pattern claim is actually accurate for this file (unlike most other pages with this same boilerplate line) -- Outpost hand-rolls its own uGuid registry rather than inheriting the shared Inheritable base
+verified_note: 'deeper pass: corrected the Events section (player-join is Event.ScriptEvent "mpPlayerJoin", not Event.PlayerJoined/PlayerLeft; also documents the real Event.ObjectDeath/TimerRelative subscriptions and the NETEVENT_* codes); surfaced all tunables (nStartingHealth=3, nCaptureTime=10, nStartRange=150, nSpawnTime=20, iCashReward=5000, nRusherQuota=1, faction defaults); flagged the uRunnerGuid typo bug in IssueCommand; cross-linked imports/namespaces.'
 ---
 
 # outpost
@@ -17,8 +17,15 @@ verified_note: confirms the Instance pattern claim is actually accurate for this
 The `outpost` module manages the behavior and state of outposts in the game world. It handles various events such as activation, deactivation, health changes, and player interactions. The module also manages support types for different factions and provides functions to update the outpost's health display on the HUD.
 
 ## Inheritance
-- Inherits from: none — base/utility module
-- Imports: none
+- Inherits from: none — hand-rolled instance registry (see below)
+- Imports: [`MrxGui`](mrxgui), [`MrxPmc`](mrxpmc), [`MrxUtil`](mrxutil),
+  [`MrxFactionManager`](mrxfactionmanager), [`MrxGuiInterface`](mrxguiinterface),
+  [`MrxOutpostManager`](mrxoutpostmanager), [`MrxSupportData`](mrxsupportdata),
+  [`MrxVoSequence`](mrxvosequence)
+
+The "Imports: none" on the previous draft was wrong — the source `import()`s eight modules. The
+capture/destroy status is reported up to [`MrxOutpostManager`](mrxoutpostmanager)
+(`OutpostStatusChange` with `knStatusCaptured`/`knStatusDestroyed`).
 
 ## Instance pattern
 **Confirmed genuinely accurate** — unlike most other pages that carried this same line, `Outpost` really
@@ -148,12 +155,14 @@ lookup function: `return uGuid and _tOutposts[uGuid]`. It tracks the following k
   - `oSelf`: The outpost instance.
 
 ### IssueCommand(oSelf, uRusher, sCapturePt, bAttacker)
-- **Description**: Issues a command to a rusher to move to the capture point and attack or defend.
-- **Arguments**:
-  - `oSelf`: The outpost instance.
-  - `uRusher`: The GUID of the rusher.
-  - `sCapturePt`: The name of the capture point.
-  - `bAttacker`: A boolean indicating whether the rusher is an attacker.
+- **Description**: Gives one AI soldier a high-priority `Ai.Goal` "MoveTo" the capture point, plays a
+  rusher VO, sets a 20s `Event.TimerRelative` timeout (`RusherFailed`) and an `Event.ObjectDeath`
+  watchdog (`RescindRusherCommand`), marks the rusher on the radar, and increments
+  `nAttackers`/`nDefenders`.
+- **Arguments**: `oSelf`; `uRusher` (soldier GUID); `sCapturePt` (capture-point name); `bAttacker`.
+- {: .warning } **Confirmed bug**: the line `Ai.SetPriorityTarget(uRunnerGuid)` reads an undefined
+  global `uRunnerGuid` (the rusher variable is `uRusher`). It resolves to `nil` at runtime, so this
+  call is effectively a no-op / mis-fire. Left as-is in the decompiled source.
 
 ### RusherGoalFulfilled(oSelf, uRusher, nState)
 - **Description**: Handles the fulfillment of a rusher's goal (moving to the capture point).
@@ -229,14 +238,56 @@ lookup function: `return uGuid and _tOutposts[uGuid]`. It tracks the following k
   - `uRusher`: The GUID of the rusher to play the voice-over for.
 
 ## Events
-This module subscribes to and fires several engine events related to outpost behavior:
+All real subscriptions are created in `Create`/`Activate`/`IssueCommand` (server-side only —
+everything is gated behind `Net.IsClient()` returns):
 
-- **`Event.ObjectDeath`**: Listens for the death event of an outpost instance and calls `OnDeath`.
-- **`Event.TimerRelative`**: Handles timer tick events to manage health changes and call for attackers/defenders via `TimerTick`.
-- **`Event.PlayerJoined` / `Event.PlayerLeft`**: Updates the health display on player join or leave via `SendPlayerJoinEvents`.
+- **`Event.ObjectDeath`** (`Create`, handle `tEvents.OnDeath`) — the outpost object dying calls
+  `OnDeath` → `Destroyed`.
+- **`Event.ScriptEvent`** named **`"mpPlayerJoin"`** (`Event.CreatePersistent`, handle
+  `tEvents.OnJoin`) — filtered to server + non-local joiner; calls `SendPlayerJoinEvents` to push the
+  current health display to the new client. (The previous draft's `Event.PlayerJoined`/`Event.PlayerLeft`
+  were fabricated — those names do not appear in the source.)
+- **`Event.TimerRelative`** at 1s (`Activate`, persistent, handle `tEvents.OnTimer`) — the `TimerTick`
+  heartbeat that drives capture/defense logic. Also used for the 20s per-rusher timeout in
+  `IssueCommand`.
+- **`Event.ObjectDeath`** per rusher (`IssueCommand`) — cleans up a rusher's command if it dies.
+
+Health-display sync uses the `"Outpost"` custom-event channel with `NETEVENT_UPDATEHEALTHDISPLAY = 0`
+and `NETEVENT_CLEARHEALTHDISPLAY = 1` (see `NetEventCallback`).
+
+## Module constants & tunables
+Module-level globals set at the top of the file (all directly editable to retune outposts):
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `nStartingHealth` | `3` | "X" pips shown in the objective tray; number of successful rushes to flip the outpost. |
+| `nCaptureTime` | `10` | (declared; capture pacing.) |
+| `nStartRange` | `150` | (declared; engagement range.) |
+| `nSpawnTime` | `20` | Seconds-per-cycle applied to the outpost's spawners via `Ai.TweakAttachedSpawnersInGroup`. |
+| `iCashReward` | `5000` | (declared cash reward.) |
+| `nRusherQuota` | `1` | Max simultaneous rushers per side (`IsRusherQuotaMet`). |
+| `sDefenders` / `sAttackers` | `"VZ"` / `"OC"` | Default defending / attacking faction codes. |
+
+- `tDefaultSupport` maps each faction to its freebie support (`SoldierDelivery_AL/PR/CH/GR/OC`), added
+  via [`MrxSupportData.AddFreebie`](mrxsupportdata) while an outpost is active (ref-counted through
+  `_tSupportRefCount`).
+- Rusher radar markers use per-faction textures from `MrxFactionManager.GetMarkerTexture` plus a
+  minimap-icon lookup (`MiniMap_Icon_Faction_PMC/GR/OC/PR/AN/CH/VZ`).
+- `PlayerRusherVO` holds large per-faction/gender tables of "advance"/"attack building" barks played at
+  `MrxVoSequence.knPriorityFreeplay`.
 
 ## Notes for modders
-- **Call-order requirements**: Ensure that `Activate` is called after creating an outpost instance to properly set up its initial state and events. Similarly, `Deactivate` should be called before deleting an outpost instance to clean up resources.
-- **Pitfalls**: Be cautious with modifying the `_tOutposts` table directly, as it holds active outpost instances. Always use the provided functions like `Find`, `Create`, and `Delete` to manage outpost instances safely.
-- **Tunables**: The constants `nCaptureTime`, `nStartRange`, `nSpawnTime`, `iCashReward`, `nStartingHealth`, and `nRusherQuota` can be adjusted to change the behavior of outposts. Modifying these values may affect gameplay balance.
-- **Decompiler artifacts**: There are no known decompiler artifacts in this module that require special attention. All functions and variables appear to have intended purposes within the context of outpost management.
+- **Retune difficulty** via `nStartingHealth` (pips to capture) and `nRusherQuota` (how many soldiers
+  push at once). `nSpawnTime` controls how fast the outpost's attached spawners refill.
+- Health math (`HealthChange`): an **attacker** reaching the capture point applies `nDelta = -1`, a
+  **defender** applies `+1`, clamped to `[0, nStartingHealth]`. Hitting 0 triggers `Captured`
+  (attacker win → `SetDBFaction(sAttackers)`); the outpost object dying triggers `Destroyed`.
+- Hook outcomes with the instance callbacks `fCapturedCallback` / `fDestroyedCallback` /
+  `fUpdatedCallback` (each with its `t*CallbackData`), invoked via
+  [`MrxUtil.CallWithOptionalArgs`](mrxutil) — this is the intended integration point for missions.
+- This is **server-authoritative**: nearly every function early-returns on `Net.IsClient()`. Clients
+  only receive the health-display via the custom-event channel. See [`Net`](../namespaces/net).
+- Manage instances only through `Create`/`Find`/`Delete`; don't touch `_tOutposts` directly.
+- Two confirmed source quirks: the `uRunnerGuid` typo in `IssueCommand` (above), and empty
+  `if not bRushers then end` / `if not tMunitions[nStock] then end`-style no-op branches left by the
+  decompiler.

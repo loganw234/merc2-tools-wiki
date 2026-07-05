@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, attract]
 verified: true
-verified_note: clarified Events section — GuiGameStateChange/ControllerInput are widget SetEventHandler bindings made in this file's own HandleInit, not Event.* engine constants; rest of page confirmed accurate against source
+verified_note: 'deeper pass: re-confirmed the GuiGameStateChange/ControllerInput SetEventHandler bindings and all six functions against source; added the _tMovies={"attract"} movie name, the Letterbox movie fullscreen mode, and the game-state strings — flagged the "shell" (lowercase, SetEndCallback) vs "Shell" (HandleInput) case mismatch'
 ---
 
 # MrxGuiAttractMode
@@ -51,7 +51,22 @@ engine `Event.*` system:
 - `oWidget:SetEventHandler("ControllerInput", HandleInput)` — on any controller input while not already
   closing, requests a transition to the `"Shell"` game state.
 
+## Module constants & tunables
+- **`_tMovies = {"attract"}`** (set in `Init`) — the attract-mode playlist. `_Open` plays entries in order,
+  advancing `nMovieNum` and wrapping back to `1` at the end, so adding entries here (`{"attract", "attract2", …}`)
+  makes attract mode cycle through multiple movies. This is the main mod lever on this page.
+- **Movie widget mode: `"Letterbox"`** (`HandleInit`) — the attract movie is presented letterboxed, unlike the
+  shell's `"pan and scan"` intro.
+- **Game-state strings:** enters/exits on `"Attract"` (`HandleGameStateChangeEvent`); requests `"Shell"` on
+  controller input (`HandleInput`) and `"shell"` when a movie ends (`_Open`'s `SetEndCallback`).
+
+{: .note }
+> The movie-end callback requests state `"shell"` (lowercase) while the input handler requests `"Shell"`
+> (capitalized). If `Sys.RequestGameState` is case-sensitive these hit different code paths — worth knowing if you
+> repurpose attract mode and one exit route behaves differently from the other. (Case sensitivity not verified.)
+
 ## Notes for modders
-- Ensure that `Init`, `HandleInit`, `_Open`, and `_Close` are called appropriately to manage the lifecycle of the attract mode GUI.
-- Customize the list of movies in `_tMovies` to change the content played during attract mode.
-- Be aware of the transition logic between attract mode and other game states, especially when handling controller input.
+- `_Open` early-returns when `CustomData.bActive` is already true. `HandleInit` sets `bActive = true` *before*
+  calling `Close()`, so the first real open happens through the `"Attract"` game-state enter path, not directly.
+- Any controller input during attract mode requests the `"Shell"` state and latches `bClosing` so a second input
+  can't double-fire the transition.

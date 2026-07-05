@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [music, dynamic]
 verified: true
-verified_note: "fixed doubled-linebreak formatting; removed fabricated Imports line (MrxUtil, Net — no import() calls exist in source, Net/Sound/Debug are engine globals); rewrote Events section (only one real Event.* call exists, NETEVENT_* are Net.SendCustomEvent codes, not the Event system); documented two likely bugs — undeclared sFaction global in SendPlayerJoinEvents and undeclared sNewState global in _CleanupSpecialMusic"
+verified_note: "deeper pass: re-confirmed all functions, the two documented bugs (bare sFaction / bare sNewState globals), the full cue table, and the single Event.CreatePersistent call against source; documented the music-cue naming convention + concrete state list, and cross-linked the Sound namespace and MrxSound (the state façade that drives this)"
 ---
 
 # MrxMusic
@@ -14,11 +14,25 @@ verified_note: "fixed doubled-linebreak formatting; removed fabricated Imports l
 *Module: mrxmusic.lua*
 
 ## Overview
-The `MrxMusic` module manages dynamic music state: faction/freeplay music cue tables, action-level transitions, special music (fanfares, hijack stings, misc cues), and multiplayer sync of music state via custom net events. It drives the engine's `Sound.*` music API (states, transitions, cues, playlists) and keeps clients in sync with the server's current music context.
+The `MrxMusic` module manages dynamic music state: faction/freeplay music cue tables, action-level transitions, special music (fanfares, hijack stings, misc cues), and multiplayer sync of music state via custom net events. It drives the engine's [`Sound`](../namespaces/sound) music API (states, transitions, cues, playlists) and keeps clients in sync with the server's current music context. The high-level game-state façade [`MrxSound`](mrxsound) is what calls into this module (`_InitializeMusic`, `_DisableDynamicMusic`, `TransitionMusic`-triggering states, etc.).
+
+### Music-cue naming convention
+Every cue in `_tMusicCues` follows a fixed pattern, which is the useful thing to know if you're
+retargeting music with `BindMusicCue`:
+- **Faction cues:** `mu_fac_<faction>_<role>_NN` — e.g. `mu_fac_an_explore_01`, `mu_fac_gr_threat_01`,
+  `mu_fac_pmc_win_01`, `mu_fac_oc_hijack_02`, `mu_fac_ch_kickass_01`. Faction codes seen: `an`, `oc`,
+  `gr`, `ch`, `pmc`. Role words seen: `explore`, `threat`, `win`, `fail`, `hijack`, `kickass`.
+- **Freeplay cues:** `mu_nomission_<region>_<role>_NN` — e.g. `mu_nomission_city_explore_01`,
+  `mu_nomission_jungle_threat_02`, `mu_nomission_water_fail_01`. Regions: `city`, `jungle`, `water`.
+- **Shell/UI:** `mu_shell_01` (reused for both the `shell` and `pause` states across every faction).
+
+Note the cue *file* name (`mu_fac_an_threat_01`) differs from the internal *state* name (`action`): the
+`threat`/`win`/`fail`/`kickass` audio-file words map to the `action`/`mission_success`/`mission_failure`/
+`hijack_success` states, respectively.
 
 ## Inheritance
 - Inherits from: `none — base/utility module` (no `inherit(...)` call in the file)
-- Imports: none — no `import(...)` calls appear anywhere in this file. `Sound`, `Net`, `Debug`, `String`, and `Player` are used throughout but are engine-provided global namespaces, not modules this file imports.
+- Imports: none — no `import(...)` calls appear anywhere in this file. [`Sound`](../namespaces/sound), [`Net`](../namespaces/net), `Debug`, `String`, and [`Player`](../namespaces/player) are used throughout but are engine-provided global namespaces, not modules this file imports.
 
 ## Instance pattern
 Stateless singleton/utility module — plain module-level globals, no `Create`/`OnActivate`/`Awake`/`tInstance`. Key fields:

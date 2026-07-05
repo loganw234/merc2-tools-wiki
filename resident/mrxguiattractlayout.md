@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, layout]
 verified: true
-verified_note: clarified Events section — GuiInitialization is a widget EventHandlers table key (visible in this file's own LocalWidgetList literal), not an Event.* engine constant; rest of page confirmed accurate
+verified_note: 'deeper pass: re-confirmed the GuiInitialization→MrxGuiAttractMode.HandleInit wiring and ReInit against source; added the widget geometry (640x480 container "Attract" + black "attract bg" child) constants'
 ---
 
 # MrxGuiAttractLayout
@@ -35,7 +35,15 @@ This file has no `Event.*` references (no `Event.Create`, no engine event consta
 own widget-event dispatch (triggered when the widget is loaded/added), not the engine `Event.*` system
 used elsewhere in `resident/`.
 
+## Widget geometry
+- **`"Attract"` root:** full-screen `640×480` `container` widget, white (`255,255,255,255`), center-anchored. Its
+  one handler is `GuiInitialization` → [`MrxGuiAttractMode.HandleInit`](mrxguiattractmode), which builds the actual
+  letterboxed `MovieWidget` at runtime.
+- **`"attract bg"` child:** full-screen `640×480` **black** (`0,0,0,255`) image, full UV, no handlers — the
+  backdrop the attract movie plays over.
+
 ## Notes for modders
-- Ensure that `ReInit` is called appropriately to manage the lifecycle of the GUI widgets.
-- Customize the widget properties by modifying the `LocalWidgetList` table before calling `ReInit`.
-- Be aware that the module imports `MrxGuiAttractMode` and `MrxGuiBase`, so any modifications to these modules may affect this layout.
+- This file is pure layout data. All attract behavior (movie playback, input-to-shell transition) lives in
+  [`MrxGuiAttractMode`](mrxguiattractmode); the movie playlist is its `_tMovies` table, not anything here.
+- `ReInit()` is a full teardown/rebuild of the widget tree (same `AddedWidgetList`-must-pre-exist caveat as the
+  other layout files).

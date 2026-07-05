@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui]
 verified: true
-verified_note: fixed malformed title casing; corrected LocalWidgetList structure/field description; source has zero functions, only a static table
+verified_note: 'deeper pass: re-confirmed the single static LocalWidgetList (one visible opaque 640x480 "LTI_precache" widget, no children) and the GuiGameStateChange/GuiInitialization handler wiring against source; corrected the speculative "invisible-ish" note (widget is visible=1, opaque) and cross-linked mrxguiltiprecache + the shellbootstrap that loads this layout'
 ---
 
 # MrxGuiLtiPrecacheLayout
@@ -33,5 +33,10 @@ No `Event.*` calls appear in this file. The table's `EventHandlers` field maps t
 
 ## Notes for modders
 - This is pure layout data (position, anchor, color/translucency levels, event-handler wiring) for one widget — there's no logic to modify here beyond the table fields themselves.
-- Actual behavior lives in `MrxGuiLTIPrecache`, not in this file. To understand what `HandleStateChangeEvent` and `_Initialize` actually do, read `mrxguiltiprecache.lua` (not covered by this page).
-- Widget geometry (`x1,y1,x2,y2` = 0,0,640,480, anchored center/center) suggests this is a full-screen invisible-ish precache widget rather than a rendered HUD element.
+- Actual behavior lives in [`MrxGuiLTIPrecache`](mrxguiltiprecache) — read that page for what `HandleStateChangeEvent`
+  and `_Initialize` do (and note it documents three real bugs in `_Initialize`'s neighborhood).
+- The `"LTI_precache"` widget is full-screen `640×480`, opaque white (`TranslucencyLevel = 255`), center-anchored,
+  `visible = 1` — a rendered full-screen widget. `_Initialize` attaches a fullscreen `FlashWidget` loading the
+  `"LTI_precache"` SWF as its actual visible content.
+- This layout is loaded by [`MrxGuiShellBootstrap`](mrxguishellbootstrap) as `"MrxGuiLTIPrecacheLayout"` during the
+  precache-screen transition.

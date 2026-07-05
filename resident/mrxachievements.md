@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [achievement, faction]
 verified: true
-verified_note: rewrote Events section — the EVENT_* names are custom net-event type constants dispatched through NetEventCallback/Net.SendCustomEvent, not Event.* engine constants; only real Event.* reference in the file is Event.ScriptEvent via Event.CreatePersistent in FactionMoodAchievements. All 12 top-level functions were already documented; no additions needed there.
+verified_note: "deeper pass: re-confirmed Imports (MrxFactionManager only), Events, and all functions against source; added the tAchievementsList catalog shape + representative nRequiredCount thresholds, flagged that AchievementAddCount_MASTER_HIJACK targets three achievement ids not present in tAchievementsList (so they log 'No such an achievement'), replaced boilerplate modder notes"
 ---
 
 # MrxAchievements
@@ -71,7 +71,13 @@ and returns `false` — the error log fires only for an unrecognized achievement
 ungranted one.
 
 ### `AchievementAddCount_MASTER_HIJACK(vPlayers)`
-Adds counts to specific achievements related to hijacking missions for the specified players.
+Adds `+1` to `"ACHIEVEMENT_MASTER_HIJACK"`, `"ACHIEVEMENT_MASTER_5_HIJACK"`, and
+`"ACHIEVEMENT_MASTER_10_HIJACK"` for the given players.
+
+{: .note }
+> None of those three ids appear in `tAchievementsList`, so each `AchievementAddCount` call falls through the
+> not-found branch and logs `"... Failed: No such an achievement."` — i.e. this function currently records
+> nothing. If you're adding hijack-mastery achievements, you must also add these ids to `tAchievementsList`.
 
 ### `FactionMoodAchievements()`
 Sets up faction mood change events that trigger the "ACHIEVEMENT_NO_MORE_MR_NICE_GUY" achievement when all factions become hostile towards the PMC. It also sets up a persistent event to process support events that may trigger the "ACHIEVEMENT_DAMAGE_INC" achievement.
@@ -103,8 +109,36 @@ Loads the saved state of `tSupportUsed` and `tSupportUsedInCoop` from the provid
   `OnActivate`/`OnDeactivate`/`OnDeath` in this module — it's a pure logic/utility singleton, not a
   world-object script.
 
+## Achievement catalog
+
+`tAchievementsList` is a flat 41-entry array of `{sName, nRequiredCount}`. `nRequiredCount` is the count
+threshold before the achievement unlocks (`Pg.AchievementAddCount` is passed the entry's **0-based index**
+`i - 1` as the counter ID). Most are single-shot (`nRequiredCount = 1`); the count-based ones are the
+interesting tunables, e.g.:
+
+| Achievement | Required count |
+|---|---:|
+| `ACHIEVEMENT_NOTHIN_BUT_GOODTIME` | 200 |
+| `ACHIEVEMENT_HAIL_AND_KILL` / `_HOLY_SMOKE` / `_LITTLE_SAVAGE` / `_QUICK_OR_DEAD` | 50 |
+| `ACHIEVEMENT_SHOOTTHRILL` | 25 |
+| `ACHIEVEMENT_ARMAGGEDON` / `_DAMAGE_INC` | 20 |
+| `ACHIEVEMENT_HEAVY_METAL_THUNDER` | 10 |
+| `ACHIEVEMENT_DIGITAL_MAN` / `_BURN_THE_SKY` | 5 |
+| `ACHIEVEMENT_HIGHWAY_TO_HELL` | 3 |
+
+The five max-relation faction achievements (`STAND_UP_AND_SHOUT`, `FOREVER_FREE`, `ISLAND_DOMINATION`,
+`LONGING_FOR_FIRE`, `DIRTY_DEEDS`) are the ones [`MrxFactionManager`](mrxfactionmanager) grants on hitting
+max relation.
+
 ## Notes for modders
-- Ensure that `NetGrantAchievement` is called appropriately to grant achievements to players.
-- Use `AchievementAddCount` to add counts to achievements and check if they have been granted using `AchievementIsGranted`.
-- Customize the list of achievements in `tAchievementsList` as needed, but be cautious with achievement names to avoid conflicts.
-- Be aware that faction mood changes can trigger specific achievements, so consider how these might interact with your mod's gameplay.
+- **Grant path**: use `NetGrantAchievement(sName)` for a plain grant (server broadcasts to clients);
+  `AchievementAddCount(sName, nDelta, vPlayers, bCustomEvent)` for count-based ones — pass `bCustomEvent = true`
+  if you want the delta replicated to remote players.
+- **Every function looks the name up in `tAchievementsList` first.** An id not in that table silently no-ops
+  (logs `"... Failed: No such an achievement."`). Add your id to the list before granting/counting it.
+- **The "turn everyone hostile" achievement** (`ACHIEVEMENT_NO_MORE_MR_NICE_GUY`) is wired via five
+  `MrxFactionManager.CreateAttitudeChangeEvent(..., "Hostile")` hooks flipping `nAlliedMood`/`nChinaMood`/
+  `nGuerillaMood`/`nOCMood`/`nPirMood` to `1`; it grants only once all five are `1`. Those mood globals are
+  never re-set to `0` in this file, so it's effectively a one-way latch per session.
+- **`tSupportFilter`** excludes the delivery/pickup support modules from the coop `ACHIEVEMENT_DAMAGE_INC`
+  trigger; add a module name there to exclude your custom support from that achievement.

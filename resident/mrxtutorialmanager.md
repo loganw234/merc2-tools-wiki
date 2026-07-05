@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [tutorial, manager]
 verified: true
-verified_note: fixed fabricated Events section (source has no Event.* calls at all); added _sCurrentMessage/_bMessageDisplayed to Instance pattern
+verified_note: "deeper pass: re-confirmed all functions/Events (no Event.* in file) against source; added the full _tTutorials catalog (22 tutorial keys -> WifTutorial* module names, the valid StartTutorial names) and noted the Sys.TutorialsEnabled() gate; made modder notes actionable"
 ---
 
 # MrxTutorialManager
@@ -26,6 +26,28 @@ This is a stateless manager/utility module (module-level globals, no `Create`/`u
 - `_sCurrentActiveTutorial`: The identifier of the currently active tutorial.
 - `_sCurrentMessage`: The text of the tutorial message currently displayed (set/cleared by `ShowMessage`/`HideMessage`).
 - `_bMessageDisplayed`: Whether a tutorial message is currently showing.
+
+## Tutorial catalog
+
+`_tTutorials` is the master registry: each key is the **tutorial name** you pass to `StartTutorial` /
+`GetTutorial`, mapping to the `WifTutorial*` module `Setup` dynamically imports. The 22 built-in tutorials:
+
+| Name | Module | Name | Module |
+|---|---|---|---|
+| `Swimming` | `WifTutorialSwimming` | `Alarm` | `WifTutorialAlarm` |
+| `WheeledVehicleBasic` | `WifTutorialWheeledVehicleBasic` | `AirstrikeInterrupt` | `WifTutorialAirstrikeInterrupt` |
+| `Boats` | `WifTutorialBoat` | `HeliRepairPad` | `WifTutorialHeliRepairPad` |
+| `Tanks` | `WifTutorialTank` | `TankHijack` | `WifTutorialTankHijack` |
+| `Helicopters` | `WifTutorialHelicopter` | `CoopTether` | `WifTutorialCoopTether` |
+| `C4` | `WifTutorialC4` | `APC` | `WifTutorialAPC` |
+| `CollateralDamage` | `WifTutorialCollateralDamage` | `VehicleDisguise` | `WifTutorialVehicleDisguise` |
+| `Trespass` | `WifTutorialTrespass` | `Collectibles` | `WifTutorialCollectibles` |
+| `NoFuel` | `WifTutorialNoFuel` | `GateHonk` | `WifTutorialGateHonk` |
+| `LowFuel` | `WifTutorialLowFuel` | `C4Switch` | `WifTutorialC4Switch` |
+| `AlliesHonk` | `WifTutorialAlliesHonk` | `CoopRevive` | `WifTutorialCoopRevive` |
+
+These are the exact strings other modules pass, e.g. [`MrxPmc`](mrxpmc) fires `StartTutorial("NoFuel")` /
+`"LowFuel"`, [`MrxFactionManager`](mrxfactionmanager) fires `"CollateralDamage"`.
 
 ## Functions
 ### `Reset()`
@@ -74,7 +96,16 @@ Loads the saved data for completed tutorials, marking them as complete in the mo
 No `Event.*` calls appear anywhere in this file. Tutorial activation/completion is driven entirely by direct function calls (`Setup`, `StartTutorial`, `SetCurrentTutorial`, `HideCurrentTutorial`, etc.) from other modules (individual `WifTutorial*` modules), not by engine events raised here. Networking uses `Net.SetTutorialMessage`/`Net.IsServer` directly, not the `Event` system.
 
 ## Notes for modders
-- Ensure that `Setup` is called appropriately to initialize tutorials.
-- Use `StartTutorial` to activate specific tutorials as needed.
-- Be aware of the network synchronization (`bDontNetSync`) parameter when managing tutorial messages in multiplayer scenarios.
-- The module uses dynamic imports, so ensure that all referenced tutorial modules are available.
+- **Trigger a built-in tutorial** with `MrxTutorialManager.StartTutorial(<name>)` using a key from the catalog
+  above. It no-ops if that tutorial is already `bComplete` or its instance hasn't been imported yet.
+- **Everything is gated by `Sys.TutorialsEnabled()`** — `BeginCustomTutorial`, `SetCurrentTutorial`, and
+  `ShowMessage` all early-out when tutorials are off. If your tutorial calls silently do nothing, that setting
+  is the first suspect.
+- **Only one tutorial message shows at a time**: `ShowMessage` refuses to display if the same message is
+  already up, or if a different `_sCurrentActiveTutorial` owns the slot. `_bMessageDisplayed` /
+  `_sCurrentMessage` track this.
+- **Add a custom tutorial** by inserting a `{sModuleName = "YourModule"}` entry into `_tTutorials` before
+  `Setup` runs (subclass [`MrxTutorial`](mrxtutorial) for the module). `SaveSingleton`/`LoadSingleton` persist
+  only the set of completed tutorial names.
+- Message text/network flows through `Hud.Tutorial:SetText` and (server, unless `bDontNetSync`)
+  `Net.SetTutorialMessage`.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [airstrike, atmosphere]
 verified: true
-verified_note: spot-checked against source, no changes needed — OnActivate/_GraphicsAto (1.75s delay, correctly noted), MrxUtil import and ShieldFace call, and Events section all confirmed accurate
+verified_note: 'deeper pass: reframed as a screen-tint override (not an ordnance spawner), documented the 1.75s delay (times the two-stage fuel-air detonation) and ShieldFace, surfaced the Atmosphere tunables, cross-linked mrxfuelairbomb/MrxUtil/Graphics'
 ---
 
 # Airstrike_Atmosphere_FuelAirBomb
@@ -14,26 +14,55 @@ verified_note: spot-checked against source, no changes needed — OnActivate/_Gr
 *Module: airstrike_atomsphere_fuelairbomb.lua*
 
 ## Overview
-The `Airstrike_Atmosphere_FuelAirBomb` module is responsible for handling the atmospheric effects triggered by a fuel air bomb airstrike. It sets up a timer to apply specific atmosphere changes and triggers a shield face effect.
+This is the **screen-grade / post-process flash** for the Fuel-Air Bomb airstrike — it does **not** spawn
+the bomb. On activation it waits **1.75 s** (longer than every other variant), then overrides the global
+[`Graphics.Atmosphere`](../namespaces/graphics) look and makes nearby heroes shield their eyes via
+[`MrxUtil.ShieldFace`](mrxutil). The 1.75 s delay lines up with the fuel-air weapon's characteristic
+*delayed secondary ignition*: [MrxFuelAirBomb](mrxfuelairbomb) drops the projectile, sprays fuel, then
+ignites the fireball on its own timers — this grade is meant to hit at the ignition, not the initial drop.
+
+{: .note }
+> `atomsphere` is a typo baked into the real in-game object name (it means *atmosphere*). Leave it as-is.
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxUtil`
+- Imports: [`MrxUtil`](mrxutil)
 
 ## Instance pattern
-This is a stateless utility module (no per-instance table or `uGuid` management).
+Stateless utility module — no per-instance table, no `uGuid` management, no persistent state. Reacts to one
+engine `OnActivate` call.
 
 ## Functions
 ### `OnActivate(guid)`
-Called when the object instance is activated. It sets up a timer to call `_GraphicsAto` after 1.75 seconds.
+Engine lifecycle callback. Schedules `_GraphicsAto` **1.75 s** later via
+`Event.Create(Event.TimerRelative, {1.75}, _GraphicsAto, {guid})` — the delay is what distinguishes this
+from the other variants (which fire at 0.1–0.15 s).
 
 ### `_GraphicsAto(guid)`
-Applies various atmospheric changes and triggers a shield face effect for the given GUID. It modifies atmosphere settings such as ambient colors, bloom effects, light intensity, and other visual parameters.
+Runs the `Graphics.Atmosphere.Begin()` … `End()` override block (see tunables), then calls
+`MrxUtil.ShieldFace(guid)` — plays the `"shieldface"` action on every player hero within **150 units** of
+`guid`.
+
+## Module constants & tunables
+Hardcoded literals inside `_GraphicsAto` (no named module constants). Notable for *this* variant:
+
+| Constant | Value | Effect |
+|---|---|---|
+| `OnActivate` delay | `1.75` s | Times the grade to the fuel-air *ignition*, not the drop. |
+| `fAtmosphereLimit` | `200` | Standard haze reach. |
+| `fBloomAmount` / `fBloomMultiplier` | `1` / `0.8` | Max bloom (bright fireball). |
+| `fLightIntensity` | `2.5` | Strong over-bright flash. |
+| `fTimeRestore` | `1.7` | Blends back over ~1.7 s. |
+
+Ambient/cube/rim colors are neutral grey `128,128,128,255`; gradient stops `uiGradient0_Color2` /
+`uiGradient1_Color1` are zeroed to `0,0,255,0`.
 
 ## Events
-- Listens for `Event.TimerRelative` to call `_GraphicsAto` after 1.75 seconds.
+- **Not an `Event.Create` subscription.** `Event.TimerRelative` schedules `_GraphicsAto` once, 1.75 s
+  after activation. `OnActivate` is an engine lifecycle callback.
 
 ## Notes for modders
-- Ensure that `OnActivate` is called appropriately when the airstrike effect should be triggered.
-- Customize atmosphere settings by modifying the values set in `_GraphicsAto`.
-- Be aware of the shield face effect triggered by `MrxUtil.ShieldFace(guid)`, which may have additional effects on the player or environment.
+- **The 1.75 s `OnActivate` delay is the interesting knob here** — override `OnActivate` if you want the
+  grade to hit sooner/later relative to the fuel-air ignition sequence in [MrxFuelAirBomb](mrxfuelairbomb).
+- Override `_GraphicsAto` (a plain global) to retune the grade or drop the `ShieldFace` flinch (150-unit
+  radius, defined in [`mrxutil`](mrxutil)).

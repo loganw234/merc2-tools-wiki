@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, sound]
 verified: true
-verified_note: 'confirmed all 16 functions and "Events: None"; corrected pending-request structure from queue to LIFO stack (submits _nLastAddedIndex, not oldest)'
+verified_note: "deeper pass: re-confirmed all 16 functions + LIFO-stack finding + the nested _OpenFile/_StripPWSExtension globals; noted MAX_SUBMITTED is a file-local (64, not externally settable), RequestAmbienceBank gates on Sound._GetLibVersion() >= 12, and the exact Pg.LoadAsset asset set _LoadRequiredAssets pulls in; cross-linked MrxSound/MrxSoundCategories and the Sound/Pg namespaces; pruned vacuous notes"
 ---
 
 # MrxSoundBanks
@@ -18,16 +18,23 @@ The `MrxSoundBanks` module is responsible for managing the loading and unloading
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxSound`, `MrxSoundCategories`
+- Imports: [`MrxSound`](mrxsound), [`MrxSoundCategories`](mrxsoundcategories)
+
+Actual bank/wave loading goes through the engine [`Sound`](../namespaces/sound) namespace
+(`Sound.LoadBankWithCallback`, `Sound.OpenStreamFile`, `Sound.GetAudioDir`, …); the data-table assets go
+through [`Pg`](../namespaces/pg) (`Pg.LoadAsset`/`Pg.UnloadAsset`). This module is the throttling/queueing
+layer on top of those.
 
 ## Instance pattern
 This is a stateless manager/utility module. It tracks the following key fields:
-- `_nOutstandingAssets`: The number of assets currently being processed.
+- `_nOutstandingAssets`: The number of assets currently being processed. Read cross-module by
+  [`MrxSound._CheckSoundReady`](mrxsound) to gate the "sound ready" callback.
 - `_nSubmittedRequests`: The number of asset requests that have been submitted but not yet completed.
-- `MAX_SUBMITTED`: The maximum number of concurrent asset requests allowed (64).
-- `_tPendingRequests`: A table storing pending asset requests.
-- `_nLastAddedIndex`: The index of the last added request in `_tPendingRequests`.
-- `_funcBatchComplete`: A callback function to be called when all outstanding assets have been processed.
+- `MAX_SUBMITTED`: The maximum number of in-flight asset requests (64). **Declared `local`** — it is not a
+  module field you can read or change from another script; to raise the cap you'd edit this literal in source.
+- `_tPendingRequests`: A table storing pending asset requests (used as a LIFO stack — see below).
+- `_nLastAddedIndex`: The top-of-stack index in `_tPendingRequests`; doubles as the count of pending requests.
+- `_funcBatchComplete`: A callback function called once, when `_nOutstandingAssets` returns to 0.
 
 ## Functions
 ### `LoadSoundBank(sBank, funcBatchComplete)`
@@ -49,7 +56,9 @@ Loads a temporary sound bank or wave bank with a specified type and callback. It
 Unloads a temporary sound bank or wave bank with a specified type and callback. It localizes the asset name before unloading.
 
 ### `RequestAmbienceBank(sBank)`
-Requests an ambience bank if the audio library version is 12 or higher. It localizes the asset name before requesting.
+Localizes the name and calls `Sound.RequestAmbienceBank(...)` — but **only if `Sound._GetLibVersion() >= 12`**.
+On an older audio-lib build this function is a silent no-op (no error, nothing loaded), so a mod relying on
+ambience banks may quietly do nothing on the wrong runtime.
 
 ### `_SubmitAssetRequest()`
 Submits the most-recently-added pending asset request to the sound system, ensuring that no more than `MAX_SUBMITTED` requests are in flight at any time. It calls `Sound.LoadBankWithCallback` or `UnloadBankWithCallback` based on the request type and decrements counters accordingly.
@@ -78,16 +87,20 @@ filenames `"vo_stream.pws"`, `"music.pws"`, `"ambience.pws"`, but worth knowing 
 `_OpenFile`/`_StripPWSExtension` are defined.
 
 ### `_LoadRequiredAssetsCommon()`
-Loads common assets required for sound processing, including opening stream files and loading global sound data.
+Opens the three stream files (via `_OpenStreamFiles`), then `Pg.LoadAsset`s the three always-needed data
+tables: `"Mercs2Globals"` (`"sounddb"`, with `MrxSoundCategories._DuckGlobalTable` as its load callback),
+`"MusicMarkers"` (`"musicmarkers"`), and `"MusicTransitions"` (`"musictransitions"`).
 
 ### `_UnloadRequiredAssetsCommon()`
-Unloads common assets loaded by `_LoadRequiredAssetsCommon`.
+Unloads the three assets loaded by `_LoadRequiredAssetsCommon` (`Mercs2Globals`, `MusicMarkers`, `MusicTransitions`).
 
 ### `_LoadRequiredAssets()`
-Loads additional assets required for sound processing, including vehicle engines, sounds, and sound keys.
+Calls `_LoadRequiredAssetsCommon()` then loads five more animation/material tables via `Pg.LoadAsset`:
+`"VehicleEngines"`, `"Sounds"`, `"SoundsAppendix"`, `"SoundMatch"` (all type `"animationtable"`) and
+`"SoundKey"` (type `"materialkeytable"`).
 
 ### `_UnloadRequiredAssets()`
-Unloads additional assets loaded by `_LoadRequiredAssets`.
+Unloads everything `_LoadRequiredAssets` loaded (the common three plus the five gameplay tables).
 
 ### `_FlagAssetOpComplete()`
 Flags an asset operation as complete. It decrements the submitted requests and outstanding assets counters, resubmits pending requests if necessary, and calls the batch complete callback when all assets are processed.
@@ -96,10 +109,12 @@ Flags an asset operation as complete. It decrements the submitted requests and o
 - None
 
 ## Notes for modders
-- Ensure that sound banks and wave banks are loaded and unloaded appropriately to manage memory usage.
-- Use `LoadTempBank` and `UnloadTempBank` for temporary sound assets that need to be loaded and unloaded dynamically.
-- Be aware of the maximum number of concurrent asset requests (`MAX_SUBMITTED`) to avoid overwhelming the audio system.
-- Localize asset names using `_GetLocalizedName` if they are prefixed with `vo_`.
-- Use `_LoadRequiredAssetsCommon` and `_UnloadRequiredAssetsCommon` for common sound assets, and `_LoadRequiredAssets` and `_UnloadRequiredAssets` for additional sound assets.
 - The pending-request buffer is LIFO, not FIFO — if you queue several `LoadSoundBank`/`LoadWaveBank` calls
   in a row expecting first-requested-first-loaded order, the last one you called actually submits first.
+- Load/unload every bank in matched pairs. The three stream files (`vo_stream.pws`, `music.pws`,
+  `ambience.pws`) are opened wholesale by `_LoadRequiredAssetsCommon`; individual banks come and go via
+  the `Load*`/`Unload*` functions.
+- Names prefixed `vo_` are auto-localized (current language appended) by `_GetLocalizedName` before
+  loading. A non-`vo_` name is loaded verbatim — don't add the language suffix yourself.
+- `MAX_SUBMITTED` (64) is a `local`, so the throttle can't be widened from a mod without editing this file.
+- `RequestAmbienceBank` silently no-ops on audio-lib versions below 12 (see its entry) — don't assume it ran.

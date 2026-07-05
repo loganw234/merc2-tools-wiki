@@ -6,7 +6,7 @@ nav_order: 1
 inherits: VehicleBlippable
 tags: [vehicle, blip]
 verified: true
-verified_note: corrected Events/Instance pattern — no Event.ObjectHibernation or Awake in this file; OnActivate calls Create directly, overriding VehicleBlippable's own hibernation-wait OnActivate
+verified_note: deeper pass — re-confirmed no Event.ObjectHibernation/Awake in this file (OnActivate calls Create synchronously, shadowing VehicleBlippable's hibernation-wait OnActivate); added cross-links to VehicleBlippable/OrientedBlippable up the inheritance chain
 ---
 
 # Airplane
@@ -17,7 +17,7 @@ verified_note: corrected Events/Instance pattern — no Event.ObjectHibernation 
 The `Airplane` module represents a specific type of vehicle in the game world. It inherits from `VehicleBlippable`, which means it can be blipped on radar and has properties related to vehicles. This module is responsible for initializing airplane instances when they are activated.
 
 ## Inheritance
-- Inherits from: `VehicleBlippable`
+- Inherits from: [`VehicleBlippable`](vehicleblippable) (→ [`OrientedBlippable`](orientedblippable) → [`Blippable`](blippable) → [`Inheritable`](inheritable))
 - Imports: none
 
 ## Instance pattern
@@ -29,7 +29,8 @@ own top-level `OnActivate(uGuid, uRuntimeOwner, iArg)` which calls `oPrototype:C
 `OnActivate` that `VehicleBlippable` itself defines (which *does* wait on `Event.ObjectHibernation` before
 calling its own `Start`), since both live in the same global-per-file environment and airplane.lua's own
 definition wins for airplane.lua's own activation. `Create` resolves through inheritance to
-`VehicleBlippable.Create` (and from there up through `OrientedBlippable`/`Blippable`), which is what
+[`VehicleBlippable.Create`](vehicleblippable) (and from there up through
+[`OrientedBlippable`](orientedblippable)/[`Blippable`](blippable)), which is what
 actually builds the per-`uGuid` table and registers the driver-enter/exit and faction-attitude events.
 Module-level fields (shared across all instances via the prototype, not instance-specific storage):
 - `tFlash`: The flash color of the radar objective — `{255, 255, 255}`.

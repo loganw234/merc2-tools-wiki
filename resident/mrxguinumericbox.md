@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, numeric input]
 verified: true
-verified_note: function coverage was accurate; fixed fabricated Events section (zero Event.* calls exist — real mechanism is oNumericBox:SetEventHandler); found two confirmed bugs — _BuildNumericBox reads an undeclared global uPlayerGuid 16 times instead of a parameter (every child widget gets SetOwner(nil)), and HaltPulse references an undeclared global bImmediate making its "if" branch permanently dead; noted _CompleteAnimation is defined but never called in this file
+verified_note: 'deeper pass: re-confirmed all functions/constants/bugs against source; added a THIRD confirmed bug (cancel branches insert _ComputeValue into tAcceptCallbackArgs but unpack tCancelCallbackArgs), noted DisplayNumericBox calls LTILibName.ChangeShellState(true) and _SetValue zero-pads to nMaximumDigit+1; kept the uPlayerGuid/bImmediate/_CompleteAnimation findings'
 ---
 
 # MrxGuiNumericBox
@@ -49,8 +49,9 @@ This function displays a numeric input box for the specified player. It validate
   - `fCancelCallback`, `tCancelCallbackArgs`: Callback function and arguments to call when the user cancels the input.
   - `nXOffset`, `nYOffset`: Offset for positioning the numeric box on the screen.
   - `sHorizAnchor`, `sVertAnchor`: Horizontal and vertical anchor points for positioning.
-  - `bPause`: Boolean indicating whether to pause the game while the numeric box is open.
+  - `bPause`: Boolean indicating whether to pause the game while the numeric box is open. Defaults to `true` when `nil`.
 
+- **Side effect**: before building the box, it calls `LTILibName.ChangeShellState(true)` (enters the shell/menu UI state). There is no matching `ChangeShellState(false)` in `Close` — teardown just releases focus and deletes widgets — so the shell-state flip is not undone by this module.
 - **Returns**: The created numeric box object.
 
 ### Close(oBox)
@@ -178,7 +179,8 @@ This is a different mechanism from the engine `Event.*` system and from the `Eve
 1. **Call-order requirements**: Ensure that `DisplayNumericBox` is called before attempting to interact with or close the numeric box. The order of parameters in `DisplayNumericBox` must be strictly followed to ensure proper functionality.
 
 2. **Pitfalls**:
-   - Be cautious with the callback functions (`fAcceptCallback`, `fCancelCallback`). Ensure they are defined and can handle the arguments passed correctly — both get the computed numeric value appended to their args table before being called (see `_HandleInputEvent`).
+   - Be cautious with the callback functions (`fAcceptCallback`, `fCancelCallback`). The accept branch appends the computed value to `tAcceptCallbackArgs` and calls `fAcceptCallback(unpack(tAcceptCallbackArgs))` — correct. **Confirmed bug in both cancel paths**: they append the computed value to `tAcceptCallbackArgs` (the *accept* args) but then call `fCancelCallback(unpack(tCancelCallbackArgs))` — so the numeric value is inserted into the wrong table and the cancel callback receives its `tCancelCallbackArgs` *without* the appended value. If you rely on a numeric value reaching `fCancelCallback`, it won't be there; and `tAcceptCallbackArgs` accumulates a stray value.
+   - `_SetValue` zero-pads with `string.format("%0" .. (nMaximumDigit + 1) .. "d", ...)`, so the box always shows `nMaximumDigit + 1` digit slots (default max digit `9` → 10 slots). Set `nMaximumDigit` to control the field width, not just the value range.
    - Validate all input parameters using `_ValidateParameter` to avoid unexpected behavior or errors.
    - See the confirmed bugs noted under `_BuildNumericBox` (undeclared global `uPlayerGuid`, affecting widget ownership) and `HaltPulse` (undeclared global `bImmediate`, making one of its two branches permanently unreachable) in the Functions section above.
 

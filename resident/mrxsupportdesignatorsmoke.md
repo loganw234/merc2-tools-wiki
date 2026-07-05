@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupportDesignator
 tags: [support, designator]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: surfaced the color->hash and color->denial-particle tables, the smoke model + hardpoint hash, 10s lifetime, and the NETEVENT_SMOKEACTIVATE net-sync path; documented the color-hash-to-particle map and OnDeny denial smoke; cross-linked base + consumers"
 ---
 
 # MrxSupportDesignatorSmoke
@@ -14,10 +14,10 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsupportdesignatorsmoke.lua*
 
 ## Overview
-The `MrxSupportDesignatorSmoke` module is responsible for handling the functionality of smoke support designators in the game. It inherits from `MrxSupportDesignator` and provides specific behavior for creating, managing, and removing smoke markers on the battlefield.
+`MrxSupportDesignatorSmoke` is the colored-smoke [designator](mrxsupportdesignator) subtype — the marker used by air-support strikes ([`MrxGunship`](mrxgunship), [`MrxTankBuster`](mrxtankbuster)). When designation completes it starts a colored smoke emitter on the thrown grenade object, network-syncs the smoke to remote players so everyone sees it, and auto-removes it after 10 seconds. A **denied** throw instead spawns a "failure" smoke variant. It's the only designator subtype that does its own net replication.
 
 ## Inheritance
-- Inherits from: `MrxSupportDesignator`
+- Inherits from: [`MrxSupportDesignator`](mrxsupportdesignator)
 - Imports: none
 
 ## Instance pattern
@@ -37,45 +37,50 @@ builds a new table via `setmetatable`/`__index`, exactly like its parent. No `On
 - `uGuid`: Unique identifier for the instance.
 
 ## Functions
-### `Init()`
-Initializes by loading the asset "global_weapon_m34wp".
-
-### `Deinit()`
-Unloads the asset "global_weapon_m34wp".
+### `Init()` / `Deinit()`
+Engine lifecycle hooks (called by the loader). Load/unload the smoke grenade model `Pg.LoadAsset("global_weapon_m34wp", "model")`.
 
 ### `Create(self, oNewDesignator)`
-Creates a new designator object with default values and sets up its properties. It initializes fields such as `sDesignationType`, `fValidationFunction`, and adds a completion callback.
-
-### `NetEventCallback(nEventType, tArgs)`
-Handles network events. Specifically, it processes the `NETEVENT_SMOKEACTIVATE` event by calling `NetSafeDesignationCompleteCallback`.
+Stamps the smoke fields: `sDesignationType = "Smoke Designator"`, `sAATestLevel = "basic"`, `bDesignateOnDeath = false`, `fValidationFunction = MrxSupportDesignator.ValidateGroundDropZone` (ground-only). Defaults `sSmokeHash = "0x02f6773f"` (red) and `sDenialSmokeTemplate = "global_particle_flaresmoke_fail"`, and registers `DesignationCompleteCallback` as the completion callback.
 
 ### `DesignationCompleteCallback(self)`
-Called when the designation is complete. It starts an emitter for the smoke, disables physics for the object, sends a custom network event to activate the smoke, and schedules its removal after 10 seconds.
+Fires the local smoke. Starts a particle emitter on the grenade object with `ObjectState.StartEmitter(self.uGuid, uHp, uTemplate)` — where `uHp = StringToGuid("0x16516bb1")` is the emitter **hardpoint** and `uTemplate = StringToGuid(self.sSmokeHash)` is the colored smoke. Disables physics on the grenade, then `Net.SendCustomEvent("MrxSupportDesignatorSmoke", NETEVENT_SMOKEACTIVATE, {...})` so remote players spawn the same smoke (looked up by particle name via `tColorHashToName`), and schedules `RemoveSmoke` in **10s** via [`Event.TimerRelative`](../namespaces/event).
+
+### `NetEventCallback(nEventType, tArgs)`
+Remote handler. When it receives `NETEVENT_SMOKEACTIVATE`, calls `NetSafeDesignationCompleteCallback` with the unpacked args — this is how the smoke appears on other players' machines.
 
 ### `NetSafeDesignationCompleteCallback(sTemplateHashName, nx, ny, nz, sBeaconId)`
-Spawns a smoke object at the specified position using the given template hash name. It also schedules the removal of this smoke object after 10 seconds.
+Spawns the replicated smoke particle at the given coords ([`Pg.Spawn`](../namespaces/pg)), stores it in `tSmokeGuids[nSmokeGuids]`, schedules its removal in 10s, and increments `nSmokeGuids`.
 
 ### `NetSafeRemoveSmoke(sBeaconId)`
-Removes a smoke object based on its beacon ID.
+Removes a replicated smoke by its index into `tSmokeGuids`.
 
 ### `RemoveSmoke(self)`
-Removes the designator object if it has a valid GUID.
+Removes the local designator/grenade object if it still has a `uGuid`.
 
 ### `OnDeny(self, uGuid)`
-Handles denial by removing the object and spawning a denial smoke template at its position.
+Denial path. Removes the grenade and, at its position, spawns `self.sDenialSmokeTemplate` (the color-matched **"_fail" particle**) via [`Pg.Spawn`](../namespaces/pg) — the visual "support denied here" puff.
 
 ### `SetSmokeColor(self, sColor)`
-Sets the smoke color based on the provided string. It updates both the `sSmokeHash` and `sDenialSmokeTemplate` fields accordingly.
+Sets `sSmokeHash` (from `tColorList`) and `sDenialSmokeTemplate` (from `tDenialColorList`) for the given color string; unknown colors fall back to red. Both [`MrxGunship`](mrxgunship) and [`MrxTankBuster`](mrxtankbuster) call `SetSmokeColor("red")`.
 
 ### `GetType(self)`
-Returns the type of designator, which is "smoke".
+Returns `"smoke"`.
 
 ## Events
-- Listens for `NETEVENT_SMOKEACTIVATE` to call `NetSafeDesignationCompleteCallback`.
-- Listens for custom event `Event.TimerRelative` to remove smoke after 10 seconds.
+No `Event.Create` subscriptions. Cross-machine sync is via `Net.SendCustomEvent` / `NetEventCallback` (custom net events, not `Event.*`). The two 10-second lifetimes (local `RemoveSmoke`, remote `NetSafeRemoveSmoke`) are scheduled with [`Event.TimerRelative`](../namespaces/event).
+
+## Module constants & tunables
+Module-level tables/values (top of file) — the reskin/tuning surface:
+- `NETEVENT_SMOKEACTIVATE = 0` — the custom net-event id.
+- `tColorList` — color → smoke template hash: `red = "0x02f6773f"`, `green = "0x41675d0b"`, `blue = "0x6efe9d26"`, `yellow = "0xf8171566"`.
+- `tColorHashToName` — hash → particle name for the **remote** spawn: `"global_particle_flaresmoke"` (red), `"..._green"`, `"..._lightblue"` (blue), `"..._yellow"`.
+- `tDenialColorList` — color → failure particle: `"global_particle_flaresmoke_fail"`, `"..._green_fail"`, `"..._lightblue_fail"`, `"..._yellow_fail"`.
+- Model asset `"global_weapon_m34wp"`; emitter hardpoint hash `"0x16516bb1"`.
+- Lifetime: **10 seconds** (both local and replicated).
 
 ## Notes for modders
-- Ensure that `Init` and `Deinit` are called appropriately to manage asset loading.
-- Use `SetSmokeColor` to change the color of the smoke designator.
-- Customize behavior by modifying fields like `sDesignationType` or adding additional callbacks in `tCallbackList`.
-- Be aware that the smoke automatically removes after 10 seconds, and denial results in a different visual effect.
+- `SetSmokeColor` is the clean color switch (`"red"`/`"green"`/`"blue"`/`"yellow"`); it updates both the live smoke and the denial puff together. Anything else falls back to red.
+- To change the smoke duration, edit the two `Event.TimerRelative` `{10}` timers (local in `DesignationCompleteCallback`, remote in `NetSafeDesignationCompleteCallback`) — change only one and the smoke will linger on some clients longer than others.
+- This is the only designator subtype with its own net replication path (`Net.SendCustomEvent` + `NetEventCallback`). If you add a new color, you must extend all three tables (`tColorList`, `tColorHashToName`, `tDenialColorList`) or the remote spawn/denial visual will be wrong.
+- `fValidationFunction = ValidateGroundDropZone` means smoke is **ground-only** (unlike the water-capable flare); reassign it to allow water placement.

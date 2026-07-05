@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, radar]
 verified: true
-verified_note: confirmed zero Event.* calls (all wiring is widget-level SetEventHandler); corrected Events section to list all 4 confirmed handler-key registrations and flag trespass/icon functions with no SetEventHandler call site in this file; flagged dead-code bAnimation param in ShowMapLabel (line 160 overwrites it to false before use)
+verified_note: 'deeper pass: re-confirmed all functions + zero Event.*; surfaced the Scaleform minimap.gfx movie + AddZone/RemoveZone ActionScript callbacks, the _tIcons faction-icon table, marker constants (_sTargetName/_sGPSName, MiniMap_Icon_GPS_Marker), region offsets (35/40) and default color (64,64,160 α128), the AddObjective signature, and Pg.GetLineRegionPoints; re-verified the dead bAnimation param'
 ---
 
 # MrxGuiHudRadar
@@ -18,10 +18,19 @@ The `MrxGuiHudRadar` module is responsible for managing the minimap and its vari
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxGui`, `MrxGuiBase`, `MrxGuiManager`, `MrxTutorialManager`
+- Imports (via [`import()`](../glossary#importname)): `MrxGui`, `MrxGuiBase`, `MrxGuiManager`, `MrxTutorialManager` — see [MrxGui](mrxgui), [MrxGuiBase](mrxguibase), [MrxGuiManager](mrxguimanager), [MrxTutorialManager](mrxtutorialmanager). Region polygons come from [Pg](../namespaces/pg) (`Pg.GetLineRegionPoints`); the minimap itself is a Scaleform movie driven via `CallActionScriptCallback`.
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but rather manages global minimap elements.
+**Stateless module + per-widget `CustomData`.** No module-level per-instance registry. `_Initialize(oMinimap)` copies `AddRegion`/`RemoveRegion` onto the minimap widget and stores its region bookkeeping in `oMinimap.CustomData` (`tRegions` by numeric id, `tRegionGuids` mapping object GUID → id, `bHaveFlash` load flag). Map-label state lives on the label widget's `CustomData`. The one true module-global table is `_tIcons` (built by `Init()`).
+
+### Scaleform movie & constants (HIGH-VALUE knobs)
+- **Movie**: `_Initialize` loads `minimap.gfx` via `SetSwfFile("minimap.gfx", _FinishInitialization, ...)`. The map-label text uses a child `FlashWidget` named `maplabeltext`.
+- **ActionScript callbacks** into the movie: `"AddZone"` (per-vertex, plus a close/commit call), `"RemoveZone"` — these draw/erase the faction-zone region overlays.
+- **Region defaults** (in `AddRegionToMinimap`): color falls back to RGB `(64, 64, 160)` and alpha `128` (alpha is then rescaled to a 0-100 percentage for Scaleform). Color is packed to a `"0xRRGGBB"` hex string. Region vertices are offset by `nXOffset = 35`, `nYOffset = 40` before being sent to the movie.
+- **Marker names**: `_sTargetName = "Target marker"` (suffixed with `tData.number`), `_sGPSName = "GPS Beacon Marker"`. The GPS marker uses texture `MiniMap_Icon_GPS_Marker` at size `10.666667`, priority `4`; target markers use the caller's `tData.texture` at size `6`, priority `5` (via `oMap:AddObjective(sName, x, y, z, r, g, b, w, h, sTexture, uGuid, bShow, ?, ?, nPriority)`).
+- **Faction icon table** (`_tIcons`, set in `Init()`): `All → HUD_faction_AN`, `Chi → HUD_faction_CH`, `Civ → HUD_faction_CV`, `Gur → HUD_faction_GR`, `Oil → HUD_faction_OC`, `Pir → HUD_faction_PR`, `Vz → HUD_faction_VZ`. Used by `_HandleTrespassIconEvent` to show the trespassed-faction badge.
+- **Trespass label**: `_HandleMapLabelTrespassEvent` shows `"[red][Generic.Trespassing]"` (indefinite, `nDisplayTime = -1`) and kicks the `"Trespass"` tutorial via `MrxTutorialManager.StartTutorial`.
+- **Map-label timing**: fades take `0.4`s; default display time is `4`s when the caller passes none (`nDisplayTime or 4`); a negative time holds indefinitely. Label flash geometry scale is `0.6666667`.
 
 ## Functions
 ### `_Clamp(n, nMin, nMax)`
@@ -94,8 +103,11 @@ No `Event.*`/`Event.Create(...)` engine-event references appear in this file —
 `_HandleMapLabelTrespassEvent`, `_HandleTrespassIconInit`, and `_HandleTrespassIconEvent` are defined in this file but have **no `SetEventHandler` call site anywhere in it** — by naming convention they're presumably wired externally (layout file) similarly to other `Handle*Event`/`*Init` pairs seen elsewhere in this wiki (e.g. `mrxguicinematiclayout.md`'s `GuiInitialization` keys); no call site found in the decompiled `resident/` corpus for this page.
 
 ## Notes for modders
-- Ensure that the minimap is properly initialized by calling `_Initialize` before using its functions.
-- Use `AddRegionToMinimap` and `RemoveRegionFromMinimap` to manage faction-zone regions on the minimap.
-- Customize target and GPS markers by providing appropriate data when calling `HandleSetTargetMarker` and `HandleSetGPSDest`.
-- Be aware of the `_Clamp` function's behavior to ensure valid color values are used for map elements.
-- The module uses Scaleform GUI callbacks extensively, so any modifications to these callbacks may affect the minimap's appearance and functionality.
+- **Recolor faction zones**: `AddRegionToMinimap(oMinimap, uGuid, nRed, nGreen, nBlue, nAlpha, bInvert)` draws a colored region for the world region identified by `uGuid`. Pass RGB 0-255 and alpha 0-255; omit any and it defaults to `(64,64,160)` α`128`. `bInvert` fills the *outside* of the region instead. Regions are queued if the movie hasn't loaded yet (`bHaveFlash`) and drawn on load.
+- **Swap faction badges**: edit the `_tIcons` texture names in `Init()` to change the trespass/faction icons (e.g. `HUD_faction_PR` for pirates).
+- **Move the region overlay**: `nXOffset = 35` / `nYOffset = 40` in `_DisplayMinimapRegion` shift every zone vertex — adjust if your minimap art has different padding.
+- **Marker priorities**: target markers draw at priority `5`, GPS at `4` in the `AddObjective` call — higher-priority markers render on top. Change the trailing numeric arg to reorder.
+- **Region GUID cleanup caveat**: `RemoveRegionFromMinimap` clears `tRegionGuids[nId]` (indexing by the numeric id) rather than `tRegionGuids[uGuid]` — so the `uGuid → id` entry is not actually removed, and the `tRegions[nId]` polygon data is left in place. Re-adding the same `uGuid` still works (the initial lookup finds the stale id and calls `RemoveRegion` first), but stale bookkeeping accumulates. Worth knowing if you churn many regions.
+
+{: .warning }
+> **Confirmed dead code in `ShowMapLabel`.** Line 160 (`bAnimation = false`) unconditionally overwrites the `bAnimation` parameter before it's read, so the `if bAnimation then ...` branch (blank-text + reveal-on-flash-load) can never run — only the fade-out/fade-in/timer `else` path executes, whatever the caller passes.

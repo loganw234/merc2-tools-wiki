@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, delivery, helicopter]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: corrected Events section (DesignationCallback is the MrxSupport framework hook, not an event; real subscriptions are ObjectHibernation/ObjectInSeat + a persistent 3s CheckEwan timer), noted _WaitCallback is a dead empty stub, confirmed this is the Heli-type catalog delivery for ~21 flyable helicopters; all functions re-confirmed'
 ---
 
 # MrxSupportCopterDelivery
@@ -14,11 +14,15 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsupportcopterdelivery.lua*
 
 ## Overview
-The `MrxSupportCopterDelivery` module is responsible for delivering a flyable helicopter to the player's designated point. It inherits from `MrxSupport` and provides functionality to spawn, land, and manage the delivery of a helicopter. The module also handles the AI behavior of the helicopter driver (Ewan) after landing.
+The `MrxSupportCopterDelivery` module delivers a **flyable helicopter** to the player's designated point:
+Ewan flies the ordered heli in, lands it, exits, walks off and fades out, leaving the vehicle for the player
+to take. It inherits from [`MrxSupport`](mrxsupport). This is the delivery type behind every `Heli`-category
+catalog item in [`MrxSupportData`](mrxsupportdata) (~21 helicopters) — the catalog just calls
+`SetDeliveryVehicle("<template> (Ewan)")` on each.
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportManager`, `MrxSupportDesignatorSmoke`, `MrxUtil`, `MrxVoSequence`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: `MrxSupportManager`, [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke), `MrxUtil`, `MrxVoSequence`
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uOwnerGuid)` builds a new
@@ -41,7 +45,8 @@ Creates a new per-instance table for the helicopter delivery operation. Initiali
 Called when the designator is used. Spawns the helicopter at a calculated position near the camera, sets its orientation towards the target, and starts a voice sequence.
 
 ### `_WaitCallback(self, uHeli)`
-A placeholder function that currently does nothing.
+An empty stub — defined but with no body, and not referenced anywhere in this file (the actual "heli is
+awake" work is done by `_HeliReady`). Dead code left over from the shared delivery pattern.
 
 ### `_HeliReady(self, uHeli)`
 Called when the helicopter is spawned and ready. Adds it to the disposer, sets up damage detection, and creates an AI goal for landing the helicopter at the designated target.
@@ -59,13 +64,25 @@ Called when Ewan exits the vehicle. Starts a voice sequence, creates an event to
 Checks if Ewan is still visible. If not, removes him and deletes associated events.
 
 ## Events
-- Listens for custom event `DesignationCallback` to spawn the helicopter.
-- Listens for `Event.ObjectHibernation` to handle the readiness of the helicopter.
-- Listens for `Event.ObjectInSeat` to manage Ewan's exit from the vehicle.
-- Listens for a persistent timer `CheckEwan` to ensure Ewan is removed if he disappears.
+Confirmed from source. `DesignationCallback` is **not** an event — it's the [`MrxSupport`](mrxsupport)
+framework hook (called once the target is designated), and it's where the heli is spawned (server-only, via
+`Net.IsClient()` guard).
+
+- **`Event.ObjectHibernation`** — `"awake"` (heli ready → `_HeliReady`) and, in `ExitedVehicle`,
+  `"Hibernated"` on the driver → `Object.Remove`.
+- **`Event.ObjectInSeat`** (`"D","X"`) — fires `ExitedVehicle` when Ewan leaves the driver seat.
+- **`Event.ObjectDelete`** (on the driver) — frees the `"Copter"` recruit via
+  `MrxSupportManager.MakeRecruitAvailable`.
+- **`Event.CreatePersistent(Event.TimerRelative, {3}, CheckEwan, ...)`** — a 3-second repeating check that
+  removes Ewan if he's no longer visible (stored as `self.Timer`, cleaned up in `CheckEwan`).
+
+Damage handling during the flight comes from the inherited `MrxSupport.SetupDamageEvent` (`self.DamageEvent`).
 
 ## Notes for modders
-- Ensure that the designator callback is properly set up and triggered to spawn the helicopter.
-- Customize the voice sequences by modifying the `tVo` table in `ExitedVehicle`.
-- Be aware of the AI behavior and timing for Ewan's exit and fade out after landing.
-- The module handles network synchronization implicitly through inherited functions, so ensure that the network state is consistent across clients.
+- **On failed landing (`nState == 0`) the cost is refunded** — `_VehicleLanded` calls `self:RefundCosts()`
+  and sends the heli home, so a denied delivery doesn't cost the player. Worth knowing if you rework the
+  landing gate.
+- **Recruit gating**: `Create` sets recruit `"Copter"`; the delivery frees it again on `Event.ObjectDelete`
+  of Ewan. If Ewan gets stuck, the `CheckEwan` 3s timer is the cleanup safety net.
+- Customize Ewan's delivery/exit VO via the `tVo` table in `ExitedVehicle`.
+- **`_WaitCallback` is dead** (empty stub) — don't wire logic into it expecting it to run.

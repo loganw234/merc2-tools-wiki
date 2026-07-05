@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTask
 tags: [task, race]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTask](mrxtask) for the general mechanism.
+verified_note: deeper pass — surfaced module constants (kTYPE_GATE/kTYPE_RING, _knWldBlpNearDist=200/_knWldBlpFarDist=300, fWidth default 10, NETEVENT_*); documented that it spawns child MrxTaskObjectiveEnterVehicle + per-checkpoint MrxTaskObjectiveDeliver tasks and records best time via MrxStatsManager; noted the _OnStatusChange decompiler bug (references undefined iGuid/sStatusType)
 ---
 
 # MrxTaskRace
@@ -14,7 +14,23 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 *Module: mrxtaskrace.lua*
 
 ## Overview
-The `MrxTaskRace` module is responsible for managing checkpoint-based racing tasks in the game. It handles the creation and management of checkpoints, blips, and tripwires, as well as recording the best race time using `MrxStatsManager`.
+`MrxTaskRace` runs a checkpoint race. It marks each course location with a tripwire "gate" or an air "ring",
+then spawns a child [`MrxTaskObjectiveDeliver`](mrxtaskobjectivedeliver) objective per checkpoint (deliver
+the player/vehicle to the point); reaching the last one finishes the race and records the best time via
+[`MrxStatsManager`](mrxstatsmanager). If the race is run in a specific vehicle the player isn't in yet, it
+first spawns a child [`MrxTaskObjectiveEnterVehicle`](mrxtaskobjectiveentervehicle) task.
+
+## Module constants & tunables
+- `kTYPE_GATE = 1` / `kTYPE_RING = 2` — the two checkpoint marker styles (`sGateType == "ring"` selects
+  rings; anything else is a gate/tripwire).
+- `_knWldBlpNearDist = 200` / `_knWldBlpFarDist = 300` — world-blip near/far draw distances for the *next*
+  checkpoint.
+- `fWidth` (config, default `10`) — checkpoint width; `nAddTime` (config) — seconds added to the timer per
+  checkpoint cleared.
+- `NETEVENT_MARKLOC = 0` / `NETEVENT_UNMARKLOC = 1` / `NETEVENT_MARKFINISH = 2` — custom-net ids for
+  syncing checkpoint markers to clients.
+- Next-checkpoint blip uses world icon `"HUD_objective_deliverable"` (size `32`) and radar texture
+  `"objective_deliverable"` (`8`×`8`).
 
 ## Inheritance
 - Inherits from: `MrxTask`
@@ -72,7 +88,13 @@ Starts the race by setting up the timer and the first checkpoint. If multiple ta
 Completes the race by recording the best time using `MrxStatsManager` and marking the task as complete.
 
 ### `_OnStatusChange(self, uGuid, sReason)`
-Handles status changes of target vehicles or characters. Removes completed targets from the list and calls a callback if specified.
+Status callback passed to the child objectives. If several target vehicles remain it just drops the
+finished/destroyed one from `vTgtInclude`; otherwise it fires config `fVehiclesDestroyedCallback`.
+
+{: .warning }
+> This function's fallback branch references `iGuid` and `sStatusType`, which are **not** its parameters
+> (they're `uGuid`/`sReason`) — a latent bug carried over from the original code. The forwarded values will
+> be `nil`. Don't rely on the args your `fVehiclesDestroyedCallback` receives in that path.
 
 ### `_DrawTripWire(uGuid, fWidth, r, g, b, bFinish)`
 Draws a tripwire for the current checkpoint location with optional finish markers.
@@ -81,10 +103,17 @@ Draws a tripwire for the current checkpoint location with optional finish marker
 Draws a ring marker for the current checkpoint location with optional finish markers.
 
 ## Events
-- Listens for `NETEVENT_MARKLOC`, `NETEVENT_UNMARKLOC`, and `NETEVENT_MARKFINISH` to update blips and markers.
-- Listens for custom events related to task status changes.
+No engine `Event.*` subscriptions of its own — `MrxTaskRace` drives everything through child-task callbacks
+(`fOnComplete`/`fOnCancel`/`fOnPartComplete` on the spawned Deliver/EnterVehicle objectives) and its inherited
+[`MrxTask`](mrxtask) timer. `NetEventCallback` handles the custom-net `NETEVENT_MARKLOC`/`UNMARKLOC`/
+`MARKFINISH` messages to sync checkpoint markers to clients — these are custom net events, not `Event.Create`
+subscriptions.
 
 ## Notes for modders
-- Ensure that the race configuration includes valid checkpoint locations and target vehicles/characters.
-- Customize the width of checkpoints and whether tripwires are used by setting fields like `fWidth` and `bUseTripWires`.
-- Be aware that network synchronization may affect multiplayer behavior, especially when marking/unmarking locations.
+- **Course setup:** `tCourseLocs` (list of location names), `sGateType` (`"ring"` or gate), `fWidth`
+  (default `10`), and a `tTimerParams`/`nAddTime` timer are the main config levers. `vTgtInclude` picks who
+  races (defaults to `Player.GetAnyCharacter()`).
+- **Best-time recording** only happens if config `sRaceMission` is set (`MrxStatsManager.RecordBestTime`); the
+  winner is resolved in the final checkpoint's `fOnPartComplete` and read via `GetWinner`.
+- The timer is started manually (`bTaskManualStart = true` is forced) so the clock begins at `_StartRace`,
+  not at activation — the "enter the car" phase isn't timed.

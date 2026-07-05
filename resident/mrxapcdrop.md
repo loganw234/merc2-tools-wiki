@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, mission]
 verified: true
-verified_note: re-verified previously-documented DropCallback bug and class-factory pattern against source, both still accurate; no other gaps found
+verified_note: 'deeper pass: re-confirmed the DropCallback nil-call bug and class-factory pattern; corrected the Events section (ObjectDeath is the only real subscription; the _DropCallback chain is Ai.Goal/Ai.Deploy callbacks, not "custom events") and surfaced the inDestType/outDestType/config-field reference'
 ---
 
 # MrxApcDrop
@@ -49,12 +49,24 @@ A private function that adds the deployed passengers to a specified squad and is
 A helper function that converts a string parameter into a GUID using `Pg.GetGuidByName`. If the parameter is not a string, it returns the parameter as-is.
 
 ## Events
-- Listens for `Event.ObjectDeath` to call `Cancel` if the driver dies during the operation.
-- Uses custom events and callbacks (`_DropCallback`, `_DropCallback2`) to manage different stages of the APC drop operation.
+- **`Event.ObjectDeath`** (on the driver) is the only real subscription — stored as `self.eDeath`, fires
+  `Cancel` if the driver dies mid-drop. It's registered only when `inDest` is supplied.
+- `_DropCallback` and `_DropCallback2` are **not** events — they're passed as `Callback` fields to `Ai.Goal`
+  / `Ai.Deploy` and run when those AI orders complete. (For a helicopter vehicle the move `Callback` is
+  cleared and `_DropCallback` is instead wired to a separate `HeliLand` goal.)
 
 ## Notes for modders
-- Ensure that the vehicle and driver are alive and unhibernated before calling `Create`.
-- Customize the drop operation by providing a configuration table with fields like `inDest`, `outDest`, `squadName`, etc.
-- Be aware that default speeds for in and out destinations are set to 0.8, and the squad MoveWithinBoundary radius is set to 8.
-- Use `_GetGuidIfString` to convert string names to GUIDs if needed.
-- This module does not maintain persistent state across activations; each call to `Create` starts a new operation.
+- **Config table (`tConfig`) fields**, read in `Create`: `uVehicle` (required, must be alive),
+  `inDest`/`inDestType`, `outDest`/`outDestType`, `inSpeed`/`outSpeed`, `squadName`, `squadTarget`,
+  `squadOrder`, `fDropDoneCallback`, `MaintainRotorSpeed`. `inDestType`/`outDestType` each select the AI goal:
+  `"path"` → `PathMove`, `"object"` → `MoveTo`, `"coord"` → `MoveToPos` (an unrecognized value just logs a
+  warning and issues no move).
+- **Defaults**: `inSpeed`/`outSpeed` default to `0.8` (via `MrxUtil.SetDefault`); the squad
+  `MoveWithinBoundary` radius is `8`.
+- **Pass strings or GUIDs**: `inDest`/`outDest`/`squadTarget` accept either — `_GetGuidIfString` resolves
+  names through `Pg.GetGuidByName`, so you don't need to pre-resolve them.
+- **Bug to avoid triggering**: omitting `inDest` sends `Create` down a `self:DropCallback()` path that calls
+  a function that doesn't exist (only `_DropCallback` is defined) — see the note under `Create`. Always
+  supply `inDest`.
+- `fDropDoneCallback(uVehicle, tRiders)` fires once the squad has been commanded — use it to chain follow-up
+  logic. This is a stateless helper: each `Create` call is an independent drop.

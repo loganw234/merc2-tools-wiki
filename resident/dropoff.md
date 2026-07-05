@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [dropoff, copter]
 verified: true
-verified_note: fixed Events section (CargoDrop is a table key, not an Event.* constant), noted unlocalized x/y/z globals and dead NumDrops reset in OnDeactivate
+verified_note: 'deeper pass: re-confirmed all functions/events; added a Module constants & templates section (per-faction tDropOffObjects pools, HeloFaction codes VZ/GR/CH/OC/AL/PR, 30-60s interval) and cross-linked MrxCopterDrop/MrxUtil; prior fixes (CargoDrop is a table key, leaked x/y/z globals, dead NumDrops reset) still hold'
 ---
 
 # Dropoff
@@ -18,7 +18,8 @@ The `Dropoff` module is responsible for managing the periodic dropping of random
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxCopterDrop`, `MrxUtil`
+- Imports: [`MrxCopterDrop`](mrxcopterdrop) (spawns the helicopter that flies the cargo in),
+  [`MrxUtil`](mrxutil) (`GetFaction`, `GetRandomTableElement`)
 
 ## Instance pattern
 This is a stateless manager utility module (no per-instance table). It tracks the following key fields:
@@ -45,9 +46,26 @@ Faction branches covered: `VZ`, `Guerilla`, `China`, `OC`, `Allied`, `Pirate`. A
 - Listens for `Event.TimerRelative` (via `Event.Create` in `StartTimer`) to trigger `SetupCargoDrop` after the randomized interval.
 - `CargoDrop` is **not** an event constant — it's the table key `tEvents[uGuid].CargoDrop` used to store/guard the `Event.TimerRelative` handle so only one timer runs per `uGuid` at a time.
 
+## Module constants & tunables
+- Drop interval: `math.randf(30, 60)` seconds (inline literal, per timer).
+- Helicopter faction codes passed to `MrxCopterDrop.Create` (`HeloFaction`): `VZ`, `GR` (Guerilla),
+  `CH` (China), `OC`, `AL` (Allied), `PR` (Pirate).
+- Cargo template pools (`tDropOffObjects`), one per faction — first four entries are shipping-container
+  props, the fifth is a drivable vehicle:
+  - **VZ**: `_port_containera_light`..`_port_containerd_light`, `"M151 .50Cal (VZ)"`
+  - **Guerilla**: `_port_containera`..`_port_containerd`, `"M151 (MG) (GR)"`
+  - **China**: `_port_containera`..`_port_containerd`, `"NGLV (MG)"`
+  - **OC**: `_port_containera_light`..`_port_containerd_light`, `"EXT"`
+  - **Allied**: `_port_containera`..`_port_containerd`, `"HMMWV (Armored) (50Cal)"`
+  - **Pirate**: `_port_containera_light`..`_port_containerd_light`, `"T300 (M60)"`
+- A random pool entry is picked with `MrxUtil.GetRandomTableElement` and dropped via
+  `MrxCopterDrop.Create(HeloFaction, sCargoTemplate, x, y, z, false)`.
+
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the dropoff lifecycle.
-- Customize the list of cargo templates by modifying the faction-specific tables (`tDropOffObjects`) in the script.
+- Customize the drop by editing the faction-specific `tDropOffObjects` pools above, or swap
+  `MrxCopterDrop.Create` for a different delivery — see [MrxCopterDrop](mrxcopterdrop).
+- The `NumDrops < 1` self-restart means each activation produces effectively **one** cargo drop (the counter
+  starts at `0`, increments to `1`, then stops) — raise that threshold to make a dropoff repeat.
 - Be aware that the interval between drops is randomized, with a default range of 30 to 60 seconds. Adjust this range by changing the parameters in `math.randf(30, 60)`.
 - The module uses `MrxUtil.GetRandomTableElement` to select random cargo templates, so ensure that the faction-specific tables are correctly populated with valid object names.
 - This module does not inherit from any other module and is a standalone utility for managing helicopter cargo drops.

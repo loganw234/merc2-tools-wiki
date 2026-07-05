@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjectiveAction
 tags: [task, objective, release]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjectiveAction](mrxtaskobjectiveaction) for the general mechanism.
+verified_note: deeper pass — clarified this overrides MrxTaskObjectiveAction: _PrepTargets stubbed to no-op (prompts added on proximity instead), _TargetActioned chains to base then sets AI relations from parent tMaterielScale; noted _knTgtNearbyRadius=100 is a module constant; corrected the Events section (proximity events + inherited ContextAction, no "custom events")
 ---
 
 # MrxTaskObjectiveRelease
@@ -22,20 +22,28 @@ The `MrxTaskObjectiveRelease` module is a specific type of task objective that d
 
 ## Instance pattern
 **Not per-`uGuid` — inherits [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction)'s class-factory pattern**
-(itself inherited from [`MrxTaskObjective`](mrxtaskobjective)/[`MrxTask`](mrxtask); see that page for the
-general mechanism), identified by name/lineage rather than a world-object GUID. Key fields:
-- `_uFarTgtFilter`: A filter for nearby targets.
-- `_knTgtNearbyRadius`: The radius within which targets are considered "nearby".
+(itself inherited from [`MrxTaskObjective`](mrxtaskobjective)/[`MrxTask`](mrxtask); see that page). Per-instance
+field:
+- `self._uFarTgtFilter` — a **copy** of the target filter (players removed) used to track which prisoners are
+  currently *out of range*, so they can be re-armed with a release prompt when the player returns.
+
+`_knTgtNearbyRadius = 100` is a **module-level constant** (the near/far proximity radius), not a per-instance
+field.
 
 ## Functions
 ### `Activated(self)`
 Called when the objective is activated. It calls the base class's `Activated` method and sets up a nearby event to monitor targets.
 
-### `_PrepTargets(self)`
-A placeholder function that currently does nothing.
+### `_PrepTargets(self)` *(override)*
+**Overrides** [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction)'s version to an empty no-op — release
+objectives do **not** slap a prompt on every target up front. Instead, prompts (`"[ContextAction.ReleasePrisoner]"`)
+are added only to prisoners the player gets near, in `_TargetNearby`.
 
-### `_TargetActioned(self, uActionerGuid, uActioneeGuid)`
-Handles the action taken on a target. It calls the base class's `_TargetActioned` method, sets the target's state to "Upright", and adjusts AI relations based on configuration settings.
+### `_TargetActioned(self, uActionerGuid, uActioneeGuid)` *(override)*
+Chains to the base `MrxTaskObjectiveAction._TargetActioned` (which completes the part), then sets the freed
+target `Human.SetState(..., "Upright", "Idle")` and, if the parent task's config has `tMaterielScale`, adds
+an [`Ai`](../namespaces/ai) infraction against the relevant faction and turns that faction hostile toward the
+freed prisoner — releasing prisoners has diplomatic consequences.
 
 ### `_GetShortDescription()`
 Returns a short description of the objective, which is "[Generic.ObjectiveRelease]".
@@ -53,11 +61,17 @@ Creates an event that listens for targets moving beyond the specified radius. It
 Handles the detection of targets moving beyond the specified radius by adding them back to the nearby filter.
 
 ## Events
-- Listens for `Event.ObjectProximity` to call `_TargetNearby` and `_TargetFaraway` based on target proximity.
-- Listens for custom events related to target actions and proximity.
+- **`Event.ObjectProximity`** — a **persistent** near event (`< _knTgtNearbyRadius`, i.e. 100) on
+  `_uFarTgtFilter` → `_TargetNearby`, and a per-target far event (`> _knTgtNearbyRadius`) → `_TargetFaraway`.
+  Together they toggle the release prompt as the player moves in and out of range.
+- Plus the **inherited** `Event.ContextAction` / `Event.ObjectDeath` from
+  [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction) — the release button press itself is that context
+  action. There are no "custom events" here.
 
 ## Notes for modders
-- Ensure that `Activated` is called appropriately to set up nearby event monitoring.
-- Customize AI relations and target states by adjusting configuration settings.
-- Be aware of the radius (`_knTgtNearbyRadius`) used for detecting nearby targets.
-- Use `_TargetActioned` to handle specific actions taken on targets, such as releasing prisoners.
+- **Release consequences come from the parent's `tMaterielScale`**, not this objective's own config — the
+  faction relation/infraction changes in `_TargetActioned` read `self:GetConfig().oParent:GetConfig()`.
+- Prisoners are set to `"Subdued"` on approach and `"Upright"` on release (`Human.SetState`); the prompt is
+  `"[ContextAction.ReleasePrisoner]"`.
+- Short description override: `"[Generic.ObjectiveRelease]"`. Icon/art are inherited from
+  [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction) (action icons).

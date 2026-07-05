@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, loading screen]
 verified: true
-verified_note: found 3 confirmed bugs — HandleInitializationEvent calls ClosePauseScreen without importing MrxGuiPauseScreen (undefined global); _Initialize assigns oPrecacheScreen.Open = OpenPrecacheScreen, a name never defined anywhere in the resident/ corpus; _HandleCloseEvent and _LTIUpdateTo reference oPrecacheScreen as an unassigned global instead of their actual oFlash parameter. Also corrected the Imports line (MrxGuiBase was omitted) and the Events section.
+verified_note: 'deeper pass: re-verified all 3 bugs against source (ClosePauseScreen unimported; oPrecacheScreen.Open = OpenPrecacheScreen undefined name; _HandleCloseEvent/_LTIUpdateTo reference undeclared global oPrecacheScreen). Confirmed the GuiInitialization→_Initialize / GuiGameStateChange→HandleStateChangeEvent wiring is supplied by mrxguiltiprecachelayout; surfaced the SWF name "LTI_precache" and cross-linked the layout page. Imports/instance-pattern still correct'
 ---
 
 # MrxGuiLTIPrecache
@@ -86,12 +86,22 @@ Updates the pre-cache screen to a specific state by calling an action script cal
 No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. Wiring is a mix of widget-level Flash callbacks and direct calls:
 - `oFlash:SetFlashEventHandler("precacheDone", _LTIPrecacheDone, {})` (in `_Initialize`) — fired by the Scaleform/Flash side when precaching completes; calls `LTILibName.LTIPrecacheDone()` (an external module not covered by this page).
 - `oPrecacheScreen:SetEventHandler("ControllerInput", _HandleInput)` (in `_Initialize`) — passes controller input through to the Flash widget's own `ControllerInput` handler.
-- `HandleStateChangeEvent(oWidget, sStateName, sStateAction)` and `HandleInitializationEvent(oWidget, tUnused)` are defined with `Handle*Event` names but have **no `SetEventHandler` call site anywhere in this file** — by convention they're presumably wired externally from a layout file, same pattern seen in other `mrxgui*` HUD modules on this wiki. No call site found in the decompiled `resident/` corpus.
+- `HandleStateChangeEvent` and `_Initialize` are wired **externally** by
+  [`mrxguiltiprecachelayout.lua`](mrxguiltiprecachelayout)'s `LocalWidgetList`, which sets the `"LTI_precache"`
+  widget's `EventHandlers.GuiGameStateChange = MrxGuiLTIPrecache.HandleStateChangeEvent` and
+  `EventHandlers.GuiInitialization = MrxGuiLTIPrecache._Initialize`. (So `_Initialize`, not
+  `HandleInitializationEvent`, is the real init entry point here — `HandleInitializationEvent` has no wiring found
+  in the corpus and is the function carrying the `ClosePauseScreen` bug.)
 - `_LTIPrecacheDone`, `_LTIPrecacheDone2`, `_LTIPrecacheSmokeDone`, `_LTIPrecacheSmokeDone2` all call into an external `LTILibName` module (not imported in this file, and not one of the modules covered by this wiki page set) — its own function definitions were not verified as part of this pass.
 
 ## Notes for modders
 - **Three confirmed bugs in this file** (see Functions above for detail): `HandleInitializationEvent` calls `ClosePauseScreen` without this file importing `MrxGuiPauseScreen` (the only module that defines it); `_Initialize` assigns `oPrecacheScreen.Open` from `OpenPrecacheScreen`, a name that doesn't exist anywhere in the decompiled `resident/` tree (probably meant `OpenPrecache`); and both `_HandleCloseEvent` and `_LTIUpdateTo` reference an undeclared global `oPrecacheScreen` instead of their actual `oFlash` parameter. Any of these code paths would throw a runtime error if exercised as written — worth confirming with live testing if pursuing this as a fix target.
-- Ensure that the pre-cache screen is properly initialized and closed to avoid resource leaks or display issues.
-- Customize the pre-cache animation by modifying the flash widget's properties or replacing the SWF file.
-- Be aware of the dependencies on `MrxGuiBase`, `MrxGuiManager`, and `MrxGuiDialogBox` when extending or modifying this module.
-- The decompiler artifacts include unused local variables and redundant operator groupings, which should be ignored.
+- **Precache Scaleform file: `"LTI_precache"`** — the SWF/`.gfx` name loaded by `_Initialize` (via
+  `oFlash:SetSwfFile("LTI_precache", _FinishLoad, {oFlash})`). This is also the name of the widget the flash lives
+  on. Replace it to swap the precache animation.
+- **Analog detection range** (`IsAnalog`): joystick indices `BUTTON_L_STICK_L`..`BUTTON_R_STICK_D` (9–16), same as
+  [`mrxguiloadscreen`](mrxguiloadscreen).
+- Given the three bugs above, treat this module as **known-broken as decompiled** — the precache screen in the
+  shipped game may rely on native code paths that don't hit the buggy Lua branches, but any mod re-driving these
+  functions directly should fix the `OpenPrecache`/`oPrecacheScreen`/`ClosePauseScreen` references first.
+- The layout that drives this module is [`mrxguiltiprecachelayout`](mrxguiltiprecachelayout).

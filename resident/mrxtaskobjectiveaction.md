@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, objective]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — re-confirmed both events are Event.CreatePersistent (ContextAction id 0 + filter, and ObjectDeath) stored in _tEvents.uActionEvent/uDeathEvent; surfaced the default action label "[ContextAction.Talk]", the icon override strings, and the Pg.AddContextAction call; documented this as the base for Accept/Release
 ---
 
 # MrxTaskObjectiveAction
@@ -14,7 +14,12 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 *Module: mrxtaskobjectiveaction.lua*
 
 ## Overview
-The `MrxTaskObjectiveAction` module is a specialized task objective that involves player interaction with specific game objects. It sets up context actions for these targets and tracks their destruction or successful interaction to mark the task as complete or canceled.
+`MrxTaskObjectiveAction` is a concrete [`MrxTaskObjective`](mrxtaskobjective) where the player completes each
+target by walking up and pressing the context-action button on it (a "Talk"/interact prompt). It attaches a
+context action to every target, completes the part when the action fires, and cancels the part when the
+target is destroyed. It is also the **base class** for
+[`MrxTaskObjectiveAccept`](mrxtaskobjectiveaccept) (adds a Yes/No confirmation) and
+[`MrxTaskObjectiveRelease`](mrxtaskobjectiverelease) (prisoner release).
 
 ## Inheritance
 - Inherits from: `MrxTaskObjective`
@@ -32,7 +37,10 @@ rather than a world-object GUID. Key fields:
 Called when the task objective is activated. It initializes the base class, prepares target objects by setting context actions, and sets up persistent events to handle target interactions (`_TargetActioned`) and destruction (`_TargetDestroyed`).
 
 ### `_PrepTargets(self)`
-Prepares the target objects for interaction by adding context actions to them using `Pg.AddContextAction`. It retrieves the configuration for the action label and applies it to each target.
+Adds a context action to every target via `Pg.AddContextAction(uGuid, sActionLabel, 2, 0, 200, 0, 2)`. The
+label comes from config `sActionLabel`, defaulting to `"[ContextAction.Talk]"`. **Overridable** — 
+[`MrxTaskObjectiveRelease`](mrxtaskobjectiverelease) overrides this to a no-op and adds its prompts on
+proximity instead.
 
 ### `_TargetActioned(self, uActionerGuid, uActioneeGuid)`
 Handles the event when a target object is interacted with. It removes the context action from the target, updates the task state by removing the target if necessary, and marks the part of the task as complete for both the actor and the target.
@@ -43,26 +51,29 @@ Handles the event when a target object is destroyed. It removes the context acti
 ### `Cleanup(self)`
 Cleans up any remaining context actions on the target objects and calls the base class's cleanup method to ensure proper resource management.
 
-### `_GetShortDescription()`
-Returns a short description for the task objective action, which is used in UI displays.
-
-### `_GetTargetRadarIcon()`
-Returns the radar icon associated with the target object, used for visual representation on the radar.
-
-### `_GetTargetPdaIcon(bOptional)`
-Returns the PDA (Personal Digital Assistant) icon associated with the target object. The icon changes based on whether the target is optional or mandatory.
-
-### `_GetTargetGameSpaceIcon()`
-Returns the game space icon associated with the target object, used for visual representation in the game world.
-
-### `_IsValidTarget(uGuid)`
-Checks if a given GUID represents a valid target object. It considers any player character and alive objects as valid targets.
+### Overridden base hooks (icons / text / validity)
+Each of these overrides the neutral [`MrxTaskObjective`](mrxtaskobjective) default:
+- `_GetShortDescription()` → `"[Generic.ObjectiveAction]"`
+- `_GetTargetRadarIcon()` → `"objective_action"`
+- `_GetTargetPdaIcon(bOptional)` → `"icon_action_1_mc"` / `"icon_action_2_mc"`
+- `_GetTargetGameSpaceIcon()` → `"HUD_objective_action"`
+- `_IsValidTarget(uGuid)` → any-player/all-player GUIDs, else `Object.IsAlive(uGuid)` (dead targets are
+  filtered out at setup)
 
 ## Events
-- Listens for `Event.ContextAction` to call `_TargetActioned` when a target is interacted with.
-- Listens for `Event.ObjectDeath` to call `_TargetDestroyed` when a target is destroyed.
+Both are `Event.CreatePersistent` (created in `Activated`, stashed in `_tEvents` and torn down by
+`Cleanup`/the base):
+- **`Event.ContextAction`** — args `{0, self._uTgtObjFilter}` → `_TargetActioned` when the player interacts
+  with a target.
+- **`Event.ObjectDeath`** — args `{self._uTgtObjFilter}` → `_TargetDestroyed` when a target dies (cancels
+  that part).
 
 ## Notes for modders
-- Ensure that the task objective is properly activated and cleaned up to manage context actions and event subscriptions.
-- Customize the action label and icons by modifying the configuration fields in the task setup.
-- Be aware of the validity checks for targets to ensure proper task progression.
+- **Change the interact prompt** with config `sActionLabel` (default `"[ContextAction.Talk]"`); it is
+  applied to every target by `_PrepTargets`.
+- **This is the class to subclass for "go press-button on X" objectives.** Override the `_Get*` hooks for
+  new art/text; override `_TargetActioned` to gate completion (see
+  [`MrxTaskObjectiveAccept`](mrxtaskobjectiveaccept)) or run side effects (see
+  [`MrxTaskObjectiveRelease`](mrxtaskobjectiverelease)).
+- `Cleanup` explicitly `Pg.RemoveContextAction`s every remaining target before deferring to the base — so a
+  cancelled objective won't leave a dangling interact prompt in the world.

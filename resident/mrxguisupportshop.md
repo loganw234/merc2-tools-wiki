@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, support]
 verified: true
-verified_note: function coverage was already accurate and complete; Events section was fabricated boilerplate (same invented Event.ObjectHibernation/Awake/HideMarker text found on mrxguimanager.md — zero Event.* calls exist here either) — replaced with the real SetFlashEventHandler ActionScript bridge; found confirmed bug — _RunShop calls MrxGuiManager.GetHudState() with no uPlayerGuid argument, always nil, so the shop never hides the HUD or sets bRestoreHud, making the later bRestoreHud check in _RemoveFlashFile permanently dead too
+verified_note: 'deeper pass: re-confirmed the GetHudState() no-arg bug against mrxguimanager.lua (GetHudState(uPlayerGuid) returns _tHudStates[uPlayerGuid], so no-arg → nil → HUD never hidden, bRestoreHud path dead); added the sFlashFile="store" movie, LTILibName.ChangeShellState(true) side-effect (never reverted), AddShopItem arg layout, and cross-links; Events/functions/dialog-fallback all still accurate'
 ---
 
 # MrxGuiSupportShop
@@ -18,7 +18,9 @@ The `MrxGuiSupportShop` module is responsible for managing the in-game support s
 
 ## Inheritance
 - Inherits from: `none` — base/utility module
-- Imports: `MrxGui`, `MrxGuiBase`, `MrxPmc`, `MrxSupportData`, `MrxGuiDialogBox`, `MrxGuiManager`
+- Imports: [MrxGui](mrxgui) (FlashWidget/AddWidget), [MrxGuiBase](mrxguibase) (control focus), [MrxPmc](mrxpmc) (cash/fuel/support quantities), [MrxSupportData](mrxsupportdata) (`tSupportData`, `IsSupportEquippable`), [MrxGuiDialogBox](mrxguidialogbox) (the fallback menu), [MrxGuiManager](mrxguimanager) (HUD toggle)
+
+This is the parallel of [MrxGuiGarage](mrxguigarage) (which uses the `"garage"` movie and the same `Create`→`AddItem`→`SetCallback`→`Commence` lifecycle); the shop's equipped-support handoff talks to the [MrxGuiPda](mrxguipda) widget by name.
 
 ## Instance pattern
 Stateless singleton/utility module — plain module-level globals, no `Create`/`OnActivate`/`Awake`/`tInstance` (despite this module's own factory function being named `Create`, it's not the engine's per-`uGuid` instance pattern — see below). It maintains one active shop widget per player, keyed by player GUID, in `_tShopList` (`false` until `Init()` runs). `sFlashFile` (`"store"`) names the SWF asset to load; if this were `nil`/`false`, the module falls back to a plain dialog box (`_CreateShopDialogBox`) instead of the Flash UI everywhere `_RunShop`/`Create` branch on it — though as declared it's always the string `"store"`, so no call path in this file can actually reach the dialog-box fallback branches without external code changing `sFlashFile` first.
@@ -71,6 +73,8 @@ Handles the event when the Flash file is loaded. Pauses the widget and runs the 
 
 ### `_RunShop(oFlashWidget)`
 Runs the support shop interface, either in Flash or as a dialog box, depending on the availability of the Flash file (in practice always the Flash branch, since `sFlashFile` is a hardcoded non-nil string — see Instance pattern). On the Flash path: calls `_SetupShopFlash`, shows/plays the widget, grabs control focus, then conditionally hides the HUD.
+
+`_RunShop` also calls `LTILibName.ChangeShellState(true)` at the end (entering shell/menu UI state) — like [MrxGuiNumericBox](mrxguinumericbox), there is no matching `ChangeShellState(false)` anywhere in this module, so that state flip is not undone here.
 
 **Confirmed bug**: line 210 calls `MrxGuiManager.GetHudState()` with **no argument**. `MrxGuiManager.GetHudState`'s real signature is `GetHudState(uPlayerGuid)` (returns `_tHudStates[uPlayerGuid]`) — called with no argument, `uPlayerGuid` is `nil` inside that function, so it returns `_tHudStates[nil]`, which is always `nil`. The `if MrxGuiManager.GetHudState() then` branch here therefore never executes: `MrxGuiManager.ToggleHud(oFlashWidget:GetOwner(), false)` never runs when the shop opens, and `oFlashWidget.CustomData.bRestoreHud` never gets set to `true`. This also makes the `if oFlash.CustomData.bRestoreHud then MrxGuiManager.ToggleHud(oFlash:GetOwner(), true)` check in `_RemoveFlashFile` permanently dead as a consequence — the shop was presumably intended to hide the HUD while open and restore it on close, but as written it never hides the HUD in the first place.
 

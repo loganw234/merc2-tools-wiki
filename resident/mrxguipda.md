@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, pda]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: rewrote Events (removed invented Event.ObjectHibernation/Event.PlayerInput; documented the real Event.CreatePersistent(mpPlayerJoin), the 6 Event.Post signals, Event.Create timers, and Net.SendCustomEvent net-events); added movie names (topbar, landingzones), assets (pda_titles), _knBlipLimit=5000, nLogSize=100, the _ksTypeAddFunc/_tPrefix/_tFactionNameLookup tables, and the flash-callback wiring'
 ---
 
 # MrxGuiPda
@@ -18,7 +18,19 @@ The `MrxGuiPda` module is responsible for managing the Player Data Assistant (PD
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGuiBase`, `MrxPmc`, `MrxGuiManager`, `WifVzRegionNames`, `MrxSupportData`, `MrxGuiDialogBox`, `MrxSound`, `MrxPlayState`, `WifMissionData`, `MrxGuiHudFactionGauge`, `MrxStatsManager`, `MrxState`, and `MrxGui`
+- Imports: [MrxGuiBase](mrxguibase), [MrxPmc](mrxpmc), [MrxGuiManager](mrxguimanager), `WifVzRegionNames`, [MrxSupportData](mrxsupportdata), [MrxGuiDialogBox](mrxguidialogbox), [MrxSound](mrxsound), [MrxPlayState](mrxplaystate), `WifMissionData`, [MrxGuiHudFactionGauge](mrxguihudfactiongauge), [MrxStatsManager](mrxstatsmanager), [MrxState](mrxstate), and [MrxGui](mrxgui)
+
+## Module constants & assets (high-value knobs)
+- **Scaleform movies**: the PDA itself is the movie `"topbar"` (`oMapFlash.CustomData.sFile = "topbar"`); the deploy/transit picker is a separate movie `"landingzones"` loaded by `OpenTransitInterface`.
+- **Texture assets** preloaded on init: `Pg.LoadAsset("pda_titles", "texture")`.
+- `_knBlipLimit = 5000` — hard cap on map blips (`_PopulateMapDisplay` defaults to half of this when no limit is passed).
+- `nLogSize = 100` — max message-log entries kept (`AddLogEntry` trims to this).
+- `_ksTypeAddFunc` — maps a support `sType` to the movie's add callback: `Airstrike→AddSupportAirstrike`, `Civilian→AddSupportCivilian`, `Light→AddSupportLight`, `Heavy→AddSupportHeavy`, `Heli→AddSupportHelicopters`, `Boat→AddSupportBoats`, `Supply→AddSupportSupplies`.
+- `_tPrefix` — icon-token prefix per support type (`Airstrike→"[airstrike] "`, `Light→"[vehmlight] "`, etc.) prepended to the display name.
+- `_tFactionNameLookup` (built in `Init`) — faction code → localized-name token: `AN`,`PR`,`OC`,`GR`,`CH`,`VZ`,`PMC`.
+- **Sound cues**: open `"ui_PDA_Open_01_st"` (played 0.5 s after open via a timer), close `"ui_PDA_Close_01_st"`.
+- **Net-event ids**: `NETEVENT_SETSELECTEDMISSION = 0`, `NETEVENT_PDAOPEN = 1`, `NETEVENT_PDACLOSE = 2` (used with `Net.SendCustomEvent("MrxGuiPda", ...)`).
+- Backdrop: full-screen black `ImageWidget` at alpha `192`.
 
 ## Instance pattern
 **Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
@@ -299,7 +311,10 @@ Updates an existing statistic entry's data.
 This function populates the PDA database display by calling various ActionScript callbacks on `oFlash` with different data. It checks online status, multiplayer roles, active profile, faction attitudes, log entries, and other categories of data.
 
 ### _Initialize(oPda)
-Initializes the PDA widget by setting up its custom data fields, creating a background image, adding a Flash widget for the map display, and binding various functions to the PDA object. It also initializes event handlers and loads support data.
+Initializes the PDA widget: sets up `CustomData` tables, creates the black backdrop, adds the `"topbar"` map `FlashWidget`, binds the public methods (see Notes), seeds support from `MrxSupportData.tSupportData`, subscribes `mpPlayerJoin`, and loads the `"pda_titles"` texture. Loads the movie with `_FinishLoadAndClose` (so the PDA starts closed).
+
+{: .warning }
+> `_Initialize` binds three methods to functions that **don't exist in this file**: `oPda.SetMissionSticky = SetMissionSticky`, `oPda.SetMarker = SetMarker`, and `oPda.UpdateStatisticEntry = UpdateStatisticEntry`. No such top-level functions are defined here, so those three fields resolve to `nil` and calling e.g. `oPda:SetMarker(...)` would error. (The related real functions are `HandleMarkerUpdate`/`HandleMarkerClear` for markers and `_UpdateStatisticEntry`/`AddStatisticEntry` for stats.) Same dangling-binding pattern as [MrxGuiGarage](mrxguigarage)'s `SetCloseCallback`.
 
 ### SendPlayerJoinEvents()
 Sends player join events to the server if the current player is the local player. It logs debug information and sends a custom network event with the selected mission index.
@@ -354,19 +369,29 @@ This function enables a quick support slot in the PDA. It retrieves the PDA widg
 
 ## Events
 
-- **`Event.NetEvent`**: Listens for network events related to PDA operations (`NETEVENT_SETSELECTEDMISSION`, `NETEVENT_PDAOPEN`, `NETEVENT_PDACLOSE`). The module processes these events by calling `NetEventCallback`.
-- **`Event.ObjectHibernation`**: Listens for object hibernation events to manage the PDA's activation and deactivation.
-- **`Event.PlayerInput`**: Handles player input events to control the PDA's map display and interactions.
-- **`Event.TimerRelative`**: Used for managing delayed actions, such as playing a sound after the PDA is opened.
+Distinguish four real mechanisms — the previous draft's `Event.ObjectHibernation` and `Event.PlayerInput` do **not** exist in this file:
+
+**Real `Event.*` subscriptions (created here):**
+- `Event.CreatePersistent(Event.ScriptEvent, {"mpPlayerJoin", <predicate>}, SendPlayerJoinEvents)` — in `_Initialize`, stored in the global `_evPlayerJoin`. Fires `SendPlayerJoinEvents` on the server when a non-local player joins, re-syncing the selected mission. This is the module's one persistent event subscription.
+
+**Outbound `Event.Post` signals other systems can listen for:**
+- `"PDA Open"` / `"PDA Close"` (payload `{uPlayer}`) — on open/close.
+- `"GPS Beacon Set"` / `"GPS Beacon Cleared"` (`{nX, nY}`) — from `HandleMarkerUpdate`/`HandleMarkerClear`.
+- `"Transit Interface Open"` / `"Transit Interface Success"` (`{uPlayer}`) — the deploy/landing-zone picker.
+
+**Timers (`Event.Create(Event.TimerRelative, ...)`):**
+- delayed open sound (`_SetupDelayedOpenSound`), the `NetEventCallback` retry-in-1s when the PDA widget isn't found yet, transit-interface deferred teardown (0.1 s), and the quick-slot ammo-counter animation (0.2 s).
+
+**Multiplayer sync (`Net.SendCustomEvent("MrxGuiPda", NETEVENT_*, ...)`)** received back by `NetEventCallback`: `NETEVENT_SETSELECTEDMISSION`/`NETEVENT_PDAOPEN`/`NETEVENT_PDACLOSE`.
+
+Everything else is widget-level: `oPda:SetEventHandler("ControllerInput", _HandleInput)` / `"GuiUpdate"` (`_HandlePDAUpdateEvent` while open, `_PdaCooldown` after close), and the many `oMapFlash:SetFlashEventHandler(...)` bindings (`TrackBlip`, `UntrackBlip`, `cancelContract`, `equip`, `unequip`, `closePDA`, `currentPage`, `LTIupdateSupportQuickSlot`, plus `beaconCheck`, `equipFailed`, and for transit `LandingZone`/`closeMap`).
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `Init()` is called before any other functions in this module to properly set up global state and initialize necessary components.
-- **Pitfalls**:
-  - Be cautious when modifying the `_knBlipLimit` constant, as setting it too low may cause map blips to be truncated or not displayed correctly.
-  - When adding or updating missions, ensure that the mission names are unique to avoid conflicts.
-- **Tunables**: 
-  - Adjusting `_knBlipLimit` can help manage the number of map blips displayed at any given time.
-  - Modifying the behavior of `SetMissionTrackable` and `SetMissionChangeAllowed` can control how missions are tracked and changed within the PDA.
-- **Decompiler artifacts**:
-  - Some local variables may appear unused or assigned but never read, which is a decompiler artifact and should be ignored.
+- **Retheme is a movie edit.** Nearly the entire PDA is the `"topbar"` Scaleform movie (map, support tabs, database). Lua feeds it data through ActionScript callbacks (`AddStockpile`, the `AddSupport*` family, `AddPdaMapBlips` via `_GuiInternal`, `AddZone`, `AddFactionAttitude`, `AddDatabaseItem`, `addMessageLog`, `addStats`, `SetMarker`, `currentPOI`, `activeContract`, `onlineMessage`, `requestClose`, …) and receives the flash events listed above. Keep those entry points if you replace the movie.
+- **Public per-widget API** (methods bound onto the `"PDA"` widget in `_Initialize`, callable as `oPda:Method(...)`): `Open`/`Close`/`SetSuppressed`, the map/mission set (`AddMapBlip`/`RemoveMapBlip`/`AddMapMission`/`RemoveMapMission`/`UpdateMapMission`/`SetSelectedMission`/`GetSelectedMission`/`SetMissionTrackable`/`SetMissionTrackCallback`/`SetMissionChangeAllowed`/`AddLineRegion`/`RemoveLineRegion`), support (`AddSupport`/`RemoveSupport`/`UpdateSupport`/`GetStockpile`/`GetEquippedSupport`/`SetEquippedSupport`/`ReadEquippedSupport`/`RestoreEquippedSupport`), the database (`SetFactionAttitude`/`AddLogEntry`/`AddDossierEntry`/`AddHelpEntry`/`AddStatisticCategory`/`AddStatisticEntry`), plus `SetFakePlayerLocation`, `SetBeaconTutorialMode`, `OpenTransitInterface`. Grab the widget with `MrxGuiBase.GetWidgetByNameAndOwner("PDA", uPlayer)`.
+- **Blip coordinates are offset** by `nXOffset = 35`, `nZOffset = 40` before being handed to the movie (world Z maps to map Y). `AddMapBlip` accepts a `uGuid` to auto-follow an object's live position.
+- **`AddLogEntry` silently drops** any `sType` that isn't `"dialog"`, `"objective"`, or `"event"`.
+- **`SetMissionChangeAllowed` is forced off on clients** — on `Net.IsClient()` it always stores `false` regardless of the argument, since mission selection is server-authoritative (synced via `NETEVENT_SETSELECTEDMISSION`).
+- **`_knBlipLimit` (5000)** caps blips; if a level exceeds it the *lowest* sort-order blips are dropped first (the list is built highest-priority-last and truncated from the front).
+- **`_HandleMapLocationEvent` falls back to `"Venezuela"`** for the POI name when a point isn't inside any `WifVzRegionNames.tBoundaryList` region.

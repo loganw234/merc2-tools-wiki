@@ -6,7 +6,7 @@ nav_order: 1
 inherits: EnemyBlippable
 tags: [anti-air, radar, missile]
 verified: true
-verified_note: corrected Instance pattern — _tLockOnUpdates is declared but never read/written anywhere in the file (dead field, not an active tracker); confirmed all 17 functions, event names, and inheritance chain against source
+verified_note: deeper pass — re-confirmed all 17 functions/events, the _tLockOnUpdates dead field, and the tColor*=false disabling; surfaced the ksCue*/knCueAlertCooldown sound constants as a tunables block and cross-linked EnemyBlippable/HomingMissile/MrxSupport up the chain
 ---
 
 # AntiAir
@@ -35,8 +35,13 @@ lock-on/targeting logic constantly. Worth copying if you're building something w
 always-present-but-rarely-relevant world object.
 
 ## Inheritance
-- Inherits from: `EnemyBlippable`
-- Imports: `MrxSupport`, `HomingMissile`
+- Inherits from: [`EnemyBlippable`](enemyblippable) (→ [`OrientedBlippable`](orientedblippable) → [`Blippable`](blippable) → [`Inheritable`](inheritable))
+- Imports: [`MrxSupport`](mrxsupport), [`HomingMissile`](homingmissile)
+
+The blip draw/teardown primitives (`AddObjective`/`RemoveObjective`, `SetBlipped`/`ClearBlipped`) come from
+[`EnemyBlippable`](enemyblippable)/[`Blippable`](blippable) up the chain; this file overrides `SetBlipped`/
+`ClearBlipped` to layer on the `MrxSupport.AddAntiAir`/`RemoveAntiAir` registration and the homing-lock
+subsystem, then calls back up to the base versions.
 
 ## Instance pattern
 This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
@@ -125,9 +130,26 @@ All confirmed by direct grep of this file:
 - `Event.Timer` — `_HomingLockUpdate` sets a 1-second one-shot fallback to force-clear a lock if it's
   "left hanging" (not otherwise updated or cleared).
 
+## Module constants & tunables
+Beyond the four `_tPrototype` tiers (radar texture, HUD marker texture, `nAARange`, `nSize = 8`,
+`nSortOrder = 2`, `bSticky = true` — table above), the lock-on tones and cooldown are module-level constants:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ksCueTargeted` | `"ui_hud_sam_targeted"` | played once when a player becomes fully locked |
+| `ksCueTargeting` | `"ui_hud_radar_targeting_alert"` | played when a player first comes under partial lock |
+| `ksCueAlert` | `"ui_hud_radar_targeting_new_alert"` | re-alert tone for an additional lock while already targeted |
+| `knCueAlertCooldown` | `1` (seconds) | debounce so `ksCueAlert` can't spam every frame |
+
+`tColorAlly`/`tColorNeutral`/`tColorEmpty`/`tColorPmc` are all set to `false` at the top of the file —
+AntiAir is always drawn with the enemy/hostile coloring from [`EnemyBlippable`](enemyblippable), so those
+non-enemy color slots are deliberately disabled.
+
 ## Notes for modders
 - Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the lifecycle of the anti-air system.
 - Customize the behavior by modifying `_tPrototype` fields such as `nAARange`, `sTexture`, and `tMarker`.
+- Swap the targeting tones by overriding `ksCueTargeted`/`ksCueTargeting`/`ksCueAlert` (all plain module
+  globals) with different [`Sound`](../namespaces/sound) cue strings.
 - Be aware of the homing lock-on subsystem, which drives targeting tones and visual cues.
 - `bNetSync` is never referenced directly in `antiair.lua` itself — it's read by `Blippable.AddObjective`/
   `RemoveObjective` further up the inheritance chain, so network-sync behavior for this module's radar

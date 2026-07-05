@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, widget]
 
 verified: true
-verified_note: GetControlFocus/ReleaseControlFocus and the ImageWidget/AddWidget runtime-vs-source discrepancy confirmed by live testing via MrxGuiDialogBox and CoopChatUI; instance-pattern claim corrected against source (stateless, not per-uGuid); most of the ~90-function reference below is the original auto-generated pass, not individually re-verified
+verified_note: 'deeper pass: rewrote the Events section — the old list (Event.ObjectHibernation/ObjectWinched/PlayerJoined/PlayerLeft) is NOT in source and was removed; real mechanism is per-widget Event.CreatePersistent(Event[sName],...) via SetEventHandler/SetEnabled plus one Event.Create(Event.TimerRelative,{1}) deferring flash-widget deletion. Added widget defaults (font_16, 640x480 widget space, -4096 color sentinel) and minimap velocity-range constants. GetControlFocus/ImageWidget/AddWidget runtime-vs-source discrepancy still confirmed via MrxGuiDialogBox/CoopChatUI'
 
 ---
 
@@ -1106,17 +1106,46 @@ This function is intended for deinitializing the GUI but currently does nothing.
 
 ## Events
 
+This module has **no fixed set of hard-coded event subscriptions.** Its event system is generic: a widget
+subscribes to whatever event you name when you call `Widget:SetEventHandler(EventType, fHandler)`.
 
+- **`Event.CreatePersistent(Event[EventType], ...)`** — the real subscription call. When you pass
+  `SetEventHandler` a string that matches a global `Event.*` type (checked via `"nil" ~= type(Event[EventType])`),
+  and the widget is enabled, it creates a *persistent* engine event bound to that widget. `Widget:SetEnabled`
+  re-creates these for every handler when the widget turns on, and `Event.Delete`s them when it turns off. The
+  actual event names used are supplied by the widget/layout, not fixed here — e.g. the string keys in
+  `_tOwnerRequiredEvents` (`"GuiAmmoUpdate"`, `"GuiMinimapUpdate"`, `"GuiHealthUpdate"`, `"GuiReticleUpdate"`,
+  `"GuiSupportMenuEnter"`, …) are HUD update events that require the widget to have an owner GUID before they'll bind.
+- **`Event.Create(Event.TimerRelative, {1}, _GuiInternal.DeleteWidget, {uId})`** — the one literal timer in the
+  file. `Widget:delete()` uses it to defer a *flash* widget's native deletion by 1 second (non-flash widgets are
+  deleted immediately); this avoids tearing down a Scaleform movie mid-frame.
+- **`"GuiInitialization"`, `"GuiUpdate"`, `"ControllerInput"`** are handled specially (not as `Event.*` timers):
+  `GuiInitialization` runs once when a layout loads; `GuiUpdate` registers via
+  `_GuiInternal.SetWidgetUpdateCallback`; `ControllerInput` is routed to whichever widget currently holds
+  control focus (see `GetControlFocus`). These are string event *kinds*, not `Event.Create` subscriptions.
 
-- **Event.ObjectHibernation**: Listens for this event to wake up and initialize world object instances.
+{: .note }
+> The previous version of this page listed `Event.ObjectHibernation`, `Event.ObjectWinched`,
+> `Event.PlayerJoined`, and `Event.PlayerLeft` here. **None of those appear anywhere in `mrxguibase.lua`** —
+> they were incorrect and have been removed.
 
-- **Event.ObjectWinched**: Listens for this event to handle winch-related state changes.
+## Module constants & tunables
 
-- **Event.TimerRelative**: Listens for timer events to trigger timed actions or animations.
-
-- **Event.PlayerJoined / Event.PlayerLeft**: Listens for player session changes to update GUI states accordingly.
-
-
+- **Default text font: `"font_16"`** (`TextWidget:new` — every text widget starts at this font until you call
+  `SetFont`). Empty text is coerced to a single space `" "` so a blank widget still has a valid glyph.
+- **Widget-space reference resolution: `640 × 480`** (`nWidgetSpaceScreenWidth`/`Height`). All layout
+  coordinates are authored against this virtual canvas; `nScreenScaleFactor = nScreenHeight / 480` scales them to
+  the real resolution. Actual screen dims default to `640×480` unless the engine seeded
+  `_G.g_nGuiScreen*Temp` globals before this file loaded.
+- **`-4096` = "leave this channel unchanged"** — the sentinel `Widget:AnimateToPoint` passes for any
+  R/G/B/translucency level not specified on an animation point (`tNextPoint.RedLevel or -4096`, etc.).
+- **Minimap velocity-driven range** (`MinimapDataUpdateHandler`, local values): the minimap zooms out as the
+  player moves faster — range `150` below speed `10`, range `400` above speed `50`, linearly interpolated between.
+  Change these four locals to alter how aggressively the radar zooms with speed.
+- **Minimap defaults** (`SetUpMinimap`): texture size `512 × -512`, world bounds `±512`, anchors `"left"`/`"top"`
+  when omitted.
+- **Anchor string → engine value:** `"left"`/`"top"` → `-1`, `"center"` → `0`, `"right"`/`"bottom"` → `1`
+  (`SetAnchoring`).
 
 ## Notes for modders
 

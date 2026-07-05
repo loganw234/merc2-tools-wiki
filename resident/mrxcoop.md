@@ -6,7 +6,9 @@ nav_order: 1
 inherits: none
 tags: [co-op, player management]
 verified: true
-verified_note: reworded Instance pattern (was internally contradictory — "stateless" but listing tracked fields); confirmed Events section and all functions against source, no other changes needed
+verified_note: 'deeper pass: spot-checked against source, confirmed accurate; noted the 38.5 boundary radius
+  and squared-distance tether comparison, and flagged the PlayerAddMessage arg-count mismatch in
+  _TetherInsideMin (passes the message string as the uPlayerGuid) as a harmless debug-only decompiler quirk.'
 ---
 
 # MrxCoop
@@ -43,7 +45,10 @@ Adds a new player to the co-op session. If no primary character is set, it assig
 Determines the respawn origin for players. It checks if any alive player characters exist and uses their position and yaw. If no alive players are found, it defaults to a predefined respawn point named "loc_playerStart".
 
 ### `_TetherInsideMin(primary, secondary)`
-Handles the case where a player is inside the minimum tether distance from the primary character. It sets up events to monitor proximity for transitioning between distances.
+Handles the case where a player is inside the minimum tether distance from the primary character. It sets up events to monitor proximity for transitioning between distances. (Decompiler quirk: its debug
+`PlayerAddMessage("INSIDE: " .. idx)` call passes only one argument, so the message string lands in the
+`uPlayerGuid` slot and `sMsg` is `nil` — a harmless bug since these are diagnostic messages only. The sibling
+handlers call it correctly with `(secondaryPlayer, "...")`.)
 
 ### `_TetherBetweenMinAndMax(primary, secondary)`
 Handles the case where a player is between the minimum and maximum tether distances. It sets up events to monitor proximity for transitioning outside the maximum distance or inside the minimum distance.
@@ -62,7 +67,15 @@ Adds a message to a player's message box widget in the GUI. If the widget is not
 - Does not fire any custom engine events directly.
 
 ## Notes for modders
-- Ensure that `SetupTether` and `DestroyTether` are called appropriately to manage the tethering system lifecycle.
-- Customize the tether distances by passing different values to `SetupTether`.
-- Be aware of the respawn origin logic, which may need adjustment based on level design or specific gameplay requirements.
-- The module uses the `MrxGui` and `MrxPlayer` libraries for GUI interactions and player management.
+- **`SetupTether(min, max)` takes two distances** and also hard-sets the engine boundary radius to `38.5`
+  (`Pg.SetBoundaryRadius`). `min`/`max` are stored in `iTetherMin`/`iTetherMax` (module globals) and drive
+  the three-band proximity state machine (inside-min / between / outside-max). Only the *secondary* player is
+  tethered; the first `AddPlayer` becomes `_primaryChar`.
+- **Comparison note:** the initial band pick in `AddPlayer` compares **squared** distances
+  (`GetSquaredDistance` vs. `iTetherMin*iTetherMin`), but the `Event.ObjectProximity` thresholds use the raw
+  `iTetherMin`/`iTetherMax`. Same effective distances, two different representations — don't "fix" one to
+  match the other.
+- `GetRespawnOrigin` returns the first alive player's position/yaw, falling back to the level marker
+  `"loc_playerStart"` if nobody's alive — that marker must exist in the level or respawn origin is invalid.
+- The `_tEvents` keys are `"<secondaryCharTostring>_in"/"_out"/"_btw"`, so the tether bookkeeping is keyed by
+  the secondary character's handle-string; only one secondary is really supported at a time.

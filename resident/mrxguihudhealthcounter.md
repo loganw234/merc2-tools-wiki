@@ -11,7 +11,7 @@ inherits: none
 
 tags: [gui, hud]
 verified: true
-verified_note: verified stray-fence bug still clean (already fixed in earlier pass); confirmed all 21 top-level functions covered; corrected Events section — only 2 confirmed SetEventHandler call sites (GuiUpdate, ShowAllCounters), other named "events" (HealthChangedEventNew, ShowHealthEvent, E3HudModeEvent) have no SetEventHandler call site in this file and were unconfirmed guesses from function names
+verified_note: 'deeper pass: CORRECTED imports (source has NO import() at all — the claimed MrxGui/MrxUtil imports were fabricated; it uses Player/Vehicle/Object namespaces directly); surfaced the _tArmorToIcon armor-label→texture map and _tDefaultIcon; confirmed the 2 SetEventHandler sites (GuiUpdate/ShowAllCounters) and all constants; all 21 functions re-verified'
 
 ---
 
@@ -35,13 +35,16 @@ The `MrxGuiHudHealthCounter` module is responsible for managing the health count
 
 - Inherits from: `none` (base/utility module)
 
-- Imports: `MrxGui`, `MrxUtil`
+- Imports: **none** — this file has no `import()` line. It calls engine namespaces directly: [Player](../namespaces/player) (`Player.GetCharacter`, `Player.GetOwner` via `oWidget:GetOwner()`), [Vehicle](../namespaces/vehicle) (`Vehicle.GetFromRider`), and [Object](../namespaces/object) (`Object.HasLabel`), plus `string.format` and `Debug.Printf`.
 
-
+{: .note }
+> The earlier draft listed `Imports: MrxGui, MrxUtil`. **Neither is imported** — there is no `import(...)` statement anywhere in the source, and no `MrxGui.`/`MrxUtil.` call. Corrected.
 
 ## Instance pattern
 
-This is a stateless manager/utility module. It does not track per-instance state but manages global settings and functions related to health counter display. Key fields include:
+**Stateless module + per-widget `CustomData`.** No `import`, no `tInstance`, no metatable. Each health-counter widget stores its own state in `oWidget.CustomData` (color rest-point, `nHealthValue`, `nBarLength`, `nRemainingTime`, `bPulsing`, `bHidden`, `bE3HudMode`, etc.). Note there are **two parallel implementations** in this one file — a "Main/New" set (`HandleInitializationMain`, `HandleHealthChangedEventMain`, `HandleHealthChangedEventNew`) that animates via named animation points, and an older child-index set (`HandleInitialization`, `HandleHealthChangedEvent`, `HandleUpdateEvent`) that manipulates `oWidget:GetChildren()[3/4/5]` bar segments directly. A given HUD layout wires up one or the other.
+
+Module-level constants and tables:
 
 
 
@@ -308,18 +311,9 @@ The remaining `Handle*Event*`-named functions (`HandleHealthChangedEventNew`, `H
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `HandleInitializationMain` is called before any other functions to properly initialize the widget's custom data and event handlers.
-
-- **Pitfalls**: Be cautious with modifying the health counter's visibility and pulsing effects, as incorrect handling can lead to visual inconsistencies or performance issues.
-
-- **Tunables**: The following constants can be adjusted for different behaviors:
-
-  - `_knShowTime`: Duration for which the health counter is visible.
-
-  - `_knPulsingThreshold`: Health percentage below which pulsing effect starts.
-
-  - `_knVisibleThreshold`: Health percentage above which the counter remains visible.
-
-  - `_knPulseTime`: Duration of a single pulse animation cycle.
-
-- **Decompiler artifacts**: The function `Min(nA, nB)` is used to return the minimum of two numbers. This function appears redundant as Lua's built-in `math.min` could be used instead, but it is present in the decompiled code.
+- **Tunable constants** (top of file): `_knShowTime = 2` (seconds the counter stays up after a change before auto-hiding), `_knPulsingThreshold = 20` (health % below which the low-health red pulse starts), `_knVisibleThreshold = 100` (at/above this % the auto-hide countdown is allowed to run — i.e. only a full-health counter auto-hides), `_knPulseTime = 0.4` (seconds per pulse half-cycle).
+- **Vehicle armor icon mapping** (`_tArmorToIcon`, `local`): the vehicle health icon is chosen by [`Object.HasLabel`](../namespaces/object) on the ridden vehicle: `ArmorVehicle → HUD_vehicle_armor_1`, `ArmorLight → HUD_vehicle_armor_2`, `ArmorMedium → HUD_vehicle_armor_3`, `ArmorTank → HUD_vehicle_armor_4` (all full-texture `u/v = 0..1`). If none match it falls back to `_tDefaultIcon` (`global_gui_hud02`, sub-rect `u1=0.443359 v1=0.466797 u2=0.552734 v2=0.576172`). These `local` tables aren't accessible from other files — to change the icon set, edit them in this module. Lookup path: `Vehicle.GetFromRider(Player.GetCharacter(owner))`.
+- **Low-health color logic**: the "New" path snaps the neutral animation point to `(128,16,16)` when crossing below 20% and back to the original color above 20%; damage flashes `(216,16,16)` red, healing flashes `(16,128,16)` green, then eases back over `1`s. The "Main" pulse point is `(210,0,0)`. The background-pulse path (`HandleUpdateEventForBackground`) ramps color at `192`/s normally and `512`/s while pulsing.
+- **Two implementations, pick one**: don't wire both the `*Main`/`*New` handlers and the child-index `HandleInitialization`/`HandleHealthChangedEvent`/`HandleUpdateEvent` handlers to the same widget — they assume different child layouts (the latter reads `GetChildren()[3]`=background, `[4]`=ghost/delta bar, `[5]`=fill bar, `[1]`=pulse layer).
+- **Debug noise**: `HandleHealthChangedEvent` prints `"<--> HandleHealthChangedEvent"` every call via `Debug.Printf` — engine log spam, harmless. `DrawDebugRectangle(TargetWidget, t)` is a dev-only helper that stamps red `lucida12` text at (100,100) via `TargetWidget.DrawingCommands[1]`; nothing in this file calls it.
+- **`Min(nA, nB)`** duplicates `math.min` (decompiler-preserved); used by the background-pulse color ramp. `_SetCounterVisible(oUnused, oCounter)` takes a leading unused arg because it's used as an `AnimateToPoint` completion callback (the callback receives the animating widget first).

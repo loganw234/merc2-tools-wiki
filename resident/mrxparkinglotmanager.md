@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [parking lot, tutorial, vehicle]
 verified: true
-verified_note: found likely bug in _TrackVehicle (references undeclared global uVeh instead of parameter uVehicle); corrected Events section to name all real Event.* constants (ObjectDeath, ObjectHibernation, TimerRelative were missing).
+verified_note: "deeper pass: re-confirmed the _TrackVehicle uVeh/uVehicle bug, the Events section, and Imports against source; surfaced the module constants (kiParkingLotLimit=8, kfTutorialTime=6, kiBlipSize=6), the blip/radar textures and tutorial message keys, and the parkingLotStart tData shape; made modder notes actionable"
 ---
 
 # MrxParkingLotManager
@@ -30,6 +30,21 @@ This is a stateless manager/utility module. It tracks the following key fields:
 - `eParkingLotTriggered`: An event handle for handling parking lot start events.
 - `eMarkEnter`, `eMarkDeath`, `eMarkHibernation`: Event handles for managing vehicle state changes.
 - `eTutorial`: An event handle for managing tutorial messages.
+
+## Module constants & tunables
+| Constant | Value | Meaning |
+|---|---:|---|
+| `kiParkingLotLimit` | `8` | Max tracked candidate vehicles; adding a 9th drops the oldest. |
+| `kfTutorialTime` | `6` | Seconds between the two parking-lot tutorial steps, and before auto-hide. |
+| `kiBlipSize` | `6` | Radar objective width/height (animated up to `×1.2`). |
+
+Other hard-coded strings worth knowing: the world marker icon is `"HUD_PMC_Fiona"` (primary-objective RGB from
+[`MrxUtil.GetPrimaryObjectiveRgb`](mrxutil)), the radar texture is `"MiniMap_Icon_Faction_PMC"`, and the two
+tutorial messages are `"[TUTORIAL.ParkingLot.First]"` / `"[TUTORIAL.ParkingLot.Second]"` (shown via
+[`MrxTutorialManager.ShowMessage`](mrxtutorialmanager) under the identifier `"parkingLot"`).
+
+The `"parkingLotStart"` script event that triggers `_MoveVehicle` carries
+`tData = {uRefPoint, uNormalPoint, uHeliPoint}` — it's posted by [`MrxHq.ExitEnd`](mrxhq) when leaving an HQ.
 
 ## Functions
 ### `Setup()`
@@ -76,8 +91,15 @@ Hides any active tutorial messages and deletes the event listener for managing t
 - `Event.TimerRelative` (via `_ShowTutorial1`/`_ShowTutorial2`, handle `eTutorial`) — chains `_ShowTutorial1` → `_ShowTutorial2` → `_HideTutorial`, each `kfTutorialTime` seconds apart.
 
 ## Notes for modders
-- Ensure that `Setup` and `Cleanup` are called appropriately to manage the lifecycle of parking lot events and state.
-- Customize vehicle selection criteria by modifying the conditions in `_TrackVehicle` and `_GetLastVehicle`.
-- Adjust tutorial timing and content by changing `kfTutorialTime` and the messages passed to `MrxTutorialManager.ShowMessage`.
-- Be aware that network synchronization (`Net.IsServer`) may affect multiplayer behavior when managing world markers and radar objectives.
-- See the confirmed `uVeh`/`uVehicle` typo bug noted under `_TrackVehicle` above — if you're patching this module, that's the first thing to fix.
+- **Tune the feature** via the three `ki*`/`kf*` constants above — candidate count, tutorial pacing, blip size.
+- **Selection distances are hard-coded** in `_GetLastVehicle`: a candidate qualifies within `65` units of the
+  reference point, or (if it has the `"helicopter"` label) within `15` units of the heli point, and only if it
+  has no driver. Edit those thresholds to change which parked vehicle gets moved.
+- `_MoveVehicle` **removes every other candidate** in the list after picking one — so leftover vehicles near an
+  HQ parking lot are despawned on exit, not just repositioned.
+
+{: .warning }
+> Confirmed source bug in `_TrackVehicle`: the boat/emplaced-weapon exclusion tests `Object.HasLabel(uVeh, ...)`
+> but the parameter is `uVehicle`; `uVeh` is an undeclared (nil) global here, so the check never filters the
+> vehicle actually passed in — boats and emplaced weapons get added to the candidate list despite the intent to
+> skip them. Fix the identifier to `uVehicle` if you're patching this module.

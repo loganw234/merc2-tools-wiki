@@ -6,7 +6,10 @@ nav_order: 1
 inherits: none
 tags: [support, manager]
 verified: true
-verified_note: corrected Events section (no Event.* in source; the attitude-change listener is MrxFactionManager's own API, not this engine's Event system) and flagged MrxHqManager as an unused import
+verified_note: 'deeper pass: re-confirmed all functions and the corrected Events section (no Event.*; the
+  attitude listener is MrxFactionManager.CreatePersistentAttitudeChangeEvent, not engine Event.*); confirmed
+  RequestStarter is the memoized accessor over CreateStarter and that CreateStarter auto-sets HeliPilot/
+  Mechanic/JetPilot recruited flags by starter ID; MrxHqManager still an unused import.'
 ---
 
 # MrxStarterManager
@@ -40,7 +43,12 @@ Returns the entire `_tStarters` table containing all active starters.
 Requests a starter by its name. If the starter already exists, it returns the existing instance; otherwise, it creates a new one using `CreateStarter`.
 
 ### `CreateStarter(sName, bFanfareDisplayed)`
-Creates a new starter instance for the given name and fanfare display status. It retrieves starter data from `WifStarterData`, initializes the starter with this data, activates it, and adds it to the `_tStarters` table. If the starter is associated with PMC recruitment, it updates the corresponding support data.
+Builds a fresh [`MrxStarter`](mrxstarter) from `WifStarterData[sName]` (`MrxStarter:Create(tStarterData)`),
+optionally marks its fanfare shown, `Activate`s it, and stores it in `_tStarters[sName]`. If the starter is a
+PMC recruit, it flips the matching [`MrxSupportData`](mrxsupportdata) recruited flag by starter ID:
+`"HelPmcBoss"` → heli pilot, `"MecPmcBoss"` → mechanic, `"JetPmcBoss"` → jet pilot. Prefer `RequestStarter`
+(which memoizes) over calling this directly — calling `CreateStarter` twice for the same name overwrites the
+first instance in `_tStarters`.
 
 ### `DestroyStarter(sName)`
 Destroys a starter by its name by deactivating it and removing it from the `_tStarters` table.

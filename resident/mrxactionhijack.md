@@ -12,7 +12,7 @@ inherits: none
 tags: [action hijack, minigame, animation]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance/setmetatable anywhere in source; self-prefixed fields belong to one shared, reused state table, not a per-uGuid factory)
+verified_note: "deeper pass: re-confirmed all 36 functions/Imports/Events against source; pinned the exact RULESET_* values (TANK=0/HELICOPTER=1/APC=2/SOLANO=nil), nVehicleAnimBlendTime=0.2, tDifficulty tap/mash timing rows and tRagdoll defaults; listed the posted events (ActionHijackStart/Complete/Finish) and replaced boilerplate modder notes"
 
 ---
 
@@ -50,13 +50,17 @@ Key fields:
 
 - `_fUnloadCallback`, `_tUnloadCallbackArgs`: Variables to store a callback function and its arguments for unloading purposes.
 
-- `nVehicleAnimBlendTime`: Set to `0.2`.
+- `nVehicleAnimBlendTime` = `0.2` — blend time passed to `Object.PlayAnimation` for the vehicle animation.
 
-- `RULESET_TANK`, `RULESET_HELICOPTER`, `RULESET_APC`, `RULESET_SOLANO`: Constants defining different vehicle hijack rulesets.
+- Ruleset constants: `RULESET_TANK = 0`, `RULESET_HELICOPTER = 1`, `RULESET_APC = 2`, `RULESET_SOLANO = nil`.
+  (`RULESET_SOLANO` being `nil` is why `not RULESET_SOLANO` reads as `true` in the sound calls — code branches
+  like `if RULESET_SOLANO == true` never fire under the default value.)
 
-- `tDifficulty`: A table containing difficulty levels for tap and mash actions, each with three values representing some timing parameters.
+- `tDifficulty`: tap/mash timing triples. `EASYTAP/MEDTAP/HARDTAP` scale down (`{1,1.2,1.4}` / `{0.8,1,1.2}` /
+  `{0.6,0.8,1}`); all three `*MASH` rows are `{1,1.2,1.4}`.
 
-- `tRagdoll`: A table defining ragdoll-related settings such as duration, input, and knockdown times.
+- `tRagdoll`: `nDURATION = 1`, `GRAPHIC` and `INPUT` both `Controller.RPad_Down`, `nTimeReduction = 1`,
+  `nTimeReduction2 = 1.5`, `nKnockdown2 = 0.5`, `nKnockdown3 = 0.5`.
 
 
 
@@ -565,38 +569,27 @@ The real events are:
   its own `Event.Create(Event.TimerRelative, ...)` call every time it fires, simulating the driver
   "pressing a button" against the player on a fixed interval (`miniGame.nDriverDifficulty`).
 
+Events this module **posts** (subscribe to these to react to hijacks):
+- `Event.Post("ActionHijackStart", {self})` — in `Begin`, at the start of each section.
+- `Event.Post("ActionHijackComplete", {self})` — in `OnAnimationComplete`.
+- `Event.Post("ActionHijackFinish", {Hijacker=uHijacker, Hijackee=uHijackee, Vehicle=uVehicle, Success=bSuccess})`
+  — in `ActionHijackFinish`, the definitive "hijack is over, here's who/what and whether it worked" signal.
+
 
 
 ## Notes for modders
 
-
-
-1. **Call-order requirements**:
-
-   - Ensure that `InitializeActionHijack` is called before starting any hijack actions to set up necessary properties and configurations.
-
-   - Properly handle the completion of animations and minigames using `OnAnimationComplete`, `OnMinigameStatus`, and related functions.
-
-
-
-2. **Pitfalls**:
-
-   - Be cautious with modifying global flags or state variables, as they can affect multiple instances of the hijack action.
-
-   - Ensure that all events are properly deleted using `DeleteAllEvents` to avoid memory leaks or unintended behavior.
-
-
-
-3. **Tunables**:
-
-   - Adjust difficulty levels in `tDifficulty` for different minigames (`tap`, `mash`) to balance player experience.
-
-   - Modify ragdoll settings in `tRagdoll` to control the duration and effects of ragdoll states during hijack failures.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact and should be ignored unless it affects logic.
-
-   - Duplicate table keys in literals (last one wins at runtime) are also decompiler artifacts and do not affect functionality.
+- **Watch a hijack without touching this module**: subscribe to the posted events above.
+  `"ActionHijackFinish"` carries `{Hijacker, Hijackee, Vehicle, Success}`, so it's the clean hook for
+  "player finished (or failed) hijacking a vehicle."
+- **Rebalance the minigame** via `tDifficulty` (tap/mash timing triples) and the per-section `miniGame`
+  fields — `nSuccessThreshold` (default `3`), `nDriverDifficulty` (default `0.1`, the driver's simulated
+  press interval, which *decreases* by 10% each round the player loses), and `nTimeOut`. The driver "presses"
+  on a self-rescheduling `Event.TimerRelative` in `OnDriverSimulatedButtonPress`.
+- **`_bIsInHijack` is a single shared flag** (read via `IsInHijack()`); because state lives in one reused
+  table, only one hijack sequence runs at a time. [`MrxPlayer.CanMedEvac`](mrxplayer) already checks this via
+  `MrxActionHijack.IsInHijack()` — reuse the same guard if your mod shouldn't run mid-hijack.
+- **Minigame button remaps**: the `"alternate"` action maps `Controller.Use_Melee` → RPad Up/Right,
+  `Controller.Use_Reload` → RPad Up/Left, else LStick Left/Right (see `OnMinigameStart`).
+- Decompiler artifacts to ignore: assigned-but-unread locals, and a couple of bare-global writes
+  (`ChildGuid`, `charTable`, `charGuid`, etc.) inside functions that should have been `local`.

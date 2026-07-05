@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [statistics, player progress]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: "deeper pass: completed Imports (added MrxShop/MrxTransit/MrxPmc/MrxStarterManager/MrxAchievements), rewrote Events (real subs are Event.WeaponEvent Stow/Drop/Equip and Event.ObjectInSeat enter/exit via Event.CreatePersistent — no PlayerJoined/ObjectUse/SaveGame/LoadGame), surfaced the GetPercentCompleted weight constants + nTotalToolbox=100 and the credit/debit reason keys; all functions re-confirmed"
 ---
 
 # MrxStatsManager
@@ -18,7 +18,10 @@ The `MrxStatsManager` module is responsible for tracking and managing various st
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxFactionManager`, `WifMissionData`, `MrxVerifyManager`, `MrxUtil`
+- Imports: [`MrxShop`](mrxshop), [`MrxTransit`](mrxtransit), [`MrxVerifyManager`](mrxverifymanager),
+  [`MrxFactionManager`](mrxfactionmanager), [`MrxUtil`](mrxutil), [`MrxPmc`](mrxpmc),
+  [`MrxStarterManager`](mrxstartermanager), `WifMissionData`, [`MrxAchievements`](mrxachievements)
+  (an earlier draft listed only four).
 
 ## Instance pattern
 **Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
@@ -41,6 +44,32 @@ object. Key fields:
 - `nRetriesCounter`: Total number of retries.
 - `nTransitCounter`: Total number of transit events.
 - `tBestTimes`: Best times for each mission.
+
+## Completion weights & totals (tunables)
+
+`GetPercentCompleted` (and the identical math inlined in `BuildStats`) is a weighted average of seven progress
+categories. The weights and category totals are module-level locals:
+
+| Constant | Value | Category |
+|---|---:|---|
+| `nContractWeight` | `25` | contracts completed |
+| `nRecruitWeight` | `10` | PMC recruits (out of 4) |
+| `nShopWeight` | `2` | shop items unlocked |
+| `nDestroyWeight` | `3` | faction destroy-bounty parts |
+| `nHVTWeight` | `5` | HVTs verified |
+| `nToolboxWeight` | `1` | toolboxes collected |
+| `nLZWeight` | `3` | landing zones unlocked |
+
+`nTotalWeight` is their sum (`49`); the final result is `math.min(weighted / nTotalWeight, 1)` so it never
+exceeds 100%. Other totals: `nTotalToolbox = 100` (toolbox denominator), and `tDestroyBtyTotals` holds the
+per-faction destroy targets (`All = 24`, `Gur = 13`, `Oil = 13`, `Pir = 11`, `Chi = 8`; others `0`). Change any
+of these to reweight the completion meter.
+
+The **credit/debit reason keys** are also pre-seeded (localization strings): credits include
+`[Generic.Contracts]`, `[Generic.Wagers]`, `[Generic.Collectibles]`, `[Generic.Pickups]`; debits include
+`[Generic.CopterRepair]`, `[Generic.Collateral]`, `[Generic.Bribes]`, `[Generic.Wagers]`, `[Generic.Medevacs]`,
+`[Generic.ShopItems]`, `[Garage.replacefionacar]`, `[Generic.SupportDesignators.Satellite]`. These are the same
+`sReason` strings [`MrxPmc.AddCashQty`](mrxpmc#addcashqtynamt-bmateriel-sreason-bsuppressdisplay) forwards here.
 
 ## Functions
 
@@ -164,29 +193,29 @@ Records the best time for a given mission. If the mission does not have a record
 
 ## Events
 
-- **`Event.PlayerJoined`**: This module listens for this event to initialize player statistics when a new player joins the game.
-- **`Event.PlayerLeft`**: This module listens for this event to handle any necessary cleanup or state saving when a player leaves the game.
-- **`Event.ObjectUse`**: This module listens for this event to update statistics related to player interactions with objects in the game, such as destroying bounties or completing toolboxes.
-- **`Event.WeaponStow`, `Event.WeaponDrop`, `Event.WeaponEquip`**: These events are used by `AddWeaponTimer` and `DeleteWeaponTimer` to track time spent with favorite weapons.
-- **`Event.VehicleExit`, `Event.VehicleEnter`**: These events are used by `AddVehicleTimer` and `DeleteVehicleTimer` to track time spent in favorite vehicles.
-- **`Event.SaveGame`**: This module listens for this event to save the current state of player statistics when a game is saved.
-- **`Event.LoadGame`**: This module listens for this event to load saved player statistics when a game is loaded.
+The only real subscriptions are the fav-weapon and fav-vehicle timers, created on demand via
+`Event.CreatePersistent` and torn down by their matching `Delete*` functions:
+
+- **`AddWeaponTimer`** → `Event.CreatePersistent(Event.WeaponEvent, {uLocalChar, "Stow"/"Drop"/"Equip"}, ...)`
+  — `"Stow"`/`"Drop"` route to `TrackWeaponTime`, `"Equip"` to `StartWeaponTime`. `DeleteWeaponTimer` deletes all three.
+- **`AddVehicleTimer`** → `Event.CreatePersistent(Event.ObjectInSeat, {uLocalChar, "Vehicle", "d", "x"/"e"}, ...)`
+  — driver-seat exit (`"x"`) → `TrackVehicleTime`, enter (`"e"`) → `StartVehicleTime`. `DeleteVehicleTimer` removes them.
+
+{: .note }
+> There are **no** `PlayerJoined`/`PlayerLeft`/`ObjectUse`/`SaveGame`/`LoadGame` event subscriptions — an earlier
+> draft invented them. Stats are updated by direct function calls from other modules (e.g.
+> [`MrxPmc`](mrxpmc) calls `IncreaseCreditAmount`/`ReasonsForCredits`; [`MrxPlayer`](mrxplayer) calls
+> `IncreaseDeathCounter`/`IncreaseMedevacCounter`), and save/load happens through `SaveSingleton`/`LoadSingleton`
+> called by the bootstrap, not events.
 
 ## Notes for modders
 
-1. **Call-order requirements**:
-   - Ensure that `Activated()` is called before any other functions in the module to properly initialize the state and faction names.
-   - `LoadSingleton(tSaveData)` should be called after loading a save game to restore player statistics.
-   - `SaveSingleton()` should be called when saving a game to ensure all current statistics are preserved.
-
-2. **Pitfalls**:
-   - Modifying internal tables or variables directly can lead to inconsistent state management. Use provided functions like `IncreaseCreditAmount` and `SetFavWeaponTime` to update statistics safely.
-   - Be cautious with event listeners created by `AddWeaponTimer` and `AddVehicleTimer`. Ensure they are properly deleted using `DeleteWeaponTimer` and `DeleteVehicleTimer` to avoid memory leaks or unexpected behavior.
-
-3. **Tunables**:
-   - The module uses weighted averages to calculate the overall percentage completion. Modifying these weights can affect how player progress is displayed.
-   - Adjusting the logic in functions like `GetPercentCompleted` can change the criteria for determining completion.
-
-4. **Decompiler artifacts**:
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact and should be ignored.
-   - There might be slight redundancy in operator precedence groupings that do not affect behavior; these can be safely disregarded.
+- **Reweight the completion meter** by editing the weight/total constants above — `nTotalToolbox`,
+  `tDestroyBtyTotals`, and the seven `n*Weight` locals are the only knobs that decide what "100%" means.
+- **Increment counters through the `Increase*`/`Record*` functions**, which is how the rest of the codebase
+  feeds this module. There's no event to hook — call the function directly (all are plain globals, so they're
+  also overridable if you want to intercept a stat).
+- **`GetFavWeapon`/`GetFavVehicle`** rank by accumulated time keyed on `Object.GetLocalizedName`, so two items
+  sharing a localized name merge into one bucket. Fine for the stats screen, worth knowing if you query them.
+- `LoadSingleton` deliberately skips restoring `nDeaths`/`nRetries` when `Pg.LoadIsRetry()` is true (a mission
+  retry shouldn't reset those), unlike a normal load.

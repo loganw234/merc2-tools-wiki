@@ -6,7 +6,7 @@ nav_order: 1
 inherits: VehicleBlippable
 tags: [vehicle, support]
 verified: true
-verified_note: added missing Event.TimerRelative to Events section, clarified Create resolves via inherited VehicleBlippable/Inheritable chain (not defined locally)
+verified_note: deeper pass — surfaced the blip constants (tFlash/sTexture/nSize) and the FindLZ geometry/retry tunables as a table, flagged the module-level `self`/tCopters[1] single-copter assumption, corrected the Notes (no local OnDeactivate), and added inheritance/namespace cross-links
 ---
 
 # PursuitCopter
@@ -17,18 +17,44 @@ verified_note: added missing Event.TimerRelative to Events section, clarified Cr
 The `PursuitCopter` module represents a pursuit helicopter that lands near the player and deploys passengers. It is part of the support system in the game, designed to provide reinforcements or additional forces during missions.
 
 ## Inheritance
-- Inherits from: `VehicleBlippable`
-- Imports: `MrxSupport`
+- Inherits from: [`VehicleBlippable`](vehicleblippable) (→ [`OrientedBlippable`](orientedblippable) → [`Blippable`](blippable) → [`Inheritable`](inheritable))
+- Imports: [`MrxSupport`](mrxsupport)
 
 ## Instance pattern
 This is a per-instance object module (keyed by `uGuid`), but `pursuitcopter.lua` itself defines no `Create`
-— it inherits one through the chain `VehicleBlippable` → `OrientedBlippable` → `Blippable` →
-`Inheritable`, none of which override `Create` after `Inheritable`, so `self:Create(uGuid, uRuntimeOwner)`
-(called from `FoundPosition`, line 76) resolves all the way to `Inheritable.Create` — the standard
-`setmetatable`/`tInstance[uGuid]` factory described on [Resident Modules](index). Module-level (not
+— it inherits one through the chain [`VehicleBlippable`](vehicleblippable) →
+[`OrientedBlippable`](orientedblippable) → [`Blippable`](blippable) → [`Inheritable`](inheritable), none of
+which override `Create` after `Inheritable`, so `self:Create(uGuid, uRuntimeOwner)`
+(called from `FoundPosition`, line 76) resolves all the way to [`Inheritable.Create`](inheritable) — the
+standard `setmetatable`/`tInstance[uGuid]` factory described on [Resident Modules](index). Module-level (not
 per-instance) state:
 - `tCopters`: a table (used as a queue) of GUIDs for copters currently mid-LZ-search.
 - `tRetries`: retry counts, keyed by `uGuid`.
+
+{: .note }
+> `self` here is a **module-level global** set to `getfenv()` in `Start` (`self = getfenv()`, no `local`),
+> not a per-instance handle. `FoundPosition`/`FindLZ`/`AllOut` all read that shared `self`, so this module
+> effectively assumes one pursuit copter is being processed at a time — matching the single `tCopters[1]`
+> queue-head it always operates on.
+
+## Module constants & tunables
+Blip cosmetics (read up the chain by `Blippable.AddObjective`) and the LZ-search geometry:
+
+| Constant / value | Value | Where |
+|---|---|---|
+| `tFlash` | `{255, 255, 255}` | radar blip flash color |
+| `sTexture` | `"temp_radar_icon_helicopter"` | radar blip texture |
+| `nSize` | `5` | radar blip size |
+| LZ inner / outer radius | `6` / `19` | `FindLZ` (`Ai.TestDropZone`) |
+| LZ inner / outer height tolerance | `1` / `2.5` | `FindLZ` |
+| LZ max height | `20` | `FindLZ` |
+| LZ search radius | `40` | `FindLZ` |
+| Retry nudge toward player | `+50` on Y | `FoundPosition` (`Ai.Goal` "MoveTo") |
+| Retry limit / delay | `3` attempts, `3`s apart | `FoundPosition` / `FindLZ` |
+
+The LZ geometry is built as a local `oData` table inside `FindLZ` and passed to
+[`Ai.TestDropZone`](../namespaces/ai) — adjust it there to change how picky the copter is about where it
+lands.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
@@ -61,6 +87,11 @@ Attempts to find a suitable landing zone for the pursuit copter using AI functio
   functions, not the `Event.Create` mechanism.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the copter's lifecycle.
-- Customize the number of retries or landing zone parameters by modifying the `tRetries` table or adjusting the `FindLZ` function.
-- Be aware that network synchronization may affect multiplayer behavior, especially if multiple pursuit copters are active simultaneously.
+- There is **no local `OnDeactivate`** in this file — lifecycle teardown falls through to the inherited
+  [`VehicleBlippable`](vehicleblippable) chain. `OnActivate` is the only engine lifecycle callback defined here.
+- Customize the landing-zone pickiness by editing the `oData` geometry in `FindLZ` (inner/outer radius,
+  height tolerances, search radius — table above), or the retry limit by changing the `> 3` check in
+  `FoundPosition`.
+- Because the module keys almost everything off the shared `self`/`tCopters[1]` head rather than per-`uGuid`
+  state, two pursuit copters searching for an LZ at the same time can interfere — worth knowing before you
+  spawn several at once.

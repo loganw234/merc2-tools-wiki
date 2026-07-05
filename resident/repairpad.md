@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [vehicle, repair]
 verified: true
-verified_note: fixed OnActivate description (callback is an inline anonymous function, not a named Awake — no Awake function exists in this file) and removed fabricated HideMarker event claim (not present in source)
+verified_note: 'deeper pass: re-confirmed all 4 functions + the single ObjectHibernation subscription; clarified the LightFront off→on sequence, noted MrxTutorialManager is imported-but-unused and bLightStart is a stray global; pruned vacuous modder bullets; cross-linked Vehicle/Event namespaces.'
 ---
 
 # Repairpad
@@ -14,11 +14,16 @@ verified_note: fixed OnActivate description (callback is an inline anonymous fun
 *Module: repairpad.lua*
 
 ## Overview
-The `Repairpad` module manages the activation and deactivation of repair pads in the game world. It handles events related to the pad's lifecycle, such as when it is activated, deactivated, or destroyed. The module also controls the visual state of the repair pad by toggling its front light.
+The `Repairpad` module is the tiny lifecycle script for a repair-pad object. Its whole observable
+job is a light cue: when the pad wakes it briefly clears its `LightFront` vehicle part, then turns it
+**on** to indicate the pad is live; on death/deactivate it clears the light again. It does not itself
+implement the repairing — that is engine/vehicle behavior — it just manages the indicator light and
+event cleanup.
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `MrxTutorialManager`
+- Imports: [`MrxTutorialManager`](mrxtutorialmanager) — imported but **not referenced** anywhere in
+  this file (vestigial).
 
 ## Instance pattern
 This is a stateless manager/utility module with no per-instance tables. It tracks events associated with each repair pad using the `tEvents` table, keyed by `uGuid`.
@@ -39,7 +44,9 @@ Called when the repair pad instance is deactivated. Deletes all associated event
 Called when the repair pad's underlying object dies. Turns off the front light and calls `OnDeactivate`.
 
 ### `SetupActivationEvents(uGuid)`
-Sets up activation events for the repair pad, including turning on the front light.
+Turns **on** the front light (`Vehicle.SetParts(uGuid, "LightFront", true)`). Despite the name, it
+registers no events — it is just the "light on" step called from the awake handler. The return is
+stored in the stray global `bLightStart` (written here and in `OnActivate`, never read).
 
 ## Events
 - `Event.ObjectHibernation` (in `OnActivate`) — fires the inline "awake" handler described above, keyed
@@ -48,6 +55,11 @@ Sets up activation events for the repair pad, including turning on the front lig
   custom event — that string does not appear anywhere in `repairpad.lua`; it was not present in source.)
 
 ## Notes for modders
-- Ensure that `OnActivate`, `OnDeactivate`, and `OnDeath` are called appropriately to manage the repair pad's lifecycle.
-- The front light of the repair pad can be controlled using `Vehicle.SetParts`.
-- `OnDeactivate` iterates `tEvents[uGuid]` with `pairs` and calls `Event.Delete` on every entry, then clears the table — so any event you add for a given `uGuid` should be stored in that table to get cleaned up automatically.
+- The visible lever here is the `"LightFront"` [`Vehicle.SetParts`](../namespaces/vehicle) part — that
+  named part is the pad's indicator light. If your pad model names the light differently, this script
+  won't toggle it.
+- `OnDeactivate` iterates `tEvents[uGuid]` with `pairs` and `Event.Delete`s every entry, then clears
+  the table — so any event you add for a given `uGuid` should be stored in that table to get cleaned up
+  automatically.
+- There is no repair logic, tunable, or timer in this file — it is purely the light/event-cleanup
+  shell around the engine's repair-pad behavior.

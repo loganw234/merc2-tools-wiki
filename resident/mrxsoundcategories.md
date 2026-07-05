@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, sound]
 verified: true
-verified_note: corrected Events section — no Event.* calls exist anywhere in source; the two entries were invented (this module is called directly by other scripts, not event-driven)
+verified_note: "deeper pass: re-confirmed all 9 functions + the no-Event finding; surfaced the pre-declared _tFadeSettings/_tPitchSettings mode keys and the exact Sound.* fade/pitch/duck calls each function wraps; cross-linked MrxSound (caller) and the Sound namespace"
 ---
 
 # MrxSoundCategories
@@ -21,9 +21,13 @@ The `MrxSoundCategories` module manages audio ducking, fading, and pitch adjustm
 - Imports: `none`
 
 ## Instance pattern
-This is a stateless manager utility module (no per-instance tables). It tracks the following key fields:
-- `_tFadeSettings`: A table to store fade settings for different modes and categories.
-- `_tPitchSettings`: A table to store pitch settings for different modes and categories.
+This is a stateless manager utility module (no per-instance tables). All the real work is thin wrappers over
+the engine [`Sound`](../namespaces/sound) namespace (`Sound.FadeCategoryDown`/`Up`,
+`Sound.PitchCategoryActivate`/`Deactivate`, `Sound.SetMasterVolume`). It tracks these key fields:
+- `_tFadeSettings`: Fade settings keyed by *mode*, then category. **Pre-declared with these empty mode
+  buckets** (each is `{}` until populated): `vosequence`, `credits`, `actionhijack`, `survivalmode`,
+  `fanfare`, `satelliteview`. Indexing `Fade`/`SetFadeCategory` with any other mode string errors (see gotcha below).
+- `_tPitchSettings`: Pitch settings keyed by mode, then category. Pre-declares only one bucket: `survivalmode`.
 - `_bDuckOnGlobalTableLoad`: A boolean flag indicating whether to duck the master volume when the sound database loads.
 - `_nMasterVolumeRefCount`: A reference count for managing master volume ducks.
 
@@ -35,7 +39,10 @@ Sets the fade settings for a specific category in a given mode. The settings inc
 Applies fades to all categories in the specified mode. If `bDown` is true, it applies a fade down; otherwise, it applies a fade up.
 
 ### `_AdditionalFadeSetup()`
-Adds additional fade settings for the "credits" mode, specifically for "sfx" and "vo" categories.
+Registers the two credits-roll fades: `SetFadeCategory("credits", "sfx", 0, 0.5, 0.5)` and
+`SetFadeCategory("credits", "vo", 0, 0.5, 0.5)` — i.e. fade sfx and vo to level `0` over `0.5`s on enter
+and `0.5`s on exit. Called once from [`MrxSound.Initialize`](mrxsound). This is the model for registering
+your own mode's categories before you `Fade(...)` them.
 
 ### `SetPitchCategory(sMode, sCategory, fLevel, fEnterLength, fExitLength)`
 Sets the pitch settings for a specific category in a given mode. The settings include the pitch level and enter/exit lengths.

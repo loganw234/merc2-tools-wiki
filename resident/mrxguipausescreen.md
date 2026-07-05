@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, pause]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: fixed Imports (10 real imports, not "none"); rewrote the fabricated Events section (no Event.* calls exist — these are Scaleform flash-event + widget-event handlers); added the pause_menu movie + pause_graphic asset, the full tControlMap (8 vehicle types), the ActionScript callbacks pushed on open, and the LTILibName settings bridge'
 
 ---
 
@@ -28,26 +28,35 @@ verified_note: corrects the Instance pattern section (singleton, not per-uGuid -
 
 ## Overview
 
-The `MrxGuiPauseScreen` module is responsible for managing the pause screen in the game. It handles opening and closing the pause menu, initializing control maps, and managing various user interactions such as saving, quitting, and adjusting settings through the LTI (Library Template Interface) library. The module ensures that the pause screen behaves correctly, interacts with other GUI elements, and responds to player inputs.
-
-
+`MrxGuiPauseScreen` drives the in-game **pause menu**. Almost all of the visible menu (video/input/audio options, the resume/quit buttons, the control display) is a **Scaleform movie named `"pause_menu"`**; this Lua module builds the widget, loads that movie, pushes the current settings/state into it via ActionScript callbacks, and receives the movie's button/setting events back — forwarding most of them to the engine's `LTILibName` options library. It also implements the "imposter" pause path (a lightweight placeholder pause used in shell/loading contexts) and the med-evac confirmation flow. Widget layout and event wiring come from [MrxGuiPauseLayout](mrxguipauselayout).
 
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: none
-
-
+- Imports (10, all real `import(...)` lines): [MrxGuiBase](mrxguibase), [MrxGuiManager](mrxguimanager), [MrxGuiDialogBox](mrxguidialogbox), [MrxSound](mrxsound), [MrxPlayState](mrxplaystate), `WifMissionFlow`, [MrxPlayer](mrxplayer), [MrxTutorialManager](mrxtutorialmanager), [MrxStatsManager](mrxstatsmanager), [MrxUtil](mrxutil). (The previous draft's "Imports: none" was wrong.) It also calls the engine namespaces `Sys.*`, `Net.*`, `Player.*`, `Pg.*`, `_GuiInternal.*`, and the `LTILibName.*` options bridge directly.
 
 ## Instance pattern
 
 **Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
 `OnActivate`/`Create`/`tInstance` registry anywhere in source. This is the one shared pause screen, not
-something spawned per world object. Key fields:
+something spawned per world object. Per-menu state lives on the pause widget's `CustomData`
+(`bActive`, `bHaveFlash`, `bLoading`, `oMapFlash`, `tHudStates`, `bSaveDisabled`, `bImposterEnabled`).
+Module-level state/constants:
 
-- **`Joystick`**: A table defining constants for joystick button mappings.
+- **`Joystick`**: the button-id constant table (`BUTTON_PAD1_U=1` … `BUTTON_SYS2=24`) used as keys into `tControlMap`. This is the module's own copy of the same constants [MrxGuiBase](mrxguibase) exposes.
+- **`tControlMap`**: starts as `false`; `Init()` fills it with per-context control-label maps (see below).
+- **`_bMedEvac`** / **`bTutorials`**: module globals — a latch for the med-evac confirm dialog, and a cached "were tutorials on when we opened" flag used on close.
 
-- **`tControlMap`**: A boolean flag initialized to `false`, likely used to track the initialization state of the control map.
+## Module constants & assets (the retheme knobs)
+
+- Scaleform movie: `oMapFlash.CustomData.sFile = "pause_menu"` — the whole options UI.
+- Texture asset preloaded on init: `Pg.LoadAsset("pause_graphic", "texture")`.
+- Backdrop: full-screen black `ImageWidget` at alpha `192` behind the movie.
+- On close, an ammo/health counter re-show is fired for `nTime = 3` seconds (`GuiShowAmmoCounter` / `ShowAllCounters` events via `MrxGuiBase.SentEvent`).
+
+## The control map (`tControlMap`)
+
+`Init()` builds `tControlMap[sContext] = { [Joystick.BUTTON_*] = "[SHELL.Controls.*]" , ... }` for eight contexts: `human`, `car`, `tank`, `helicopter`, `jet`, `boat`, `ladder`, `seat`. On open, `OpenPauseScreen`/`_FinishPauseOpen` looks up the player's current context via `Player.GetControlBindingType(uPlayerGuid)` and calls the movie's `controllerDisplay(nButtonId, sLabel)` ActionScript callback for each mapped button — this is what fills the on-screen "controls" legend. Values are localization tokens except the `jet` map, whose labels are plain English strings (`"Seat Menu"`, `"Toggle VTOL"`, etc.) — an unlocalized outlier worth knowing if you localize.
 
 
 
@@ -63,19 +72,15 @@ Initializes the control map with different configurations for various vehicle ty
 
 ### OpenPauseScreen(oPauseMenu)
 
-Opens the pause screen by checking if there is an active system dialog box or if the pause menu is already active. If not, it loads the pause screen flash file and sets up the necessary event handlers and UI elements.
-
-
+Opens the pause screen. Bails early if a system dialog box is up (`MrxGuiDialogBox.oSystemDialogBoxFlash`) or the menu is already `bActive`. Otherwise adds the flash widget and loads the `"pause_menu"` SWF, with `_FinishPauseOpen` as the load callback. Assigned to the widget as `oPauseMenu.Open` by `_Initialize`.
 
 ### _FinishPauseOpen(oPauseMenu)
 
-Finishes loading the pause screen by setting various properties such as visibility, control focus, and Flash event handlers. It also updates the HUD state, control bindings, and other settings based on the current game state.
-
-
+The load callback that actually populates the menu. Enters pause sound state, restarts/plays the movie, takes control focus (pauses), and: registers the movie's setting/event handlers via `oFlash:SetFlashEventHandler(...)`; calls `_GuiInternal.SetFlashPauseMenu(...)` with mission/stats context; toggles the HUD off (remembering prior state in `CustomData.tHudStates`); and pushes the current options into the movie via ActionScript callbacks — `controllerDisplay` (per control-map entry), `videoSubtitles`, `gameRumble`, `gameTutorials`, `gameinvert`, `activeContract`, `medevacEnable`, and `disableSave` (only if save is disabled). Reads each setting from the corresponding `Sys.*Enabled()` accessor when present.
 
 ### ClosePauseScreen(oPauseMenu)
 
-Closes the pause screen by releasing control focus, pausing the flash file, and resetting UI elements. It also restores the HUD state and exits the pause sound state.
+Closes the menu: releases focus, calls the movie's `saveProfile` ActionScript callback, pauses/unloads the SWF, removes child widgets, restores the HUD, exits pause sound state, and re-shows the ammo/health counters for `nTime = 3`s (`GuiShowAmmoCounter`/`ShowAllCounters` via `MrxGuiBase.SentEvent`). If tutorials were on at open but off now, calls `MrxTutorialManager.HideMessage(true)`. Assigned as `oPauseMenu.Close`.
 
 
 
@@ -155,13 +160,15 @@ Enables or disables user save functionality in the pause menu based on the provi
 
   - Initializes various properties for the map flash widget.
 
-  - Assigns methods `Open`, `Close`, and `SetUserSaveEnabled` to the pause menu.
+  - Assigns methods `Open`/`Close`/`SetUserSaveEnabled` to the pause menu widget.
 
-  - Sets up event handlers for controller input.
+  - Binds `"ControllerInput"` → `_HandleInput`.
 
-  - Loads the "pause_graphic" asset.
+  - Sets the map flash's movie name to `"pause_menu"` (`oMapFlash.CustomData.sFile`).
 
-  - Closes the pause menu.
+  - Loads the `"pause_graphic"` texture asset via `Pg.LoadAsset`.
+
+  - Closes the pause menu (starts hidden).
 
 
 
@@ -177,7 +184,7 @@ Enables or disables user save functionality in the pause menu based on the provi
 
   - Marks the pause menu as having a flash and not loading.
 
-  - Sets up event handlers for various actions in the map flash widget.
+  - Binds the movie's action events: `quitGame` → `_HandleQuitEvent`, `closePause` → `_HandleCloseEvent`, `messageMedEvac` → `_ConfirmMedEvacEvent`, `messageButton` → `_HandleMedEvacEvent`.
 
   - Pauses the map flash.
 
@@ -347,528 +354,57 @@ Enables or disables user save functionality in the pause menu based on the provi
 
 
 
-### _LTIFscommand(oFlash, sFuncName)
+### The `_LTI*` settings bridge (thin forwarders to `LTILibName`)
 
-- **Description**: Handles function calls from the LTI library.
+The pause movie exposes video/input/audio/camera options; the module has one Lua handler per movie event, and each is a **thin forwarder** that calls the matching `LTILibName.*` engine function (the game's options/settings library). They carry no logic beyond dispatch, so they're grouped here rather than documented one-by-one:
 
-- **Parameters**:
+- **`_LTIFscommand(oFlash, sFuncName)`** — the catch-all dispatcher: a big `if sFuncName == "..."` chain that maps a movie-supplied command string to the corresponding `LTILibName.LTI*` call (video enter/switch-mode/next-res/prev-res/next-refresh/prev-refresh/apply/cancel/advance, general/KM/joystick input enter/apply/default/cancel/exit, etc.).
+- **`_LTIEnter(oFlash, iNumber)`** — `"1"/"2"/"3"` → `LTIVideoEnter`/`LTIVideoAdvanceEnter`/`LTIInputGeneralEnter`.
+- **`_LTIVideo(oFlash, iNumber)`** — `"2".."8"` → `LTIVideoSwitchMode`/`NextRes`/`PrevRes`/`NextRefresh`/`PrevRefresh`/`ApplyChanges`/`Cancel`.
+- **Value setters** (pass the arg straight through): `_LTIVideoSetGamma(fNumber)`, `_LTIVideoSwitchOpt1(iNumber)`, `_LTIInputGeneralInvertMouse(iNumber)`, `_LTIInputGeneralMouseSense(fNumber)`, `_LTIInputGeneralJoySense(fNumber)`, `_LTIInputGeneralRumble(bBoolean)`, `_LTIInputKMChangeInput(iNumber)`, `_LTIOverBoundResponse(iNumber)`, `_LTIInputJoystickChangePrimary(iNumber)`, `_LTIInputJoystickChangeInput(iNumber)`, `_LTIJoystickOverBoundResponse(iNumber)`, `_LTIPauseItemChanged(iNumber)`, `_LTICamera(iNumber)`.
+- **No-arg actions**: `_LTIVideoAdvanceEnter`, `_LTIVideoAdvanceDefault`, `_LTIInputGeneralEnter`, `_LTIInputKMEnter/ApplyChanges/Default/CancelInput/Exit`, `_LTIInputJoystickEnter/ApplyChanges/Cancel/Default/Exit` — each calls the same-named `LTILibName.*` function.
 
-  - `oFlash`: The flash widget instance.
-
-  - `sFuncName`: The name of the function to call in the LTI library.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library based on the provided function name.
-
-
-
-### _LTIEnter(oFlash, iNumber)
-
-- **Description**: Handles enter events for the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific enter event to handle.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library based on the provided number.
-
-
-
-### _LTIVideo(oFlash, iNumber)
-
-- **Description**: Handles video-related events for the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific video event to handle.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library based on the provided number.
-
-
-
-### _LTIVideoSetGamma(oFlash, fNumber)
-
-- **Description**: Sets the gamma value for video settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `fNumber`: The gamma value to set.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to set the gamma value.
-
-
-
-### _LTIVideoAdvanceEnter(oFlash, sUnused)
-
-- **Description**: Handles advance enter events for video settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle advance enter.
-
-
-
-### _LTIVideoSwitchOpt1(oFlash, iNumber)
-
-- **Description**: Switches video options using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific option to switch.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to switch the specified option.
-
-
-
-### _LTIVideoAdvanceDefault(oFlash, sUnused)
-
-- **Description**: Handles advance default events for video settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle advance default.
-
-
-
-### _LTIInputGeneralEnter(oFlash, sUnused)
-
-- **Description**: Handles enter events for general input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle enter.
-
-
-
-### _LTIInputGeneralInvertMouse(oFlash, iNumber)
-
-- **Description**: Inverts mouse settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating whether to invert the mouse (1 for yes, other values for no).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to invert the mouse based on the provided number.
-
-
-
-### _LTIInputGeneralMouseSense(oFlash, fNumber)
-
-- **Description**: Sets mouse sensitivity using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `fNumber`: The mouse sensitivity value to set.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to set the mouse sensitivity.
-
-
-
-### _LTIInputGeneralJoySense(oFlash, fNumber)
-
-- **Description**: Sets joystick sensitivity using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `fNumber`: The joystick sensitivity value to set.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to set the joystick sensitivity.
-
-
-
-### _LTIInputGeneralRumble(oFlash, bBoolean)
-
-- **Description**: Enables or disables rumble feedback using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `bBoolean`: A boolean indicating whether to enable (true) or disable (false) rumble.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to set rumble feedback.
-
-
-
-### _LTIInputKMEnter(oFlash, sUnused)
-
-- **Description**: Handles enter events for keyboard and mouse input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle enter.
-
-
-
-### _LTIInputKMChangeInput(oFlash, iNumber)
-
-- **Description**: Changes input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific input setting to change.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to change the specified input setting.
-
-
-
-### _LTIInputKMApplyChanges(oFlash, sUnused)
-
-- **Description**: Applies changes to keyboard and mouse input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to apply changes.
-
-
-
-### _LTIInputKMDefault(oFlash, sUnused)
-
-- **Description**: Resets keyboard and mouse input settings to default using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to reset to default.
-
-
-
-### _LTIInputKMCancelInput(oFlash, sUnused)
-
-- **Description**: Cancels input changes using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to cancel input changes.
-
-
-
-### _LTIOverBoundResponse(oFlash, iNumber)
-
-- **Description**: Handles over-bound responses using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific over-bound response to handle.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle the specified over-bound response.
-
-
-
-### _LTIInputKMExit(oFlash, sUnused)
-
-- **Description**: Handles exit events for keyboard and mouse input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle exit.
-
-
-
-### _LTIInputJoystickEnter(oFlash, sUnused)
-
-- **Description**: Handles enter events for joystick input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle enter.
-
-
-
-### _LTIInputJoystickChangePrimary(oFlash, iNumber)
-
-- **Description**: Changes primary joystick settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific primary setting to change.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to change the specified primary setting.
-
-
-
-### _LTIInputJoystickChangeInput(oFlash, iNumber)
-
-- **Description**: Changes joystick input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific input setting to change.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to change the specified input setting.
-
-
-
-### _LTIInputJoystickApplyChanges(oFlash, sUnused)
-
-- **Description**: Applies changes to joystick input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to apply changes.
-
-
-
-### _LTIInputJoystickCancel(oFlash, sUnused)
-
-- **Description**: Cancels joystick input changes using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to cancel input changes.
-
-
-
-### _LTIInputJoystickDefault(oFlash, sUnused)
-
-- **Description**: Resets joystick input settings to default using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to reset to default.
-
-
-
-### _LTIInputJoystickExit(oFlash, sUnused)
-
-- **Description**: Handles exit events for joystick input settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `sUnused`: Unused parameter (likely a placeholder).
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle exit.
-
-
-
-### _LTIJoystickOverBoundResponse(oFlash, iNumber)
-
-- **Description**: Handles over-bound responses for joystick settings using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific over-bound response to handle.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle the specified over-bound response.
-
-
-
-### _LTIPauseItemChanged(oFlash, iNumber)
-
-- **Description**: Handles changes to pause menu items using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific pause menu item changed.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle the specified change.
-
-
-
-### _LTICamera(oFlash, iNumber)
-
-- **Description**: Handles camera-related events using the LTI library.
-
-- **Parameters**:
-
-  - `oFlash`: The flash widget instance.
-
-  - `iNumber`: A number indicating which specific camera event to handle.
-
-- **Behavior**:
-
-  - Calls the corresponding function in the LTI library to handle the specified camera event.
+Only `_LTIFscommand`, `_LTIVideoSetGamma`, `_LTIVideoSwitchOpt1`, `_LTIInputGeneralRumble`, `_LTIInputKMChangeInput`, `_LTIOverBoundResponse`, `_LTIInputJoystickChangePrimary`, `_LTIInputJoystickChangeInput`, `_LTIJoystickOverBoundResponse`, `_LTIPauseItemChanged`, and `_LTICamera` are actually bound as movie event handlers in `_FinishPauseOpen`; the rest are reached through `_LTIFscommand`'s string dispatch.
 
 
 
 ## Events
 
+**There are no `Event.*` (engine event) subscriptions in this file.** The previous draft's event list
+invented names — none of `GuiStateChangeEvent`/`InitializationEvent`/`ToggleEvent`/etc. exist as `Event.*`
+constants here. Everything is one of two widget-level mechanisms:
 
+- **GUI-system widget events**, bound by name from the layout ([MrxGuiPauseLayout](mrxguipauselayout)) or via
+  `oWidget:SetEventHandler(...)`: `GuiGameStateChange` → `HandleStateChangeEvent`, `GuiInitialization` →
+  `_Initialize`, `TogglePAUSE` → `_HandleToggleEvent`, `ImposterShellEvent` → `HandleImposterEvent`, and
+  `ControllerInput` → `_HandleInput`. `HandleInitializationEvent` also re-binds `GuiStateChangeEvent` →
+  `HandleStateChangeEvent` on the widget.
+- **Scaleform/ActionScript flash events**, bound via `oFlash:SetFlashEventHandler(...)` in `_FinishLoad` and
+  `_FinishPauseOpen`: `quitGame`, `closePause`, `messageMedEvac`, `messageButton`, plus the `LTI*` /
+  `PauseItemChanged` / `LTICamera` setting events (see the settings bridge above).
 
-- **`GuiStateChangeEvent`**: Listens for state change events on GUI widgets and triggers actions like opening or closing the pause screen based on the state name and action.
-
-- **`InitializationEvent`**: Handles initialization events for the pause screen widget, setting up necessary properties and event handlers.
-
-- **`ToggleEvent`**: Toggles the active state of the pause menu, either opening or closing it based on its current state.
-
-- **`InputEvent`**: Passes input events to the map flash widget's event handler.
-
-- **`CloseEvent`**: Handles close events for the map flash widget, returning the game state to "ingame" and closing the pause menu.
-
-- **`QuitEvent`**: Handles quit events for the map flash widget, unloading the game and closing the pause menu.
-
-- **`MedEvacEvent`**: Confirms and handles medical evacuation requests, displaying a confirmation message and performing the evacuation if confirmed.
-
-- **`ImposterInitializationEvent`**: Initializes imposter widgets by setting properties like fullscreen and disabling input reception.
-
-- **`ImposterStateChangeEvent`**: Handles state change events for imposter widgets, showing or hiding them based on the state action.
-
-- **`ImposterInputEvent`**: Handles input events for imposter widgets, detecting specific button presses to return the game state to "ingame".
-
-- **`ImposterEvent`**: Sets the enabled state of imposter widgets based on event data.
-
-- **`LTI*Events`**: Various LTI library-related events that handle different settings and actions within the pause menu, such as video settings, input settings, and camera controls.
-
-
+`HandleStateChangeEvent` is the real open/close trigger: it fires when the engine enters/exits the `"Pause"`
+game state (`"Enter"` → `OpenPauseScreen`, `"Exit"` → `ClosePauseScreen`), then calls
+`MrxGuiBase.ChangeScreenResolution()`.
 
 ## Notes for modders
 
-
-
-1. **Call-order requirements**:
-
-   - Ensure that `Init()` is called before any other functions to properly initialize the control map and set up necessary properties.
-
-   - The sequence of events (e.g., `OpenPauseScreen`, `_FinishPauseOpen`, `ClosePauseScreen`) should be respected to maintain proper UI behavior.
-
-
-
-2. **Pitfalls**:
-
-   - Modifying the control map or LTI settings directly can lead to unexpected behavior if not handled correctly.
-
-   - Ensure that all event handlers are properly registered and unregistered to avoid memory leaks or unintended side effects.
-
-
-
-3. **Tunables**:
-
-   - The joystick button mappings in `Joystick` can be adjusted to change the pause menu's input controls.
-
-   - Video settings, input sensitivity, and other options within the LTI library can be modified through their respective functions.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Unused local variables or redundant operator groupings are decompiler artifacts and should not be interpreted as intentional logic in the code.
+- **Retheme via the `"pause_menu"` movie.** Almost the entire menu is Scaleform. To change layout/appearance
+  you edit that movie (and keep its ActionScript entry points — `controllerDisplay`, `videoSubtitles`,
+  `gameRumble`, `gameTutorials`, `gameinvert`, `activeContract`, `medevacEnable`, `disableSave`,
+  `saveProfile`, `onlineMessage`, `onlineMessageClose` — and dispatch the `quitGame`/`closePause`/`LTI*`
+  events). Lua just wires state in and forwards options out.
+- **`tControlMap` is the controls legend.** Edit `Init()`'s per-context tables to change which buttons show
+  which labels on the pause screen; the `jet` context uses raw English strings while every other context uses
+  `[SHELL.Controls.*]` localization tokens.
+- **`SetUserSaveEnabled(oPause, bEnable)`** is the public lever to grey out saving (e.g. during a mission);
+  it sets `bSaveDisabled`, which drives the `disableSave` callback on open.
+- **Med-evac flow**: `messageMedEvac` → `_ConfirmMedEvacEvent` shows an `onlineMessage` confirm dialog and
+  latches `_bMedEvac`; the movie's `messageButton` → `_HandleMedEvacEvent` runs the evac only if that latch is
+  set and the button was `"1"` (yes), calling `MrxPlayer.MedEvac()` and returning to `"ingame"`.
+- **Imposter path** (`HandleImposter*`): a stripped placeholder pause used when the full menu shouldn't run
+  (e.g. shell/loading). `HandleImposterEvent` flips `bImposterEnabled`, which makes `HandleStateChangeEvent`
+  early-out so the two paths don't both fire. Pressing `BUTTON_PAD2_D` in imposter mode just requests
+  `"ingame"`.
+- **`_HandleQuitEvent` quits to desktop** (`Sys.RequestGameState("unloading")` + `Net.QuitGame()`) — this is
+  the movie's "Quit Game" button, not a mission abort.

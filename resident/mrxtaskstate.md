@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [task, enum]
 verified: true
-verified_note: spot-checked against source (24 lines, 2 functions + 4 constants) — no inaccuracies found, no changes needed
+verified_note: deeper pass — re-confirmed all 4 constants (0/1/2/3) and both functions against source; cross-linked the consuming base class MrxTask; no inaccuracies found
 ---
 
 # MrxTaskState
@@ -14,7 +14,11 @@ verified_note: spot-checked against source (24 lines, 2 functions + 4 constants)
 *Module: mrxtaskstate.lua*
 
 ## Overview
-The `MrxTaskState` module defines the enumeration for task states in the game. It provides functions to validate task states and retrieve their display names.
+The `MrxTaskState` module defines the enumeration for task states used by the whole mission/task
+framework. It provides functions to validate a state and to turn one into a human-readable name. Every
+task's current state (stored as `_nState` on the task) is one of these four values — see
+[`MrxTask`](mrxtask), which reads/writes them via `_GetState`/`_SetState` and defaults an unset state to
+`_knLatent`.
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
@@ -51,6 +55,8 @@ Retrieves the display name for a given task state.
 This module does not listen for or fire any engine events.
 
 ## Notes for modders
-- Use `IsValidState` to check if a task state is valid before processing it.
-- Use `GetStateDisplayName` to retrieve the display name of a task state for UI or logging purposes.
-- Be aware that the constants `_knLatent`, `_knActive`, `_knCompleted`, and `_knCancelled` are used throughout the mission task framework, so ensure they are consistent when extending or modifying task-related logic.
+- Reference the states as `MrxTaskState._knLatent` / `._knActive` / `._knCompleted` / `._knCancelled`
+  rather than hard-coding `0`/`1`/`2`/`3` — the numeric values are an implementation detail.
+- `GetStateDisplayName` returns the lowercase strings `"latent"`, `"active"`, `"completed"`,
+  `"cancelled"`; these are what show up in [`MrxTask`](mrxtask)'s `Debug.Printf` state-change logs.
+- `GetStateDisplayName` **asserts** on any value not in the enum, so only pass it a validated state.

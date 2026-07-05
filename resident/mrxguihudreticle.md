@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, hud]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: CORRECTED imports (source imports only MrxGui — MrxUtil/Sound were wrong; Sound is a namespace, not an import); DELETED fabricated Events section (zero Event.* calls — all wiring is SetEventHandler widget-event keys); surfaced Stinger lock-on constants (flash times, neutral/lockon colors, med/high thresholds, targeting sound), the health pie-slice geometry, target-relation colors, and the sReticleType values ("Normal"/"Homing"/"Laser"/"None"); noted the empty _MoveCrosshairChildToPoint stub'
 
 ---
 
@@ -35,19 +35,24 @@ The `MrxGuiHudReticle` module is responsible for managing the various types of r
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`, `Sound`
+- Imports: `MrxGui` only (via [`import("MrxGui")`](../glossary#importname)). It also calls the [Gui](../namespaces/gui) namespace (`Gui.GetReticlePosition`, `Gui.LoadTexture`), [Sound](../namespaces/sound) (`Sound.CueSound`/`StopSound`), and the internal `_GuiInternal` singleton — but those are namespaces, not `import()`s.
 
-
+{: .note }
+> The earlier draft listed `Imports: MrxUtil, Sound`. **Neither is imported** — the only `import()` is `MrxGui`, and `Sound`/`Gui` are engine namespaces. Corrected.
 
 ## Instance pattern
 
-**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
-anywhere in source. This is one shared reticle element, not something spawned per world object. Key
-fields:
+**Stateless module + per-widget `CustomData`.** No `tInstance`/metatable. The module hosts several *distinct* reticle widget types (normal reticle, crosshair, circular + straight health bars, Stinger lock-on, laser), each with its own `Handle*Initialization` that stashes child-widget references and animation points in that widget's `CustomData` and copies methods onto it (e.g. `oWidget.SetHealth = _SetHealth`, `oWidget.SetOwner = SetReticleOwner`). Module-level names are just the constants below plus two `local` tables (`_tSpread`, and the color/threshold constants).
 
-- `_bFloatCrosshair`: A boolean flag indicating whether the crosshair should float or follow the reticle position.
-
-- `_ksTargettingSound`: The sound cue ID for the targeting sound used in Stinger lock-on reticles.
+### Module constants (the tunables)
+- `_bFloatCrosshair = false` — if true, the crosshair follows the passed `nScreenX/Y`; if false it snaps to `Gui.GetReticlePosition`.
+- `_ksTargettingSound = "ui_HUD_SAM_targeting"` — looping Stinger lock-on beep (via [Sound](../namespaces/sound)).
+- **Reticle screen mapping**: aim coords map to screen via `320 + aimX*320`, `240 - aimY*240` (640×480 virtual canvas). Crosshair spread base is `320` per unit (`_tSpread` gives the four arm directions).
+- **Circular health pie** (`HandleHealthInitialization`): `_nHealthLength = 100`, `_nHalfHealthLength = 50`, `_nHealthCenter = 180` (degrees), `_nBaseAlpha = 80` (visible translucency). Rendered with `SetPieSliceRender`.
+- **Target-relation colors** (`HandleReticleColorChangeEvent`): friendly (`nTargetRelation > 0`) = blue `(0,0,255)`, hostile (`< 0`) = red `(255,0,0)`, neutral/none = white `(255,255,255)`.
+- **Stinger lock-on flash** (`HandleStingerReticleDataUpdate`/`Update`): flash times `_kNoFlashTime = -1` (solid, at 100% lock), `_kSlowFlashTime = 0.15`, `_kMedFlashTime = 0.15`, `_kFastFlashTime = 0.01`; progress thresholds `_kMedBegin = 0.4`, `_kHighBegin = 0.75`; colors `_ktNeutralColor = (128,128,128)`, `_ktLockonColor = (0,255,0)`. Target texture `global_gui_reticle_stinger_target`.
+- **Reticle types** (`tEvent.sReticleType` string): `"Normal"`, `"Homing"`, `"Laser"`, `"None"` — select which reticle widget shows.
+- **Laser reticle**: arrow spins one full turn (`nRotation = 359`); enter/exit fade to translucency `128`/`0` over `0.5`s; circles play frames `0..30`.
 
 
 
@@ -243,78 +248,20 @@ This helper function loops the arrow's animation by resetting its rotation and s
 
 ## Events
 
+{: .warning }
+> **This file has zero `Event.*` engine calls** (grep-confirmed). The earlier draft listed `Event.ReticleColorChange`, `Event.ReticleGunSwitch`, `Event.StingerReticleUpdate`, `Event.LaserReticleStateChange`, and ~11 others — **none of these engine constants exist in the source.** Removed. The `Handle*Event` functions are **widget event-handler callbacks**, wired to named widget events in the HUD layout, not `Event.Create` subscriptions.
 
+Real widget-handler registrations found in this file (via `SetEventHandler`, a widget `EventHandlers` key — not `Event.*`):
+- `HandleReticleInitialization` sets `"GuiReticlePositionChange"` → `HandleReticlePositionChange`.
+- `HandleCrosshairInitialization` sets `"GuiUpdate"` → `HandleCrosshairUpdate` (crosshair position/spread interpolation).
+- `HandleStingerReticleDataUpdate` sets `"GuiUpdate"` → `HandleStingerReticleUpdate` (drives the lock-on flash, and self-clears the handler after a frame with no data update).
 
-- **`Event.ReticleColorChange`**: Triggered when the reticle's color needs to be changed based on target relation and health. The module handles this event with `HandleReticleColorChangeEvent`.
-
-  
-
-- **`Event.ReticleGunSwitch`**: Triggered when the reticle type changes (e.g., "Homing", "Normal", "None"). The module handles this event with `HandleReticleGunSwitchEvent`.
-
-
-
-- **`Event.ReticleInitialization`**: Triggered to initialize the reticle. The module handles this event with `HandleReticleInitialization`.
-
-
-
-- **`Event.ReticlePositionChange`**: Triggered when the reticle's position changes. The module handles this event with `HandleReticlePositionChange`.
-
-
-
-- **`Event.CrosshairInitialization`**: Triggered to initialize the crosshair. The module handles this event with `HandleCrosshairInitialization`.
-
-
-
-- **`Event.CrosshairUpdate`**: Triggered to update the crosshair's position and spread. The module handles this event with `HandleCrosshairUpdate`.
-
-
-
-- **`Event.HealthInitialization`**: Triggered to initialize health rendering for circular health bars. The module handles this event with `HandleHealthInitialization`.
-
-
-
-- **`Event.StingerReticleInitialization`**: Triggered to initialize the Stinger lock-on reticle. The module handles this event with `HandleStingerReticleInitialization`.
-
-
-
-- **`Event.StingerReticleColorChange`**: Triggered when the Stinger lock-on reticle's color needs to be updated based on target relation and health. The module handles this event with `HandleStingerReticleColorChangeEvent`.
-
-
-
-- **`Event.StingerReticleDataUpdate`**: Triggered to update data for the Stinger lock-on reticle, such as flashing behavior and colors. The module handles this event with `HandleStingerReticleDataUpdate`.
-
-
-
-- **`Event.StingerReticleUpdate`**: Triggered to handle updates for the Stinger lock-on reticle widget. The module handles this event with `HandleStingerReticleUpdate`.
-
-
-
-- **`Event.LaserReticleInitialization`**: Triggered to initialize a laser reticle widget. The module handles this event with `HandleLaserReticleInitialization`.
-
-
-
-- **`Event.LaserReticleGunSwitch`**: Triggered when the laser reticle type changes. The module handles this event with `HandleLaserReticleGunSwitchEvent`.
-
-
-
-- **`Event.LaserReticleStateChange`**: Triggered to handle state change events for the laser reticle. The module handles this event with `HandleLaserReticleStateChangeEvent`.
-
-
+Everything else (`HandleReticleColorChangeEvent`, `HandleReticleGunSwitchEvent`, the `Stinger*`/`Laser*` handlers, and the various `*Initialization` functions) is invoked by the framework by handler-key convention wired in a layout file, or called directly — no `SetEventHandler` call site for them exists in *this* file. The gun-switch handlers key off the `tEvent.sReticleType` string (`"Normal"`/`"Homing"`/`"Laser"`/`"None"`).
 
 ## Notes for modders
 
-
-
-- **Call-order requirements**: Ensure that initialization functions (`HandleReticleInitialization`, `HandleCrosshairInitialization`, etc.) are called before any other related functions to properly set up the reticle and its components.
-
-
-
-- **Pitfalls**: Be cautious when modifying reticle behavior, as incorrect handling of events or state changes can lead to visual inconsistencies or performance issues. Always test changes in a controlled environment.
-
-
-
-- **Tunables**: The module uses several tunable parameters such as `_bFloatCrosshair` and `_ksTargettingSound`. Modders can adjust these values to customize reticle behavior without altering the core logic.
-
-
-
-- **Decompiler artifacts**: Some functions, like `_MoveCrosshairChildToPoint`, are placeholders with no implementation. These should be treated as decompiler artifacts and not relied upon for functionality.
+- **Change the aim-to-screen mapping** by editing the `320 + aimX*320` / `240 - aimY*240` math in `_MoveReticle`/`SetReticleOwner`/`HandleCrosshairUpdate` — this assumes a 640×480 virtual HUD canvas. `Gui.GetReticlePosition(owner)` returns aim in −1..1 units.
+- **Stinger lock-on feel**: the beep speeds up as lock progresses — `_kSlowFlashTime` below `_kMedBegin` (40%), `_kMedFlashTime` at `_kMedBegin`, `_kFastFlashTime` above `_kHighBegin` (75%), then solid green (`_ktLockonColor`) with the loop sound stopped at 100%. Adjust the thresholds/times to re-tune SAM lock urgency. The looping cue is `_ksTargettingSound = "ui_HUD_SAM_targeting"`.
+- **Health bar styles**: two implementations — circular pie-slice (`HandleHealthInitialization`/`_SetHealth`, arc centered at `_nHealthCenter = 180°`, span `_nHealthLength = 100`) and straight bar (`HandleHealthInitializationBar`/`_SetHealthStraight`). The reticle picks between them per gun via `tEvent.sReticleHealthType == "straight (bottom)"`. Base opacity is `_nBaseAlpha = 80`; both fade out over `0.5`s when health is unavailable (`nCurrent < 0` or `nMax <= 0`).
+- **Crosshair float**: set `_bFloatCrosshair = true` to let the crosshair track a passed screen position (`nScreenX/Y`) instead of snapping to the engine reticle position — useful for free-aim weapons.
+- **`_MoveCrosshairChildToPoint(oChild, ...)` is an empty stub** (`function ... end`) — it does nothing; the actual crosshair movement is done inline in `HandleCrosshairUpdate` via `Interpolate` (rate `nDt * 5`). Don't call the stub.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [level, loading]
 verified: true
-verified_note: spot-checked against source (single-function 18-line file), no changes needed — content and events section were already accurate.
+verified_note: "deeper pass: re-confirmed the single LoadLevel function against source; replaced vacuous notes with the concrete asset-request shape (<Level>_base layer @-2, master script @-3, non-blocking), flagged the dead Reload param, cross-linked GameBootstrap"
 ---
 
 # LevelBootstrap
@@ -37,6 +37,12 @@ non-blocking per the trailing `false` argument), and finally calls `Sys.RequestG
 - Listens for none (this module does not subscribe to any engine events).
 
 ## Notes for modders
-- Ensure that `LevelName` and `MasterScript` are correctly set or omitted to use defaults.
-- Be aware of the asset loading order and ensure that required assets are available.
-- This function is typically called during level transitions or when starting a new game.
+- **This is the one-call level loader**: `LevelBootstrap.LoadLevel(sLevel, sScript)` sets the level/master
+  script names, requests the assets, and flips the game state to `"Loading"`. [`GameBootstrap.Start`](gamebootstrap)
+  calls it directly on the `Sys.AutoLoad()` (non-server) path.
+- **The asset request shape is fixed**: it requests `<LevelName>_base` as a `"layer"` at priority `-2` and
+  `<MasterScript>` as a `"script"` at priority `-3`, both non-blocking (trailing `false`). If you're adding
+  a new level, those two names (`_base` layer + master script) are what the engine will go looking for.
+- **`Reload` is dead** — the third parameter is defaulted to `false` and then never read again in the
+  function body. Passing it has no effect.
+- Pass `nil` for `LevelName`/`MasterScript` to fall back to `Sys.GetLevelName()`/`Sys.GetMasterScriptName()`.

@@ -11,7 +11,7 @@ inherits: none
 
 tags: [gui, hud]
 verified: true
-verified_note: verified stray-fence bug already clean (per earlier pass); replaced fabricated Events section (Event.OnActivate/OnDeactivate/OnUse do not exist in source — file has zero Event.* calls) and corrected Notes for modders (OnActivate/Awake call-order text did not apply to this stateless module)
+verified_note: 'deeper pass: re-confirmed all 8 functions + the four sprite-mapping tables against source; clarified this uses native MrxGui.ImageWidget/SpriteWidget (not Scaleform .gfx); surfaced the full button-texture constant list and the "countdown_circle"/"icon_hijack_glow"/"icon_fail" clip names; confirmed zero Event.* calls'
 
 ---
 
@@ -27,7 +27,9 @@ verified_note: verified stray-fence bug already clean (per earlier pass); replac
 
 ## Overview
 
-The `MrxGuiHudActionHijack` module is responsible for managing the action hijack HUD elements in the game. It provides functionality to display button prompts, handle user inputs, and manage various visual and audio cues related to player actions.
+The `MrxGuiHudActionHijack` module drives the "Action Hijack" HUD widget — the on-screen button prompt shown during the quick-time hijack minigame (press/mash a button before a countdown ring expires). It shows the correct controller-button sprite, animates a countdown ring, plays press/mash/recover/error sound cues, and shows a fail icon on failure.
+
+It is built on the **native GUI widget framework** ([MrxGui](mrxgui) / [MrxGuiBase](mrxguibase)), not Scaleform `.gfx` movies: `_HandleInitialization` constructs `MrxGui.ImageWidget`/`MrxGui.SpriteWidget` children and drives them with `SetTexture`/`PlayAnimation`/`SetClockAnimation`. See the [Gui](../namespaces/gui) namespace for the texture-loading and controller-query primitives it calls (`Gui.LoadTexture`, `Gui.IsXboxController`).
 
 
 
@@ -35,7 +37,7 @@ The `MrxGuiHudActionHijack` module is responsible for managing the action hijack
 
 - Inherits from: `none — base/utility module`
 
-- Imports: `MrxGui`
+- Imports: `MrxGui` (via [`import("MrxGui")`](../glossary#importname))
 
 
 
@@ -180,6 +182,9 @@ This file contains zero `Event.*` / `Event.Create(...)` references — grepped a
 - **No per-instance lifecycle**: this is a stateless utility module — there is no `OnActivate`/`Awake`/`OnDeactivate` in this file, and no `tInstance` registry. All state lives in `CustomData` on the "Action Hijack" widget itself (per-player, since widgets are looked up by owner GUID), set up once by `_HandleInitialization` when the widget initializes.
 - **Call order**: `_HandleInitialization` must run (via the widget's `GuiInitialization` handler) before `ShowButton`/`HideButton`/`ShowFail`/etc. are called, since those functions read `oActionHijackDisplay.CustomData.oButton/oTimer/oFail/oSparkL/oSparkR` which `_HandleInitialization` creates.
 - **Pitfalls**: `ShowButton` returns silently (no-op) if `_ControllerSpriteTextureMapping[nButton]`, `_ControllerSpriteData[nButton]`, `_ControllerXboxSpriteTextureMapping[nButton]`, or `_ControllerXboxSpriteData[nButton]` is missing for the given `nButton` — only the button IDs explicitly populated in the four mapping tables (D-pad, stick directions, melee, reload) are supported; passing an unmapped `Joystick.BUTTON_*` constant silently fails and logs `"No data for given action hijack buttons"` via `Debug.Printf`.
-- **Tunables**: The sound cues (`_ksPressSound`, `_ksErrorSound`, `_ksMashSound`, `_ksRecoverSound`) can be modified to change the audio feedback for different actions. Similarly, the `nTime` and `nRepeatTime` parameters in `ShowButton` can be adjusted to control the duration of the countdown timer and repeating animations.
+- **Sound cue constants** (change the audio feedback): `_ksPressSound = "ui_HUD_Minigame_Press_Button"`, `_ksErrorSound = "ui_HUD_Minigame_Error"`, `_ksMashSound = "ui_HUD_Minigame_Tap_Button_lp"` (looping), `_ksRecoverSound = "ui_HUD_Minigame_Tap_Button_Recover_lp"` (looping). Played via `Sound.CueSound(0, ...)` / stopped via `Sound.StopSound(0, ...)` — see [Sound](../namespaces/sound).
+- **Timer / button textures** (change the visuals): the countdown ring uses `"countdown_circle"` when `bShowTimer` is true, or `"icon_hijack_glow"` when false; the fail overlay is `"icon_fail"`; sparks are `"icon_sparks_left"`/`"icon_sparks_right"`. Every controller sprite is loaded by `_HandleInitialization` via `Gui.LoadTexture(...)`: standard prompts `icon_hijack_button_{A,B,X,Y}`, `icon_hijack_joystick_{up,down,left,right,leftright}`, `Use_Melee`, `Use_Reload`; Xbox variants prefix `icon_hijack_xbox_*` and `xbox_Use_Melee`/`xbox_Use_Reload`. Which sprite a `nButton` maps to is set in the four `_Controller*SpriteTextureMapping` / `_Controller*SpriteData` tables — the sprite-data entries are `{nFrameW, nFrameH, nUOffset, nVOffset, nTexW, nTexH}`.
+- **Xbox vs. standard**: `ShowButton` picks the Xbox texture set at runtime when `Gui.IsXboxController()` returns true (see [Gui](../namespaces/gui)); otherwise the standard set.
+- **Tunables via caller**: the `nTime`/`nRepeatTime`/`nScale`/`nTranslucency` (default `190`) arguments to `ShowButton` control countdown duration, button-flash repeat rate, size, and opacity — these are passed in by the calling minigame code, not fixed here.
 - **Deprecated stubs**: `SetDisplayButton()` and `SetDisplayMashAnimation()` are empty except for a `Debug.Printf("Deprecated.")` call — calling them does nothing.
 - **Decompiler Artifacts**: The module may contain unused locals or duplicate table keys as artifacts of the decompilation process (e.g. `Joystick = MrxGui.Joystick` immediately overwritten by a literal `Joystick = {...}` table two lines later). These should not affect functionality but are noted for clarity.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, loading screen]
 verified: true
-verified_note: confirmed zero Event.* calls (all wiring is widget-level SetEventHandler, 3 confirmed sites); confirmed HandleInit/HandleStateChangeEvent are wired externally from mrxguiloadlayout.lua's LocalWidgetList; all 10 top-level functions covered, no inherit
+verified_note: 'deeper pass: re-confirmed all 10 functions, the 3 SetEventHandler sites, and the external HandleInit/HandleStateChangeEvent wiring against source; surfaced the concrete constants — _gLoadFlashFile="loadingscreen", save-icon texture "global_loading_skull", font "english_18", string [SHELL.LoadSave.Saving], _knSaveIconSize=64/_knSaveIconTime=0.5, and the closeLoadingScreen/leftAnalog ActionScript callbacks'
 ---
 
 # MrxGuiLoadScreen
@@ -64,8 +64,22 @@ No `Event.*`/`Event.Create(...)` engine-event references appear in this file —
 
 `HandleInit` and `HandleStateChangeEvent` are not registered by `SetEventHandler` anywhere in this file — they are wired externally via [`mrxguiloadlayout.lua`](mrxguiloadlayout)'s `LocalWidgetList`, which sets the root "Loading Screen" widget's `EventHandlers.GuiInitialization = MrxGuiLoadScreen.HandleInit` and `EventHandlers.LoadStateChange = MrxGuiLoadScreen.HandleStateChangeEvent`.
 
+## Module constants & tunables
+- **`_gLoadFlashFile = "loadingscreen"`** — the Scaleform `.gfx` movie loaded as the loading screen. Swap this
+  for a different file name to replace the whole loading-screen visual (`_SetActive` loads it lazily on activate).
+- **Save-icon texture: `"global_loading_skull"`** — the spinning skull shown while saving (`InitSaveIcon`).
+- **Save-icon label: `"[SHELL.LoadSave.Saving]"`** (localization key) in font **`"english_18"`**, positioned right
+  of the icon.
+- **`_knSaveIconSize = 64`** (px) and **`_knSaveIconTime = 0.5`** (seconds per open/close animation leg) — the
+  save-icon geometry and animation speed. The icon container sits at `(64, 48)`.
+- **Flash ActionScript callbacks this module calls:** `"closeLoadingScreen"` (on deactivate) and `"leftAnalog"`
+  (analog-stick passthrough, with `{nX, nY}`). These are the `.gfx`-side entry points.
+- **Analog detection range** (`IsAnalog`): joystick button indices between `BUTTON_L_STICK_L` and
+  `BUTTON_R_STICK_D` (9–16) count as analog input.
+
 ## Notes for modders
-- Ensure that the loading screen is properly initialized and activated when needed.
-- Customize the Flash file used by setting `_gLoadFlashFile` to a different `.gfx` or `.swf` file.
-- Be aware of the save icon animation behavior and adjust parameters like `_knSaveIconSize` and `_knSaveIconTime` as needed.
-- The module uses `MrxGui` and `MrxGuiBase` for GUI operations, so ensure these modules are available and properly configured.
+- Replace the loading-screen visual by pointing `_gLoadFlashFile` at a different `.gfx` — everything else
+  (activation, control focus, analog passthrough) keeps working around whatever file you load.
+- The save icon "flips" by swapping its texture U coordinates each animation cycle (`_SaveIconAnimationComplete`),
+  so a symmetric skull texture looks like it's continuously spinning; a non-symmetric replacement will visibly
+  mirror.

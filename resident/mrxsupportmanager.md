@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, economy]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- CurrentlyEquippedSupport/SupportQueue/_tRecruitStates are plain module-level tables keyed by player/character guid, not a factory-built instance registry; has an OnActivate but it's a plain reactive handler, not a per-instance constructor)
+verified_note: 'deeper pass: re-confirmed the singleton pattern and OnActivate reactive handler; surfaced the cooldown constants (_nDefaultCooldownTime 12, SupportTimer default 10, the special-cased Copter -1 = indefinite hold), documented the NETEVENT_RECRUITSTATE/STARTTIMER net-sync and the fuel gate in CompleteDesignation, and pruned the vacuous "ensure OnActivate is called" note'
 ---
 
 # MrxSupportManager
@@ -25,9 +25,12 @@ The `MrxSupportManager` module is responsible for managing the designation queue
 source — `CurrentlyEquippedSupport`/`SupportQueue` are plain module-level tables this manager maintains
 itself, keyed by player/character guid as simple lookup keys, not a factory-built per-instance object with
 inherited methods. Key fields:
-- `_tRecruitStates`: A table that stores the availability state of each recruit.
-- `_tRecruitTimers`: A table that stores the timer objects for each recruit's cooldown period.
-- `_nDefaultCooldownTime`: The default cooldown time for recruits.
+- `_tRecruitStates`: recruit-hash → available (`true`/`false`). `false` while a recruit's cooldown timer runs.
+- `_tRecruitTimers`: recruit-hash → `SupportTimer` object driving that recruit's cooldown.
+- `_nDefaultCooldownTime = 12`: default cooldown (seconds) applied by `StartRecruitCooldown` when no explicit
+  time is passed. `SupportTimer`'s own default `nTotalTime` is `10`.
+- `CurrentlyEquippedSupport` / `SupportQueue` / `ValidationQueue`: module-level tables keyed by
+  player/character GUID (see Instance-pattern note).
 
 ## Functions
 ### `CurrentlyEquippedSupport:AddSupport(oSupport)`
@@ -52,7 +55,13 @@ A callback function that processes the result of a validation request.
 Handles the result of a validation request and either completes the designation or denies it.
 
 ### `CompleteDesignation(oSupport, uDesignatorGuid, uPlayerGuid)`
-Completes the designation process for a support type by checking recruit availability and fuel requirements, then starts the recruit cooldown.
+Completes the designation process: checks recruit availability and the fuel requirement
+(`oSupport:GetFuelCost() > MrxPmc.GetFuelQty()` denies unless `oSupport.bUnrestrictedByFuel` is set — that
+flag is how [`MrxSupportTransit`](mrxsupporttransit) makes rides free), then starts the recruit cooldown and
+fires the designator's `CompleteDesignation`. **The `"Copter"` recruit is special-cased**: it gets
+`StartRecruitCooldown("Copter", -1)`, i.e. held unavailable **indefinitely** (a negative time starts no
+timer) until something explicitly calls `MakeRecruitAvailable("Copter")` — which the delivery modules do when
+their heli despawns.
 
 ### `OnActivate(uDesignatorGuid, uPlayerGuid)`
 Called when a designator is activated. It sets up an event to call `FinishOnActivate` once the object leaves hibernation.
@@ -127,10 +136,21 @@ Updates the elapsed time of the timer and calls the callback if the timer has co
 Initializes the recruit states and timers tables.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `FinishOnActivate` when a designator leaves hibernation.
-- Listens for custom network events `NETEVENT_RECRUITSTATE` and `NETEVENT_STARTTIMER` to update recruit states and timers.
+- **`Event.ObjectHibernation`** (`"awake"`) — the one real `Event.*` subscription, set up in `OnActivate`;
+  calls `FinishOnActivate` once the designator wakes.
+- `OnActivate`/`OnInitialize`/`OnDesignate`/`OnDeactivate`/`OnTimer`/`OnDeath` are **engine designator
+  callbacks** the engine invokes by name, not `Event.*` subscriptions this module registers.
+- **Net sync**: recruit availability is broadcast with `Net.SendCustomEvent("MrxSupportManager", ...)` using
+  IDs `NETEVENT_RECRUITSTATE = 0` and `NETEVENT_STARTTIMER = 1`; `NetEventCallback` is the receiver that
+  applies remote recruit-state/timer changes.
 
 ## Notes for modders
-- Ensure that `OnActivate`, `OnDeactivate`, and `OnDesignate` are called appropriately to manage the designation lifecycle.
-- Customize recruit availability and cooldown times by modifying `_tRecruitStates` and `_nDefaultCooldownTime`.
-- Be aware of network synchronization (`Net.SendCustomEvent`) when extending or modifying this module.
+- **Cooldown knobs**: `_nDefaultCooldownTime = 12` is the default recruit cooldown; pass an explicit time to
+  `StartRecruitCooldown(sRecruit, nTime)` to override, or `-1` to hold a recruit indefinitely (as
+  `CompleteDesignation` does for `"Copter"`). `SupportTimer` ticks on the GUI game timer, so cooldowns are in
+  real seconds.
+- **Fuel gate**: set `bUnrestrictedByFuel = true` on a support object to bypass the fuel check in
+  `CompleteDesignation` (see [`MrxSupportTransit`](mrxsupporttransit)).
+- **Recruit availability drives the store**: `IsRecruitAvailable`/`MakeRecruitAvailable` are what gray out or
+  re-enable support items — `MakeRecruitAvailable` also posts a `"RecruitAvailable"` event that
+  [`MrxSupport`](mrxsupport)'s `SetupDamageEvent` listens for.

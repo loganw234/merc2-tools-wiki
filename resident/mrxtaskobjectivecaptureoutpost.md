@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, outpost]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — corrected the Activated description (it registers an MrxOutpostManager outpost event on config uOutpostBldg, NOT an "Awake" hibernation event); confirmed status handling (knStatusCaptured → CompletePart, knStatusDestroyed → CancelPart) and all icon overrides; cross-linked MrxOutpostManager
 ---
 
 # MrxTaskObjectiveCaptureOutpost
@@ -17,25 +17,29 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 The `MrxTaskObjectiveCaptureOutpost` module is a specific type of task objective that focuses on capturing or destroying outposts. It inherits from the `MrxTaskObjective` module and integrates with the `MrxOutpostManager` to handle outpost status changes.
 
 ## Inheritance
-- Inherits from: `MrxTaskObjective`
-- Imports: `MrxOutpostManager`
+- Inherits from: [`MrxTaskObjective`](mrxtaskobjective)
+- Imports: [`MrxOutpostManager`](mrxoutpostmanager)
 
 ## Instance pattern
 **Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
-inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
-rather than a world-object GUID. Key fields:
-- `tConfig`: Configuration settings for the task objective.
-- `_HandleOutpostStatusChange`: Internal function to handle changes in outpost status.
+inherited from [`MrxTask`](mrxtask); see that page). This subclass adds **no** per-instance state of its own
+beyond what it puts in the shared config: the single outpost building it watches is `tConfig.uOutpostBldg`,
+and progress is tracked through the inherited target/quota machinery.
 
 ## Functions
 ### `Activated(self)`
-Called when the task objective instance is activated. It logs a debug message and sets up an event to call `Awake` once the object leaves hibernation.
+Calls `MrxTaskObjective.Activated(self)`, then — if config `uOutpostBldg` is set — registers a status
+callback on that outpost via `MrxOutpostManager.RegisterOutpostEvent(uOutpostBldg, self._HandleOutpostStatusChange, {self})`.
+That registration (not any engine `Event.*`) is how capture/destroy notifications arrive.
 
 ### `Cleanup(self)`
-Cleans up any resources associated with the task objective, such as unregistering outpost events and calling the base class's `Cleanup`.
+`MrxOutpostManager.UnregisterOutpost(tConfig.uOutpostBldg)` if one was registered, then defers to
+`MrxTaskObjective.Cleanup(self)`.
 
 ### `_HandleOutpostStatusChange(self, uOutpost, nStatus)`
-Handles changes in outpost status. If the outpost is captured (`knStatusCaptured`), it removes the target and completes the part of the task. If the outpost is destroyed (`knStatusDestroyed`), it removes the target and cancels the part of the task.
+The status callback. On `MrxOutpostManager.knStatusCaptured` it `RemoveTarget` + `CompletePart` (success);
+on `MrxOutpostManager.knStatusDestroyed` it `RemoveTarget` + `CancelPart` (failure). Any other status is
+ignored.
 
 ### `_GetShortDescription()`
 Returns a short description for the task objective, which is "[Generic.ObjectiveOutpost]".
@@ -53,9 +57,16 @@ Returns the PDA (Personal Digital Assistant) icon for the task objective target 
 Returns the game space icon for the task objective target, which is `"HUD_objective_outpost"`.
 
 ## Events
-- Listens for outpost status changes to handle capturing or destroying outposts.
+No engine `Event.*` subscriptions of its own. Capture/destroy notifications come through
+[`MrxOutpostManager`](mrxoutpostmanager)'s registration API (`RegisterOutpostEvent` /
+`UnregisterOutpost`), not `Event.Create`. Inherits [`MrxTaskObjective`](mrxtaskobjective)'s
+`Event.TimerRelative` initial-notes timer.
 
 ## Notes for modders
-- Ensure that `Activated` and `Cleanup` are called appropriately to manage the lifecycle of the task objective.
-- Customize outpost capture behavior by modifying the `_HandleOutpostStatusChange` function.
-- Use `GetInlineIcon`, `_GetTargetRadarIcon`, `_GetTargetPdaIcon`, and `_GetTargetGameSpaceIcon` to customize the visual representation of the task objective in different contexts.
+- **Point it at an outpost** with config `uOutpostBldg` (the outpost building GUID) — without it, `Activated`
+  registers nothing and the objective never completes on capture.
+- Completion vs. failure is decided entirely by [`MrxOutpostManager`](mrxoutpostmanager)'s
+  `knStatusCaptured` / `knStatusDestroyed`; this class just maps them to `CompletePart` / `CancelPart`.
+- The outpost art overrides differ from the base action icons: radar `"objective_outpost"`, world
+  `"HUD_objective_outpost"`, PDA `"icon_outpost_1_mc"` / `"icon_outpost_2_mc"`, inline
+  `"[objoutpost]"` / `"[objoutpost2]"`.

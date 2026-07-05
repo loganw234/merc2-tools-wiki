@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, support]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: rewrote fabricated Events section — no Event.ObjectHibernation/InputEvent/GameStateChange; real calls are Event.Post("Support Menu Open"/"Support Menu Close") + Event.Create(Event.TimerRelative); input/gamestate are ControllerInput/GuiGameStateChange widget handlers. Surfaced the D-pad input mapping, the four support sound cues, the status-atlas denial→UV map, _knFrame timing, default icon, and per-widget CustomData pattern; confirmed all 5 imports; corrected Instance pattern (per-widget CustomData, not singleton).'
 
 ---
 
@@ -28,57 +28,34 @@ verified_note: corrects the Instance pattern section (singleton, not per-uGuid -
 
 ## Overview
 
-The `MrxGuiHudSupportMenu` module is responsible for managing the in-game HUD support menu. It handles adding, removing, and displaying support items such as weapons, supplies, and other resources. The module also manages animations, input handling, and UI updates to provide a dynamic and interactive user experience.
+The `MrxGuiHudSupportMenu` module drives the in-game **support-purchase radial** — the D-pad-driven wheel of airstrikes/deliveries/vehicles the player calls in mid-mission. It manages the scrolling item list, per-item icon/border/orbit/status animations, resource gating (fuel/cash/stockpile/denial), the "new item unlocked" fly-in animation, and firing the selected support. It reads player resources from [MrxPmc](mrxpmc) and delegates the actual support spawn to the support object's own `Create`/`Commence` (see [MrxSupport](mrxsupport) / [MrxSupportManager](mrxsupportmanager)).
+
+Built on the native GUI framework ([MrxGuiBase](mrxguibase)); it does not load a `.gfx` movie of its own — the whole radial is composited from `MrxGuiBase.ImageWidget`s and animation points.
 
 
 
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: 
-
-  - `MrxGuiBase`
-
-  - `MrxPmc`
-
-  - `MrxGuiManager`
-
-  - `MrxSupport`
-
-  - `MrxSupportManager`
+- Imports (via [`import()`](../glossary#importname)): `MrxGuiBase`, `MrxPmc`, `MrxGuiManager`, `MrxSupport`, `MrxSupportManager` — see [MrxGuiBase](mrxguibase), [MrxPmc](mrxpmc), [MrxGuiManager](mrxguimanager), [MrxSupport](mrxsupport), [MrxSupportManager](mrxsupportmanager). Also calls the [Net](../namespaces/net) and [Sound](../namespaces/sound) namespaces and posts to [Event](../namespaces/event).
 
 
 
 ## Instance pattern
 
-**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
-anywhere in source. This is one shared support menu, not something spawned per world object. Key fields:
+**Stateless module + per-widget `CustomData`.** No `tInstance`/metatable and **not** a singleton (there is one menu per player, keyed by widget owner). All state lives on the support-menu widget in `oWidget.CustomData`, set up by `HandleInitializationEvent`. Real fields (the ones the earlier draft guessed at, corrected to their actual names):
+- `tItemList` — the master list of support items (each an internal item from `CreateInternalListItem`).
+- `tDisplayList` — the fixed set of on-screen slot widgets (`nMaxDisplayItems`, typically 5) that the item list scrolls through.
+- `tPendingItemQueue` — items queued while an add/animation or input-suspend is in progress.
+- `nSelectedItemIndex` / `nSelectedDisplayIndex` (center slot = 3) / `nNumberOfItems`.
+- `bEnabled` (menu open), `bSuspendInput`, `bAddItemInProgress`, `bShootingGalleryMode`, `bConfirmEntered`, `nBufferedInput`, `nTime`, `nIdleTime`.
+- Child widget refs: `oFrame`, `oUpArrow`/`oDownArrow` (+`Bg`), `oBulletRing`, `oDescripters` (name/fuel-cost/stockpile/designator text), `oClockIcon`, `oCursor`, `oAddAnim`.
 
-- `tItems`: A list of support items available in the menu.
+{: .note }
+> The earlier draft listed `tItems`, `nSelectedIndex`, `bOpen`, `tPendingItems`, `oArrowUp/oArrowDown`, `oBullet1/2/3`, `oDescriptor`, `nCash/nFuel`. **None of those names exist** — corrected to the real `CustomData` fields above. `SetCash`/`SetFuel` are empty stubs, so there is no `nCash`/`nFuel` state.
 
-- `nSelectedIndex`: The index of the currently selected item.
-
-- `bOpen`: Indicates whether the menu is open or closed.
-
-- `bAnimating`: Indicates whether an animation is currently in progress.
-
-- `bShootingGalleryMode`: Indicates whether the shooting gallery mode is enabled.
-
-- `nIdleTime`: Accumulated idle time for handling periodic updates.
-
-- `tDisplayList`: A list of items currently displayed on the menu.
-
-- `tPendingItems`: A queue of pending items to be added or removed.
-
-- `oFrame`: The frame widget representing the support menu.
-
-- `oArrowUp`, `oArrowDown`: Arrow widgets for navigation.
-
-- `oBullet1`, `oBullet2`, `oBullet3`: Bullet widgets for visual effects.
-
-- `oDescriptor`: Descriptor widget for additional information.
-
-- `nCash`, `nFuel`: Current cash and fuel amounts available in the menu.
+### Module constant
+- `_knFrame = 0.022222223` (~1/45s) — the base animation time-step. Most open/scroll/close/trigger timings are multiples of this (e.g. `_knFrame * 5`, `_knFrame * 10`). `HandleUpdateForOpen` uses a slightly different `0.016666668` (~1/60s) internally. Scale these to slow down or speed up the whole radial.
 
 
 
@@ -774,46 +751,32 @@ This internal function is part of the initial animation sequence for displaying 
 
 ## Events
 
+{: .warning }
+> The earlier draft listed `Event.ObjectHibernation`, `Event.InputEvent`, and `Event.GameStateChange` — **none of these engine constants appear in the source** (there is no `Awake` and no per-instance table). Removed. Input and game-state are **widget event handlers**, not engine events.
 
+Real engine-`Event` usage (see [Event](../namespaces/event)):
+- **`Event.Post("Support Menu Open", {uPlayer = ...})`** and **`Event.Post("Support Menu Close", {uPlayer = ...})`** — broadcast when the radial opens/closes so other systems (camera, control, tutorials) can react. These are the two string events to subscribe to.
+- **`Event.Create(Event.TimerRelative, {nSeconds}, fCallback, tData)`** — `_FixText` (0.1s deferred text refresh) and `_DelayedSupportMenuCloseCallback` (0.5s).
 
-- **`Event.ObjectHibernation`**: Listens for this event to trigger the `Awake` function, which initializes the per-instance table for the HUD support menu.
+Widget event handlers registered via `SetEventHandler` (a widget `EventHandlers` key, not `Event.*`), in `HandleInitializationEvent`:
+- `"ControllerInput"` → `HandleInputEvent` — the D-pad/button driver (see input map below).
+- `"GuiGameStateChange"` → `_HandleGameStateChangeEvent`.
+- `"GuiUpdate"` is swapped between the animation drivers (`HandleUpdateForOpen`/`Close`/`TriggerUp`/`TriggerDown`/`ForIdle`/`_HandleUpdateForAdd`) as the menu transitions.
 
-- **`Event.InputEvent`**: Handles input events for the support menu widget through `HandleInputEvent`.
-
-- **`Event.GameStateChange`**: Manages game state changes with `_HandleGameStateChangeEvent`.
-
-- **`Event.TimerRelative`**: Used for periodic updates and animations, such as `_FixText`, `_UpdateDisplayPeriodic`, and handling idle time in `HandleUpdateForIdle`.
-
-
+### Input map (`HandleInputEvent`, from `MrxGuiBase.Joystick`)
+- `BUTTON_PAD1_U` → scroll down (`_ScrollDown`); `BUTTON_PAD1_D` → scroll up (`_ScrollUp`).
+- `BUTTON_PAD2_D` or `BUTTON_ALT2_1` → `Trigger` the selected support (or, during an add animation, snap it and re-open).
+- `BUTTON_PAD1_L` / `BUTTON_PAD1_R` → ignored (no-op).
+- any other button → `Close`.
 
 ## Notes for modders
 
-
-
-1. **Call-order requirements**:
-
-   - Ensure that `InitAddWidget` is called before attempting to show or hide the add animation.
-
-   - The sequence of functions like `_NewAddStep2`, `_NewAddStep3`, and `_NewAddProcessQueue` should not be manually invoked; they are part of the internal animation process.
-
-
-
-2. **Pitfalls**:
-
-   - Directly modifying `CustomData` without understanding its structure can lead to unexpected behavior.
-
-   - Be cautious with resource constraints (fuel and cash) when triggering support items, as it may result in denial conditions or insufficient resources.
-
-
-
-3. **Tunables**:
-
-   - The constant `_knFrame = 0.022222223` is used for timing calculations. Modifying this value can affect the smoothness of animations.
-
-   - Animation durations and points (e.g., in `_ScaleTo`, `_MoveTo`) can be adjusted to change the visual behavior of the support menu.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Unused local variables or redundant operator groupings are decompiler artifacts and should not be interpreted as intentional logic.
+- **Firing a support** goes through `Trigger` → the item's `fTrigger` (`TriggerItem`), which calls `oSupport:Create(owner)` then `oNewSupport:Commence(true)`. Resource gating happens first in `Trigger`: it checks fuel (`MrxPmc.GetFuelQty` vs `oSupport:GetFuelCost()`, skipped if `oSupport.bUnrestrictedByFuel`), freebies (`MrxPmc.GetFreebieQty`), cash (`MrxPmc.GetCashQty` vs `GetCashCost`), stockpile (`MrxPmc.GetSupportQty`), and `oSupport:GetDenialCondition()`. Any failing check silently returns without firing.
+- **Sound cues** (change the audio): `ui_HUD_Support_Open_Menu`, `ui_HUD_Support_Close_Menu`, `ui_HUD_Support_Scroll`, `ui_HUD_Support_Select`. All via `Sound.CueSound(0, ...)`.
+- **Default item icon**: `HUD_ICON_support_crate` — used when an item's `sIcon` is missing/invalid (see `CreateInternalListItem` and the client-side fallback).
+- **Status badge atlas** (`_SetItemStatus`): the small "why it's denied" icon is a single sprite sheet indexed by U-coordinate. Mapping (all `v = 0..1`): `"fuel"` → U `0..0.125`; `[PDA.Support.denied.medium]` → `0.125..0.25`; `[PDA.Support.denied.jammer]` → `0.25..0.375`; `[PDA.Support.denied.basic]` → `0.375..0.5`; `"zero"` (out of stock) → `0.5..0.625`; `[Generic.Attitudes.Hostile]` → `0.625..0.75`; `"disabled"` (shooting-gallery) → `0.75..0.875`; none/clear → the tiny `0.9921875..0.99609375` transparent strip.
+- **Denial-string color**: descriptor text turns red `(255,64,64)` when unaffordable/out of stock, white `(255,255,255)` otherwise; fuel-cost text/icon hide when cost is 0. Designator type is shown via `[Generic.SupportDesignators.*]` tokens (Smoke/Satellite/AdvSatellite/Beacon/Laser/Flare).
+- **`SetShootingGalleryMode(oMenu, true)`** disables purchasing (any non-freebie item shows `"disabled"` and `Trigger` refuses). Used by the shooting-gallery minigame.
+- **Multiplayer**: `AddItem`/`RemoveItem` mirror to clients via `Net.SendEvent_AddSupportItem`/`Net.SendEvent_RemoveSupportItem` when `Net.IsServer()` (unless `bDontNetSync`). See [Net](../namespaces/net).
+- **`SetCash`/`SetFuel` are empty stubs** — do nothing; resource values are read live from `MrxPmc`, not pushed into the menu.
+- **Don't hand-drive the internal helpers**: the `_TriggerItem*`/`_Setup*`/`_NewAdd*`/`HandleUpdateFor*` functions form the timed animation state machine (stepped by `_PassedPoint` against `_knFrame` multiples). Call the public methods copied onto the widget instead: `Open`, `Close`, `Trigger`, `AddItem`, `RemoveItem`, `RemoveAll`, `SetShootingGalleryMode`.

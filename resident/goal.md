@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [goal, soccer]
 verified: true
-verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level tEvents[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
+verified_note: "deeper pass: re-confirmed all 3 functions and both Event.Create subscriptions against source; surfaced the reward constant (100000), the VO cue Fiona.va3fio12, and the hardcoded boundary names LR_Goal / _global_soccergoal 0x000b0982; replaced vacuous lifecycle boilerplate with actionable levers"
 ---
 
 # Goal
@@ -14,7 +14,7 @@ verified_note: corrects the Instance pattern section -- confirmed via source as 
 *Module: goal.lua*
 
 ## Overview
-The `Goal` module is responsible for handling the soccer easter egg in the game. When a ball enters the `LR_Goal` boundary, it triggers a Fiona voice-over and awards the player 100,000 cash.
+The `Goal` module implements a soccer easter egg. When a ball object enters the `LR_Goal` boundary — and a specific named marker (`_global_soccergoal 0x000b0982`) exists in the world — it plays a Fiona voice-over, awards the player 100,000 cash via [MrxPmc](mrxpmc), and removes the goal from the world (fires only once). This is a small, self-contained example of a boundary-triggered reward.
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -22,10 +22,15 @@ The `Goal` module is responsible for handling the soccer easter egg in the game.
 
 ## Instance pattern
 **Not the `Inheritable`/rich-instance pattern, and not a class-factory either** — confirmed from source: a
-plain module-level table, `tEvents[uGuid] = tEvents[uGuid] or {}`, with no `Create`/`Delete`/`setmetatable`
-anywhere. Each activated ball/goal object gets a small sub-table entry in `tEvents`, not a full instance
-object with inherited methods. It tracks the following key fields:
-- `tEvents`: A table to store event handles and other state related to the goal.
+single module-level global table, `tEvents = tEvents or {}`, with no `Create`/`Delete`/`setmetatable`
+anywhere. Each activated object gets a small sub-table entry in `tEvents`, not a full instance object with
+inherited methods:
+- `tEvents[uGuid]`: initialized to `{}` in `OnActivate`. Its only stored field is `.GoalVO`, the handle of
+  the `Event.Boundary` subscription created in `SetupGoal`, so it can be deleted on deactivate.
+
+{: .note }
+> `tEvents` is a module-level global, not per-instance state — every activated object shares the one table,
+> keyed by `uGuid`. This is fine here because entries are cleaned up in `OnDeactivate`.
 
 ## Functions
 ### `OnActivate(uGuid)`
@@ -35,13 +40,25 @@ Called when the goal instance is activated. It logs a debug message and sets up 
 Called when the goal instance is deactivated. It logs a debug message, deletes any associated voice-over events, and cleans up the `tEvents` table entry for this GUID.
 
 ### `SetupGoal(uBallGuid)`
-Sets up the boundary event to listen for the ball entering the `LR_Goal`. When the ball enters, it starts Fiona's voice-over, adds 100,000 cash to the player's PMC, and removes the goal object from the world.
+Registers an `Event.Boundary` subscription (filter `{uBallGuid, LR_Goal, "enter"}`) so that when the ball
+crosses into the `LR_Goal` boundary, the reward fires. Guarded twice: it only registers if
+`Pg.GetGuidByName("LR_Goal")` resolves, and the reward body only runs if
+`Pg.GetGuidByName("_global_soccergoal 0x000b0982")` also exists. On success it plays VO cue `Fiona.va3fio12`
+via [MrxVoSequence](mrxvosequence)`.Start`, calls [MrxPmc](mrxpmc)`.AddCashQty(100000)`, and
+`Object.Remove`s the `LR_Goal` object. The boundary handle is stored in `tEvents[uBallGuid].GoalVO`.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `SetupGoal` when the object leaves hibernation.
-- Listens for custom event `Boundary` to handle the ball entering the goal.
+- `Event.ObjectHibernation` — registered in `OnActivate` with filter `{uGuid, "awake"}`; fires `SetupGoal`
+  once the object leaves hibernation. This is a real `Event.Create` subscription.
+- `Event.Boundary` — registered in `SetupGoal` (see above) to detect the ball entering `LR_Goal`.
+
+Note: `OnActivate`/`OnDeactivate` are engine lifecycle callbacks, not event subscriptions.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the goal's lifecycle.
-- Customize the voice-over and cash reward by modifying the `MrxVoSequence.Start` and `MrxPmc.AddCashQty` calls in `SetupGoal`.
-- Be aware that the goal object is removed from the world after being triggered, so it will not be reusable.
+- **Reward knob:** `MrxPmc.AddCashQty(100000)` in `SetupGoal` sets the payout; the VO cue is the literal
+  `"Fiona.va3fio12"`. Both are hardcoded in the closure.
+- **One-shot:** `Object.Remove(Pg.GetGuidByName("LR_Goal"))` destroys the goal on trigger, so it fires
+  exactly once per session — there is no re-arm path.
+- **Named-object dependency:** the effect only works if two named world objects exist — the boundary
+  `LR_Goal` and the marker `_global_soccergoal 0x000b0982`. If either is missing (e.g. renamed in a mod),
+  nothing happens silently.

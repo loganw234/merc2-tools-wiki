@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, supply, delivery, data-reference]
 verified: true
-verified_note: corrected Events section (zero Event.* references in 2487-line source; real cross-network sync is Net.SendCustomEvent/NetEventCallback and Net.SendEvent_RecruitsUnlocked, not the Event system) and added AddSupportData's g_bIsDlc gate; spot-checked catalog rows (aa, ah1z, al, moab, tankbike, nuke) against source, all exact matches
+verified_note: 'deeper pass: re-spot-checked catalog rows (aa, ah1z, al, moab, combatairpatrol, bombingrun, clusterbomb, nuke, upcombatairpatrol) against source -- all exact; re-confirmed the g_bIsDlc AddSupportData gate and zero-Event.* Events section; added the delivery-module -> sType mapping and a tFreebieData (mission-freebie catalog) subsection'
 ---
 
 # MrxSupportData
@@ -49,6 +49,21 @@ these are shown as-is rather than resolved to display text; most are still reada
 the item. Every entry has `nMaxStock = 99`, so that column is omitted from context below where obvious.
 
 Each type's items are sorted by cash cost, cheapest first.
+
+**How `sType` maps to a delivery module** (read from the `Init()` construction code — this is the piece the
+catalog tables above don't show). Each entry's `oSupport` is an instance of one of the delivery/airstrike
+modules, chosen by category:
+
+| `sType` | Delivery module | Notes |
+|---|---|---|
+| `Supply` | [`mrxcratedelivery`](mrxcratedelivery) | winched ground crate; `SetCargo("Supply Drop (…)")` + `SetCareless(true)` |
+| `Light` / `Heavy` / `Civilian` | [`mrxcratedelivery`](mrxcratedelivery) | `SetCargo("<vehicle>")`; heavies also `SetDeliveryVehicle("Mi26 (PMC) (Driver)")` |
+| `Heli` | [`mrxsupportcopterdelivery`](mrxsupportcopterdelivery) | `SetDeliveryVehicle("<template> (Ewan)")` — Ewan flies it in and hands it over |
+| `Boat` | [`mrxboatdelivery`](mrxboatdelivery) | `SetCargo(...)` + `SetCareless(true)`, flare designator |
+| `Airstrike` | the specific strike module | `mrxbombingrun`, `mrxclusterbomb`, [`mrxcombatairpatrol`](mrxcombatairpatrol), `mrxmoab`, `mrxbunkerbuster` (nuke = bunker-buster with a nuclear projectile), etc. |
+
+So the ground/air/water delivery pages in this category are exactly the machinery each catalog row is built
+on — change a row's `oSupport` construction to change how that item is delivered.
 
 ### Supply (21 items)
 
@@ -219,6 +234,34 @@ Each type's items are sorted by cash cost, cheapest first.
 | `monstertruck` | `[vehicle.monstertruck]` | 40,000 | 60 | 99 |
 | `valiantpython` | `[vehicle.valiantpython]` | 50,000 | 60 | 99 |
 
+## Mission freebies (`tFreebieData`)
+
+Alongside the purchasable `tSupportData` catalog, `Init()` builds a **second** catalog, `tFreebieData` —
+mission-granted free uses of a support, keyed by an internal name (e.g. `ChiCon001_Copter`, `MunitionsPickup`,
+`Extraction_PMC`, `SoldierDelivery_AL`, `AL_CruiseMissile`). These are what missions hand you rather than
+what you buy. Each entry is a small table of the shape:
+
+```lua
+tFreebieData.MunitionsPickup = {
+  sName = "[support.munition.name]",   -- loc key / display name
+  sIcon = "vehicles_heli_uh1",
+  nFreebieQty = nil,                    -- how many free uses (nil = qty comes from AddFreebie's arg)
+  oSupport = oSupport,                  -- a pre-configured delivery/pickup/strike instance
+}
+```
+
+The `oSupport` here is a delivery-module instance configured for the specific mission — e.g. the
+`Extraction_*` set are [`MrxSupportPickup`](mrxsupportpickup) instances each given a faction extraction heli
+and that faction's HQ landing zone; the `SoldierDelivery_*` set are [`MrxSoldierDelivery`](mrxsoldierdelivery);
+`OilCon002_Delivery` is a [`MrxOilCon002Delivery`](mrxoilcon002delivery); the `Munitions*` are
+[`MrxMunitionsPickup`](mrxmunitionspickup). Freebies are added/removed at runtime with `AddFreebie`/
+`RemoveFreebie` (network-synced) and `AddAllFreebies` (the cheat-menu "give me everything" path).
+
+{: .note }
+> A couple of `tFreebieData` keys are assigned twice in source (`OC` appears twice back-to-back with identical
+> data) and one is an obvious placeholder (`"Ramp Delivery"` → `sName = "TEMP: Ramp Delivery"`). These are
+> harmless leftovers in the shipped code, not something to rely on.
+
 ## Overriding catalog values from your own mod
 
 Since `tSupportData` is just a plain Lua table, changing an entry's price, fuel cost, or stock cap from
@@ -319,7 +362,7 @@ table assignments inside `Init()`. This function looks intended for DLC/expansio
 additional support items without touching the base file.
 
 ### `GetMaxQuantity()`
-Returns the max stock quantity for freebies.
+Returns `_kMaxStock` (`99`) — the module-wide max stock ceiling.
 
 ### `GetPlayerVisibleName(sSupportId)` / `GetFreebieName(sSupportId)`
 Resolve a support/freebie ID to its player-visible name.

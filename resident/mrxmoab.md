@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxDaisyCutter
 tags: [support, bomb]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: clarified this is a data-only subclass reusing all of MrxDaisyCutter''s drop/explosion pipeline, documented the local MOAB Projectile/C130 defaults, and flagged the non-local oDesignator module-global bug; cross-linked MrxDaisyCutter'
 ---
 
 # MrxMOAB
@@ -14,11 +14,16 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxmoab.lua*
 
 ## Overview
-The `MrxMOAB` module is a specialized support module for the MOAB (Massive Ordnance Air Blast) weapon. It extends the functionality of the `MrxDaisyCutter` module to handle specific behaviors and configurations related to deploying and detonating MOABs using a C130 delivery vehicle.
+`MrxMOAB` is a **data-only subclass** of [`MrxDaisyCutter`](mrxdaisycutter): the entire flight, drop and
+detonation pipeline (`DesignationCallback`, `DropBomb`, `BombExplodes`, `CreateDebris`) is inherited
+unchanged — this file only overrides `Create` to swap the projectile to **"MOAB Projectile"** and the
+explosion default to `"Explosion (MOAB)"`. Everything the daisy-cutter page says about the drop applies here,
+including the [unscaled-velocity `nSpeedScale` quirk](mrxdaisycutter#module-constants--tunables). The
+screen-flash grade is the separate [Airstrike_Atmosphere_MOAB](airstrike_atomsphere_moab) object.
 
 ## Inheritance
-- Inherits from: `MrxDaisyCutter`
-- Imports: `MrxSupportDesignatorSmoke`
+- Inherits from: [`MrxDaisyCutter`](mrxdaisycutter) → [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke)
 
 ## Instance pattern
 **Same class-factory pattern as [`MrxDaisyCutter`](mrxdaisycutter)/[`MrxSupport`](mrxsupport), not
@@ -33,14 +38,33 @@ its parent chain. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks th
 - `sBomb`: The name of the bomb projectile ("MOAB Projectile").
 - `uBomb`: The GUID of the bomb projectile.
 
+## Module constants
+Module-level **`local`** defaults (unreachable from outside; the instance fields set from them in `Create`
+are the real customization surface — same story as [MrxDaisyCutter](mrxdaisycutter)):
+- `sProjectileName = "MOAB Projectile"`
+- `sExplosionName = "Explosion (MOAB)"` — **declared but never used** (dead, inherited-behavior detail).
+- `sDeliveryVehicle = "Support Vehicle (C130)"`
+
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Constructs a new per-instance table for the MOAB support module. Initializes the designator with no validation function, sets the owner and recruit, assigns the module name, and configures the delivery vehicle and bomb details based on predefined names.
+The only function defined here. Builds a smoke designator with `_NoValidation`, sets owner / recruit
+`"Fiona"` / module name `"MrxMOAB"`, and copies the MOAB projectile + C-130 defaults onto the instance as
+`self.sBomb`/`self.uBomb`/`self.sDeliveryVehicle`/`self.uDeliveryVehicle`. All other behavior comes from the
+inherited [`MrxDaisyCutter`](mrxdaisycutter) functions.
+
+{: .warning }
+> `Create` assigns the designator to a bare `oDesignator = MrxSupportDesignatorSmoke:Create()` **without
+> `local`**, so `oDesignator` becomes a **module-level global** shared across every MOAB instance rather than
+> per-instance scratch. It is immediately handed to `SetDesignator`, so the shared global is harmless in
+> practice, but it's a genuine scoping bug — do not read `oDesignator` expecting per-instance state.
 
 ## Events
-- Listens for engine events through inherited methods from `MrxDaisyCutter`.
+- **No `Event.Create` subscriptions and no functions of its own beyond `Create`.** All event/timer behavior
+  (e.g. the 1.5 s `CreateDebris` schedule) is inherited from [`MrxDaisyCutter`](mrxdaisycutter).
 
 ## Notes for modders
-- Ensure that the player GUID (`uPlayerGuid`) is correctly set to manage ownership of the support module.
-- Customize the designator's validation function if needed by modifying or replacing `_NoValidation`.
-- Be aware that this module inherits behaviors and configurations from `MrxDaisyCutter`, which may affect its functionality.
+- **This module IS the "swap the daisy cutter for a bigger bomb" recipe** — the whole file is just
+  `MrxDaisyCutter` with `uBomb` repointed. To make your own variant, do the same: inherit `MrxDaisyCutter`
+  and override `Create` to set a different `sBomb`/`uBomb`.
+- To change MOAB behavior beyond the projectile (blast, debris, timing), edit
+  [`MrxDaisyCutter`](mrxdaisycutter) — those functions are shared, so changes there affect both weapons.

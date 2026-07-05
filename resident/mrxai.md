@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, command]
 verified: true
-verified_note: flagged a real Deploy() field mismatch (guards on tParameters.Vehicle, waits on tParameters.AIGuid) — rest of file matches source
+verified_note: "deeper pass: re-confirmed all 5 functions and the Event.ObjectHibernation awake-wait pattern against source; the Deploy Vehicle/AIGuid guard mismatch still stands; cross-linked the Ai namespace, pruned vacuous notes"
 ---
 
 # MrxAi
@@ -14,7 +14,10 @@ verified_note: flagged a real Deploy() field mismatch (guards on tParameters.Veh
 *Module: mrxai.lua*
 
 ## Overview
-The `MrxAi` module provides a thin, awake-gated shim over the engine `Ai.*` API. It ensures that AI commands are only issued once the associated AIGuid object is fully awake and ready to receive instructions.
+The `MrxAi` module provides a thin, awake-gated shim over the engine [`Ai.*`](../namespaces/ai) API. Each
+function guards on a parameter, registers an `Event.ObjectHibernation` "awake" wait for the target, and only
+forwards the `tParameters` table to the matching `Ai.*` call once the object has left hibernation — so AI
+commands aren't dropped by being issued against a still-sleeping object.
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
@@ -53,7 +56,12 @@ Sets the role of the specified AIGuid. The role defines the persistent stance of
 - Listens for `Event.ObjectHibernation` to ensure that all AI commands are only issued once the AIGuid object is fully awake.
 
 ## Notes for modders
-- Ensure that the AIGuid object is properly activated and hibernated before issuing any AI commands through this module.
-- Use `Goal`, `DefaultGoal`, `RemoveGoal`, `Deploy`, and `Role` to manage the behavior of AI entities in the game world.
-- Be aware that the priority of goals ("hiPri"/"loPri") can affect the order in which tasks are executed by the AI.
-- The module ensures that all commands are only sent once the object is fully awake, preventing any potential issues with uninitialized AI states.
+- **Use these instead of raw `Ai.*` when the target might not be awake yet** — that's the whole point.
+  The `tParameters` table you pass is forwarded verbatim to the corresponding [`Ai.*`](../namespaces/ai)
+  call, so consult that namespace page for the actual field set each command expects (e.g. `AIGuid`,
+  `Role`, `Target`, `Priority`, `Callback`).
+- **`AIGuid` must be set on `tParameters`** for `Goal`/`DefaultGoal`/`RemoveGoal`/`Role` — it's both the
+  guard and the hibernation-wait target. `Deploy` is the odd one out (guards on `Vehicle`, waits on
+  `AIGuid`) — see the bug callout above; set both to be safe.
+- Goal priority (`"hiPri"`/`"loPri"`) affects execution order; that behavior lives in the engine `Ai`
+  layer, not here.

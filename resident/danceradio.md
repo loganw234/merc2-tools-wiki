@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [lifestyle prop, animation]
 verified: true
-verified_note: OnActivate is a no-op (bare return) so the whole module is currently inert in practice — OnActivateOld/SetupActivationEvents are never reached from any live entry point; corrected Instance pattern (globals are shared module state, not stateless); clarified "DanceRadio" is a Net.SendCustomEvent channel string, not an Event.* constant; fixed Events list to actual Event.* constants seen in source.
+verified_note: 'deeper pass: re-confirmed OnActivate is still a no-op bare return (module inert), the shared-global state, and the full Event.* list; added a Module constants section (animation "player_mattias_bare_technoviking", "Dance"/"hero" context action, "DanceRadio" channel, NETEVENT_STARTDANCING=0, 1s timer) and Human/networking cross-links'
 ---
 
 # Danceradio
@@ -89,6 +89,16 @@ Actual `Event.*` constants referenced in this file:
 `"DanceRadio"` is **not** an `Event.*` constant — it's a channel-name string argument to
 `Net.SendCustomEvent`/`NetEventCallback`, the engine's separate network-RPC mechanism.
 
+## Module constants & tunables
+- Animation asset/template: `"player_mattias_bare_technoviking"` — loaded via `Pg.LoadAsset(..., "animation")`
+  (in the dead `OnActivateOld`) and played via `Human.PlayRawAnimation` in `OnUse`.
+- Context action label: `"Dance"` (added via `Pg.AddContextAction(uGuid, "Dance", false)`).
+- Context action actor filter: `"hero"` (only the hero can trigger the `Event.ContextAction`).
+- Net channel string `"DanceRadio"` with the single event id `NETEVENT_STARTDANCING = 0`.
+- Timer delay before arming the completion listener: `1` second (`Event.TimerRelative {1}`).
+- Animation completion is detected via `Event.HumanStateTransition` with the transition tuple
+  `{uCharacter, "*", "*", "complete"}`.
+
 ## Notes for modders
 - `OnActivate` currently does nothing. To make this prop functional, it would need to be changed to do what
   `OnActivateOld` does (or call it directly) — as shipped, activating this object has no effect.
@@ -97,3 +107,7 @@ Actual `Event.*` constants referenced in this file:
   Multiple simultaneous instances would stomp on each other's state.
 - Be aware that network synchronization (`Net.SendCustomEvent`, `NetEventCallback`) affects multiplayer
   behavior — dance state is explicitly replicated via a custom net event, not the standard `Event.*` system.
+  See the [networking deep dive](../deep-dives/networking) for the wider `NETEVENT_` custom-event pattern.
+- The dance itself uses [`Human`](../namespaces/human)`.DisableWeapons` / `PlayRawAnimation` / `EnableWeapons`
+  — that disable-play-reenable sequence is the reusable lever if you want a different one-shot player
+  animation prop; swap the `"player_mattias_bare_technoviking"` template.

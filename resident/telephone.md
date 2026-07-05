@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: spot-checked against source (2-line file, Use is an empty stub with no body) — page already accurate, no changes needed
+verified_note: 'deeper pass: re-confirmed the whole file (2-line stub, one empty Use function, no imports/inherit/events); made the modder note actionable (Use is an overridable interact hook, same shape as outhouse.lua).'
 ---
 
 # Telephone
@@ -14,7 +14,9 @@ verified_note: spot-checked against source (2-line file, Use is an empty stub wi
 *Module: telephone.lua*
 
 ## Overview
-The `Telephone` module provides functionality for handling telephone interactions in the game. It currently defines a single function, `Use`, which is intended to manage player actions related to using telephones.
+The `Telephone` module is a stub: it defines a single empty `Use` function and nothing else. As
+shipped the telephone is pure set dressing — the `Use` hook exists but does nothing. (Identical shape
+to [`outhouse`](outhouse).)
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -25,12 +27,14 @@ This is a stateless utility module with no per-instance tables or fields.
 
 ## Functions
 ### `Use(aiguid, floatval)`
-A placeholder function that does nothing. It takes two arguments, `aiguid` and `floatval`, but performs no operations.
+Empty function — no body. `aiguid` is the telephone object handle; `floatval` is unused. By naming
+convention this is the "use/interact" hook the engine calls when the player activates the phone, but
+it is a no-op as shipped.
 
 ## Events
-- none
+- none — no `Event.*` calls of any kind.
 
 ## Notes for modders
-- This module currently has no functionality implemented. The `Use` function is a stub and can be extended to handle telephone interactions as needed.
-- There are no events subscribed to or fired by this module.
-- Since this module does not follow the per-instance pattern, it cannot be used to manage state specific to individual telephone objects.
+- `Use` is a plain global; override it to give the telephone behavior on interaction (play a line,
+  trigger a call, etc.). See [Function override](../deep-dives/function-override).
+- No inherit, imports, state, or events — nothing to clean up or sequence.

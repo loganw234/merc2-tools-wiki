@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, airborne]
 verified: true
-verified_note: corrects the Instance pattern section -- confirmed via source there is no inherit("Inheritable") (or anything else) in this file at all; the module-level tEvents table is declared but never actually indexed/used anywhere in the file
+verified_note: 'deeper pass: re-confirmed all 3 functions + the ObjectHibernation/ObjectHealth subscriptions; added tTemplates (Chinese/Allied Airborne), the <100 health threshold, the 0.25s fade on Object.Remove; pruned the fabricated OnDeactivate modder note; cross-linked Paradrop/MrxUtil/namespaces.'
 ---
 
 # Paratrooper
@@ -14,11 +14,15 @@ verified_note: corrects the Instance pattern section -- confirmed via source the
 *Module: paratrooper.lua*
 
 ## Overview
-The `Paratrooper` module manages the behavior of paratroopers in the game. It handles the transition from a paratrooper to an airborne faction unit when the paratrooper's health drops below 100.
+The `Paratrooper` module is the script on a **falling paratrooper** (the soldier spawned by
+[`Paradrop`](paradrop)). Its only job is the mid-air-to-ground handoff: once the trooper's health
+drops below 100 — i.e. as soon as it takes any damage, including the landing impact — it swaps the
+parachuting paratrooper object for a normal grounded "airborne" faction unit at the same
+position/heading.
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`
+- Imports: [`MrxUtil`](mrxutil)
 
 ## Instance pattern
 **Not the `Inheritable` pattern — this file has no `inherit(...)` call at all.** Confirmed from source:
@@ -35,13 +39,34 @@ Called when the paratrooper instance is activated. It sets up an event to call `
 Sets up an event listener for the `Event.ObjectHealth` event, which triggers when the paratrooper's health drops below 100. This event calls `RemoveChute`.
 
 ### `RemoveChute(uGuid, iArg)`
-Removes the paratrooper object and spawns a new airborne faction unit at the same position and orientation. The faction is determined by calling `MrxUtil.GetFaction(uGuid)`. The spawned unit's yaw is set to match the original paratrooper.
+Reads the trooper's faction ([`MrxUtil.GetFaction`](mrxutil)), position and yaw, fades the paratrooper
+object out over `0.25s` (`Object.Remove(uGuid, 0.25)`), and spawns `tTemplates[sFaction]`
+(`"Chinese Airborne"` / `"Allied Airborne"`) at the same spot via [`Pg.Spawn`](../namespaces/pg).
+`iArg` is threaded through the whole chain but never used.
+
+{: .note }
+> The trailing `Object.SetYaw(uGuid, yaw)` runs *after* `Object.Remove(uGuid, ...)`, so it targets the
+> object being faded out (the newly spawned unit already got its yaw from the `Pg.Spawn` call) — a
+> harmless leftover.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
-- Listens for `Event.ObjectHealth` to call `RemoveChute` when the paratrooper's health drops below 100.
+Both are real [`Event.Create`](../namespaces/event) subscriptions:
+
+- **`Event.ObjectHibernation`** (`"awake"`, in `OnActivate`) → `Start`.
+- **`Event.ObjectHealth`** filtered `"<", "100"` (in `Start`) → `RemoveChute`. Note the threshold is
+  passed as the **string** `"100"`, matching the engine's filter format.
+
+## Module constants & tunables
+- **`tTemplates`** — the grounded unit spawned on landing/damage: `China = "Chinese Airborne"`,
+  `Allied = "Allied Airborne"`. Only these two factions are wired; any other faction spawns nothing
+  (`tTemplates[sFaction]` is `nil`).
+- **Health threshold**: `"100"` — the `<` comparison in the `Event.ObjectHealth` filter. Since troopers
+  presumably spawn at 100, essentially the first damage tick triggers the swap.
+- `tEvents = tEvents or {}` is declared at module scope but never read or written — dead/vestigial.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the lifecycle of the paratrooper.
-- Customize the faction templates in `tTemplates` if you want to change which airborne units are spawned.
-- Be aware that the health threshold for chute removal is hardcoded at 100.
+- Swap which grounded units appear by editing `tTemplates`; pair with [`Paradrop`](paradrop)'s own
+  `tTemplates` (the falling models) to keep faction sets consistent.
+- The chute-to-ground swap is triggered purely by the `< 100` health filter — there is no timer or
+  landing detection, so anything that damages the trooper mid-air also triggers it.
+- There is **no** `OnDeactivate` in this file; do not assume a deactivation hook exists.

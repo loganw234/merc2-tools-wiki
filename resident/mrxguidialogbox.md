@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, dialog, beginner-friendly]
 verified: true
-verified_note: DisplayDialogBox, keyboard/arrow-key navigation, and the callback argument order all confirmed by live testing (CommonSpawnMenu); the rest of the function list is read directly from source
+verified_note: 'deeper pass: re-confirmed DisplayDialogBox/navigation/callback order against source; added the system-dialog SWF name ("dialog_box"), the one real Event.Create(Event.TimerRelative) in CloseSystemDialogBox, the module globals (oSelectableList, oSystemDialogBoxFlash), the per-nav Sound.CueSound cues, and OpenSystemDialogBox closing the PDA/Pause widgets by name'
 ---
 
 # MrxGuiDialogBox
@@ -155,22 +155,34 @@ rather than a short option list — used for things like end-of-mission reports.
 (`_HandleScrollUpdate`/`_HandleMouseUpdate`/`_HandleScrollInput`) and `CloseScrollingBox` to tear down.
 
 ### `OpenSystemDialogBox(sTitle, sMessage, sButton)` / `CloseSystemDialogBox()`
-A third, simpler dialog type — a title/message/single-button system prompt, loaded from its own Scaleform
-SWF (`SystemDialogBoxLoadedCallBack` fires once that loads). Closes via a short delayed timer
-(`CloseSystemDialogBoxDelayed`) rather than immediately, presumably to let a close animation finish.
+A third, simpler dialog type — a title/message/single-button system prompt built on a **Scaleform SWF named
+`"dialog_box"`** (set with `oFlash:SetSwfFile("dialog_box", SystemDialogBoxLoadedCallBack, {...})`), used for
+online/system messages. Only one can exist at a time, gated by the module global `oSystemDialogBoxFlash`.
+On open it first **force-closes the player's `"PDA"` widget and the `"Pause Layout"` widget by name** (via
+`MrxGuiBase.GetWidgetByNameAndOwner`/`GetWidgetByName`) and drops back to game state `"ingame"`. Once the SWF
+loads, `SystemDialogBoxLoadedCallBack` takes control focus and calls the ActionScript `onlineMessage(sTitle,
+sMessage, 1, sButton)` and binds the SWF's `onlineMessageClose` event to `CloseSystemDialogBox`.
+`CloseSystemDialogBox` schedules teardown via `Event.Create(Event.TimerRelative, {0.01, true}, CloseSystemDialogBoxDelayed, {...})`
+(the `true` = ignores pause) rather than deleting immediately, so the SWF can finish its close animation.
 
 ### `_ValidateParameter(Parameter, sType, DefaultValue)` / `_Clamp(n, lo, hi)` / `_BuildStrokes(...)` / `_OffsetText(...)` / `_UpdateTextAlpha(...)` / `_SetScrollOption(...)` / `_CompleteScrollAnimation(...)` / `_CreateScrollableWindow(...)` / `_CallScrollBoxCallback(...)`
 Internal validation and layout helpers for the scrolling dialog variant — not things a mod needs to call
 directly.
 
 ## Events
+Interaction is almost entirely **widget-level `SetEventHandler`**, not the engine `Event.*` system:
 - `oDialogBox:SetEventHandler("ControllerInput", _HandleInputEvent)` — navigation/confirm/cancel, see
-  `_HandleInputEvent` above.
+  `_HandleInputEvent` above. Each transition plays a `Sound.CueSound(0, ...)`: `_ksChangeSound`
+  (`"ui_PDA_Scroll"`) on move, `_ksAcceptSound` (`"ui_PDA_Accept"`) on confirm, `_ksCancelSound`
+  (`"ui_PDA_Cancel"`) on cancel.
 - `oDialogBox:SetEventHandler("OnMouseMove", _HandleDialogUpdate)` — mouse-hover highlight tracking.
-- `DisplayScrollingDialogBox`'s box wires its own separate `"ControllerInput"` (`_HandleScrollInput`) and
-  update handlers for the scrolling variant.
-- `OpenSystemDialogBox` waits on an SWF-load callback (`SystemDialogBoxLoadedCallBack`) rather than a
-  generic engine event, since that dialog type loads its own Scaleform file.
+- The scrolling variant wires its own `"GuiUpdate"` (`_HandleScrollUpdate`), `"OnMouseMove"`
+  (`_HandleMouseUpdate`) and `"ControllerInput"` (`_HandleScrollInput`) handlers.
+- The system dialog binds an ActionScript event via `oFlash:SetFlashEventHandler("onlineMessageClose", ...)`.
+
+The **only real engine event** in the file is a one-shot timer: `CloseSystemDialogBox` calls
+`Event.Create(Event.TimerRelative, {0.01, true}, CloseSystemDialogBoxDelayed, {oSystemDialogBoxFlash})` to defer
+the system-dialog teardown one frame.
 
 ## Notes for modders
 - **Start here for any in-game menu you want to build** — it's already used for the game's own cheat menu

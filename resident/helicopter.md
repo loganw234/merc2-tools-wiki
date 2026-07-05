@@ -6,7 +6,7 @@ nav_order: 1
 inherits: VehicleBlippable
 tags: [vehicle, blip]
 verified: true
-verified_note: removed unconfirmed OnDeactivate reference (no such function in source); clarified tFlash/sTexture/nSize are shared prototype-level globals read by the inherited Create chain, not per-instance fields; traced full inheritance chain (VehicleBlippable -> OrientedBlippable -> Blippable -> Inheritable)
+verified_note: deeper pass — re-confirmed no local OnDeactivate, the health>0 gate, and tFlash/sTexture/nSize as shared prototype globals; added inheritance-chain cross-links (VehicleBlippable/OrientedBlippable/Blippable/Inheritable)
 ---
 
 # Helicopter
@@ -20,10 +20,11 @@ supplies the blip's cosmetic properties (flash color, texture, size) plus the st
 boilerplate.
 
 ## Inheritance
-- Inherits from: `VehicleBlippable` (via `inherit("VehicleBlippable")`)
-- Chain: `VehicleBlippable` → `OrientedBlippable` → `Blippable` → `Inheritable` (confirmed by reading each
-  file in turn — `VehicleBlippable` starts with `inherit("OrientedBlippable")`, which starts with
-  `inherit("Blippable")`, which starts with `inherit("Inheritable")`).
+- Inherits from: [`VehicleBlippable`](vehicleblippable) (via `inherit("VehicleBlippable")`)
+- Chain: [`VehicleBlippable`](vehicleblippable) → [`OrientedBlippable`](orientedblippable) →
+  [`Blippable`](blippable) → [`Inheritable`](inheritable) (confirmed by reading each file in turn —
+  `VehicleBlippable` starts with `inherit("OrientedBlippable")`, which starts with `inherit("Blippable")`,
+  which starts with `inherit("Inheritable")`).
 - Imports: none
 
 ## Instance pattern

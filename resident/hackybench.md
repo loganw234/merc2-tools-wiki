@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Bench
 tags: [hack, bench]
 verified: true
-verified_note: corrected Instance pattern and Events — Bench has no Create/OnActivate/Awake/setmetatable/OnUse anywhere; both Bench and Hackybench are stateless, plain functions only, no event wiring at all
+verified_note: "deeper pass: re-confirmed the 4-line source (inherit(\"Bench\") + empty Use override) and cross-checked Bench.lua; both stateless, zero Event.* references; added Bench cross-link, no other changes needed"
 ---
 
 # Hackybench
@@ -14,8 +14,8 @@ verified_note: corrected Instance pattern and Events — Bench has no Create/OnA
 *Module: hackybench.lua*
 
 ## Overview
-The `Hackybench` module is a thin 4-line specialization of the `Bench` module. It inherits from `Bench`
-via `inherit("Bench")` and redefines `Use` as an empty stub — the file body is literally just the
+The `Hackybench` module is a thin 4-line specialization of the [Bench](bench) module. It inherits from
+`Bench` via `inherit("Bench")` and redefines `Use` as an empty stub — the file body is literally just the
 `inherit()` call plus one empty function.
 
 ## Inheritance

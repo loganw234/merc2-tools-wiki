@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, pda]
 verified: true
-verified_note: spot-checked against source — all top-level functions covered, no inherit, only Event.TimerRelative call confirmed; no changes needed
+verified_note: 'deeper pass: added sFlashFile="garage" movie name, the AddStockpile/AddSupport* ActionScript callbacks + sType routing, the vehicleSelect/closePDA flash events, the black-backdrop dim (0,0,0,192); flagged that oFlash.SetCloseCallback = _SetCloseCallbackWidget references an UNDEFINED function (resolves nil)'
 ---
 
 # MrxGuiGarage
@@ -14,18 +14,26 @@ verified_note: spot-checked against source — all top-level functions covered, 
 *Module: mrxguigarage.lua*
 
 ## Overview
-The `MrxGuiGarage` module is responsible for managing the garage screen in the game's user interface. It handles the creation, display, and interaction with the garage UI, including adding items to the garage list, setting callbacks for user actions, and managing the visibility of the garage screen.
+`MrxGuiGarage` drives the **garage / vehicle-support screen** — the full-screen PDA panel where you spend cash to stock vehicles and support. It is a thin Lua wrapper around a **Scaleform movie named `"garage"`** (`sFlashFile = "garage"`): Lua collects the item list and stockpile numbers, hands them to the movie via ActionScript callbacks, and listens for the movie's selection/close events. The lifecycle is a fixed four-step call sequence: `Create` → `AddItem` (repeat) → `SetCallback` → `Commence`.
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxGui`, `MrxGuiBase`, `MrxPmc`, `MrxSupportData`, `MrxGuiDialogBox`, `MrxGuiManager`
+- Imports: [MrxGui](mrxgui) (FlashWidget/AddWidget/RemoveWidget), [MrxGuiBase](mrxguibase) (control focus), [MrxPmc](mrxpmc) (cash/fuel quantities), [MrxSupportData](mrxsupportdata), [MrxGuiDialogBox](mrxguidialogbox), [MrxGuiManager](mrxguimanager) (HUD toggle)
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not follow the per-instance object pattern and instead manages garage screens for players through a global list `_tGarageList`.
+Manager module keyed by player. State lives in the module global `_tGarageList[uPlayerGuid] = oFlash`; each open garage is one `FlashWidget` whose per-screen state (`tItems`, callbacks, `bLoaded`/`bRunning`/`bRestoreHud`) is on that widget's `CustomData`. `Init()` must run once to set `_tGarageList = {}` (it starts as `false`). Only one garage per player at a time — `Create` returns `false` if one already exists for that player.
+
+## Module constants
+- `sFlashFile = "garage"` — the Scaleform movie name loaded via `oFlash:SetSwfFile(sFlashFile, _FlashLoadedCallback, {oFlash})`. This is the single biggest knob: swap it to point at a different `.gfx` movie. If `sFlashFile` were falsy the module short-circuits to a "loaded, no visuals" state.
+- Panel width: half-width `283.33334` centered at x=320 (so ~566 px wide, full 480 height).
+- Dim backdrop behind the movie is a black `ImageWidget` at alpha `192` (`SetColor(0,0,0,192)`).
 
 ## Functions
 ### `Create(uPlayerGuid)`
-Creates a new garage screen instance for the specified player. Initializes the flash widget, sets its properties, and adds it to the global garage list.
+Creates a new garage screen for the player. Builds the `FlashWidget`, loads the `"garage"` SWF, attaches the per-widget methods (`AddItem`/`SetCallback`/`SetCloseCallback`/`Commence`), positions it, and stores it in `_tGarageList`. Returns `true` on success, `false` if `uPlayerGuid` isn't `userdata` or a garage already exists for that player.
+
+{: .warning }
+> `Create` runs `oFlash.SetCloseCallback = _SetCloseCallbackWidget`, but **`_SetCloseCallbackWidget` is never defined anywhere in this file** — so `oFlash.SetCloseCallback` ends up `nil`. Calling `oFlash:SetCloseCallback(...)` would error. There is no top-level `SetCloseCallback(uPlayerGuid, ...)` wrapper either. Use `SetCallback` (which is invoked on both vehicle-select and PDA-close) for close handling.
 
 ### `AddItem(uPlayerGuid, sId, sName, sDescription, sType, nCurrentStock, nMaxStock, sIcon, bNew)`
 Adds an item to the garage screen for the specified player. The item details include ID, name, description, type, stock quantities, icon, and a flag indicating if it's new.
@@ -37,7 +45,10 @@ Internal helper function to add an item widget to the flash object. Validates in
 Sets a callback function for user actions in the garage screen for the specified player. The callback can be used to handle events like selecting a vehicle or closing the PDA.
 
 ### `_SetCallbackWidget(oFlash, fCallback, tCallbackData)`
-Internal helper function to set the callback and associated data on the flash object. Validates the callback type and stores it in the custom data table of the flash widget.
+Internal helper function to set the callback and associated data on the flash object. Validates the callback type and stores it in the custom data table of the flash widget. Passing `fCallback = nil` clears both the callback and its data.
+
+### `SetCloseCallback` (dangling reference — not defined)
+`Create` assigns `oFlash.SetCloseCallback = _SetCloseCallbackWidget`, but no function named `_SetCloseCallbackWidget` exists in this module, so the field is `nil`. There is no working close-specific callback API here — see the warning under `Create`.
 
 ### `Commence(uPlayerGuid)`
 Starts the garage screen for the specified player. Initializes the garage UI by setting up the flash file, adding items, and handling user interactions.
@@ -55,7 +66,17 @@ Internal callback function triggered when the flash file for the garage screen i
 Internal helper function to run the garage screen. Sets up the flash widget with stockpile data, adds items based on their type, sets event handlers for user actions, and manages the visibility of the garage screen.
 
 ### `_SetupGarageFlash(oFlash)`
-Sets up the flash widget for the garage screen by calling ActionScript callbacks to add stockpile data and items, setting event handlers for user interactions, and managing the background image.
+Pushes all data into the movie and wires its events. Calls the ActionScript function `AddStockpile(cash, fuel, fuelCapacity)` (from `MrxPmc.GetCashQty/GetFuelQty/GetFuelCapacity`), then for each queued item calls one of five ActionScript "add" callbacks chosen by `sType`:
+
+| `sType` (lowercased) | ActionScript callback |
+| --- | --- |
+| `"light"` | `AddSupportLight` |
+| `"heavy"` | `AddSupportHeavy` |
+| `"helicopters"` | `AddSupportHelicopters` |
+| `"boats"` | `AddSupportBoats` |
+| anything else / `nil` | `AddSupportCivilian` |
+
+Each is called with `(sId, sName, sDescription, sIcon, nCurrentStock, nMaxStock, 0, bNew or false)`. It then binds the movie's `vehicleSelect` event to `_EndCallback` and its `closePDA` event to `_CloseCallback`, and inserts a black `SetColor(0,0,0,192)` full-screen backdrop behind the movie.
 
 ### `_EndCallback(oFlash, sArg)`
 Internal callback function triggered when a vehicle is selected in the garage screen. Ends the garage session by removing the flash file, releasing control focus, and calling the user-defined callback if set.
@@ -67,10 +88,12 @@ Internal callback function triggered when the PDA is closed in the garage screen
 Internal helper function to remove the flash file for the garage screen. Restores the HUD state, removes the flash widget and background image from the UI, and deletes them.
 
 ## Events
-- `Event.Create(Event.TimerRelative, {0.1, true}, _RemoveFlashFile, {oFlash})` in `_EndCallback` — schedules `_RemoveFlashFile` 0.1s after the garage session ends. This is the only `Event.*` reference in the file.
+- **Only real `Event.*` call**: `Event.Create(Event.TimerRelative, {0.1, true}, _RemoveFlashFile, {oFlash})` in `_EndCallback` defers the SWF teardown 0.1 s (ignores pause) after the garage closes, so the flash-event callback returns before the widget it's running in is deleted.
+- `vehicleSelect` and `closePDA` are **Scaleform/ActionScript events**, bound via `oFlash:SetFlashEventHandler(...)`, not engine `Event.*` types. `vehicleSelect` passes the selected id as `sArg` to `_EndCallback`; `closePDA` calls `_CloseCallback` (which calls `_EndCallback(oFlash, nil)`).
 
 ## Notes for modders
-- Ensure that `Create`, `AddItem`, `SetCallback`, and `Commence` are called appropriately to manage the garage screen lifecycle.
-- Customize the garage items by providing appropriate details when calling `AddItem`.
-- Use `SetCallback` to handle user actions in the garage screen, such as selecting a vehicle or closing the PDA.
-- Be aware that the module manages global state through `_tGarageList`, so ensure proper cleanup and initialization of this list.
+- **Lifecycle order matters**: `Init()` once, then per screen `Create` → one or more `AddItem` → `SetCallback` → `Commence`. `Commence` before the SWF finishes loading is fine — `_CommenceWidget` sets `bRunning` and `_FlashLoadedCallback` runs the garage once `bLoaded` is set.
+- **Your `fCallback` receives the selected vehicle id** (the `sId` you passed to `AddItem`) appended after your `tCallbackData` entries; on PDA-close it's called with no extra arg. This is the single place to react to a purchase/selection.
+- **`sType` picks the movie's category tab** — spell it exactly `"light"`/`"heavy"`/`"helicopters"`/`"boats"` (case-insensitive); anything else lands in the civilian list.
+- **Swap `sFlashFile`** to retheme the whole screen, but the replacement movie must expose the same ActionScript entry points (`AddStockpile`, the five `AddSupport*`, and dispatch `vehicleSelect`/`closePDA`).
+- Do **not** rely on `SetCloseCallback` — it's wired to an undefined function (see the warning under `Create`).

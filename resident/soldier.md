@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, pickup]
 verified: true
-verified_note: removed fabricated Event.ObjectDeath claim (zero Event.* calls in file), flagged tDrops/tEvents as declared-but-unused, added MGSoldier exclusion detail to OnDeath description
+verified_note: 'deeper pass: re-confirmed the whole file (one OnDeath, zero Event.* calls); collected the pickup template strings + the every-3rd-death / label / ammo / health drop rules into a constants section; re-confirmed tDrops/tEvents are dead and the lowercase math.* usage; cross-linked Object/Player/Weapon/Pg namespaces.'
 ---
 
 # Soldier
@@ -14,11 +14,14 @@ verified_note: removed fabricated Event.ObjectDeath claim (zero Event.* calls in
 *Module: soldier.lua*
 
 ## Overview
-The `Soldier` module handles the death logic for soldier AI entities in the game. It determines what type of pickup to drop based on the soldier's class and the player's current state, such as health and ammo reserve.
+The `Soldier` module is the death handler for AI foot soldiers: when one dies, it decides whether to
+drop a pickup and which kind (ammo / grenades / health), based on the soldier's class labels, a
+one-in-three throttle, and the players' current ammo/health. This is the system that makes enemies
+"conveniently" drop what you're low on.
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxUtil`
+- Imports: [`MrxUtil`](mrxutil) — imported but not referenced in this file.
 
 ## Instance pattern
 This is a stateless manager/utility module with no per-instance tables. It tracks the following key fields:
@@ -58,9 +61,28 @@ This file contains **no `Event.*` calls at all**. `OnDeath` is invoked directly 
 naming-convention callback (same mechanism as `OnActivate`/`OnDeath` elsewhere), not through an
 `Event.Create` registration in this file.
 
+## Module constants & tunables
+All of these are hardcoded inside `OnDeath` (there is no config table — `tDrops` is dead code):
+
+- **Pickup templates**: `"Ammo Pickup (Small)"` (default), `"Ammo Pickup (Rocket)"`,
+  `"Ammo Pickup (Bullet)"`, `"Ammo Pickup (Grenades)"`, `"Health Pickup"`. Spawned via
+  [`Pg.Spawn`](../namespaces/pg) at the corpse position, nudged down by an impulse, and added to the
+  `"pickup"` disposer.
+- **Drop throttle**: a pickup is only considered when the soldier has label `"HeavySoldier"` **or**
+  every 3rd soldier death (`deathCount / 3 == math.floor(deathCount / 3)`). Change the `3` to make
+  drops more/less frequent.
+- **Class → ammo mapping** (checked via [`Object.HasLabel`](../namespaces/object)):
+  `RocketSoldier` (and not `MGSoldier`) → rocket ammo; `HeavySoldier` → bullet ammo.
+- **Grenade top-up**: if a player holds a `"Grenade"`-labelled weapon whose
+  [`Weapon.GetReserveAmmo`](../namespaces/weapon) is below `math.randf(8)`, drop grenades.
+- **Health top-up**: if `math.randf() * 80 > Object.GetHealth(uHero)` (roughly: the lower a player's
+  health, the likelier), drop a health pickup — this overrides the ammo choice.
+- Soldiers that die **while seated** (`Object.InSeat`) drop nothing.
+
 ## Notes for modders
-- Ensure that `OnDeath` is called appropriately to manage pickup spawning logic.
-- `tDrops` is dead code — it's populated but never consulted by `OnDeath`. Don't expect editing it to
-  change pickup selection; the pickup strings are hardcoded inline in the function body instead.
-- Customize the pickup logic by editing the `sPickup` string literals and label/health/ammo conditions directly in `OnDeath`.
-- Be aware that network synchronization (`Pg.Spawn`) may affect multiplayer behavior when spawning pickups.
+- Retune drops by editing the throttle `3`, the label→pickup mapping, and the two random thresholds
+  (`math.randf(8)`, `math.randf() * 80`) directly in `OnDeath`.
+- `tDrops` and `tEvents` are dead code — populated/declared but never consulted. Editing `tDrops` will
+  **not** change pickup selection; the strings are inline.
+- This file uses the standard Lua `math.*` library (lowercase), not the engine `Math.*` namespace —
+  keep that in mind if you copy logic between modules.

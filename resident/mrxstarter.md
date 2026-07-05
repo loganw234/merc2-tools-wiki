@@ -446,14 +446,31 @@ This function sets a special case greeting voice-over (VO) for the `mrxstarter` 
 This function retrieves the special case greeting voice-over (VO) set for the `mrxstarter` instance. It returns the value stored in the `_sSpecialCaseGreeting` field.
 
 ## Events
-- **Event.PlayerJoined**: Listens for when a player joins the session and performs necessary initialization.
-- **Event.PlayerLeft**: Listens for when a player leaves the session and handles cleanup or state reset.
-- **Event.MissionAccepted**: Listens for when a mission is accepted by the player and updates internal mission tracking.
-- **Event.BriefingCompleted**: Listens for when a briefing is completed and performs actions such as marking briefings as old or updating UI displays.
-- **Event.HqExitCompleted**: Listens for when an HQ exit process is completed and handles associated cleanup.
+
+{: .warning }
+> **Corrected — the previous version invented this section** (`Event.PlayerJoined`, `Event.PlayerLeft`,
+> `Event.MissionAccepted`, `Event.BriefingCompleted`, `Event.HqExitCompleted`). **None exist in the source.**
+> The only `Event.*` call in the whole file is a per-asset `Event.Create(Event.TimerRelative, {15, false},
+> _AssetLoaded, ...)` inside `Load` — a 15-second load-timeout watchdog per asset, not a lifecycle
+> subscription. Everything else (`Activate`/`Deactivate`/`Start`/`End`/`AddBriefing`/…) is driven by direct
+> method calls from [`MrxStarterManager`](mrxstartermanager), [`WifMissionFlow`](mrxmissionflow), and
+> [`mrxbriefing`](mrxbriefing), not engine events.
 
 ## Notes for modders
-- **Call-order requirements**: Ensure that `Activate` is called before using any other functions to properly initialize the starter. Similarly, call `Deactivate` when the starter is no longer needed to clean up resources.
-- **Pitfalls**: Be cautious with modifying internal state directly; use provided setter and getter functions to maintain consistency.
-- **Tunables**: There are no tunable parameters exposed in this module's API for modders. Any customization should be done through the briefing system or other high-level interfaces.
-- **Decompiler artifacts**: The function `_SetFanfareDisplayed` and `_SetCardDisplayed` have unused local variables that can be ignored as decompiler artifacts.
+- **`AddBriefing` is the lever that puts a mission in a starter's menu** (see its entry). The normal path is
+  [`WifMissionFlow.UnlockMission`](mrxmissionflow) → `RequestStarter(sStarter):AddBriefing(...)`; you rarely
+  call it by hand, but knowing it writes `self._tBriefings[sMissionName]` (and that
+  [`mrxbriefing`](mrxbriefing) aliases that exact table) is key to understanding why a mission appears/vanishes.
+- **`Load` has a 15-second per-asset timeout.** If a starter's `tAssetPreload`/`tActors`/`sFaceFxSet` names a
+  missing asset, the load doesn't hang forever — the watchdog fires `_AssetLoaded(..., true)` and logs
+  `"... TIMED OUT"`. Watch for that string if a starter loads with a missing face or actor.
+- **`bBoss` gates real behavior** (see `IsBoss`): a boss starter skips greetings and auto-opens its first
+  briefing ([`_DisplayRootMenu`](mrxbriefing)), and `Load` pulls its actors from the *first* briefing's
+  `WifBriefingData.tActors`. Fiona's `PmcBoss` does **not** set `bBoss`, despite the name — check the actual
+  `WifStarterData` entry.
+- **Data-driven fields** (all from the `WifStarterData` entry, surfaced by the `Get*`/`Has*` accessors):
+  `sHqName`, `bPmcStarter`, `bFemale`, `bBoss`, `bHintSystem`/`bBribeSystem`/`bGarageSystem`/`bTransitSystem`,
+  `bShop`/`bCustomVehicleShop`, `sFaceFxSet`, `tCardData`, `sFaction`. These are the customization surface —
+  edit the starter's `WifStarterData` entry, not this module.
+- **Decompiler artifacts**: `_SetFanfareDisplayed`/`_SetCardDisplayed` and a couple of `Load` locals hold
+  unused values; ignore them.

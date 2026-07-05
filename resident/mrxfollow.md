@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, companion]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory via Create(mModule, self)/setmetatable, same pattern as MrxTask -- not per-uGuid, no tInstance registry)
+verified_note: "deeper pass: surfaced the follow-role distance tunables (Min 2 / Max kMaxFollowDistance=30 / Move 4, re-acquire proximity 15), the context-action labels, and the five VO tables; documented the usage flow; all functions/events re-confirmed against source"
 ---
 
 # MrxFollow
@@ -18,7 +18,7 @@ The `MrxFollow` module manages the escort/follow behavior for companion characte
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxVoSequence`
+- Imports: [`MrxVoSequence`](mrxvosequence)
 
 ## Instance pattern
 **Not per-`uGuid` — same class-factory pattern as [`MrxTask`](mrxtask)**: `Create(mModule, self)` does
@@ -52,10 +52,18 @@ Activates or deactivates the follow behavior. If enabled, it sets up the actor a
 Toggles the follow behavior on or off for the specified object.
 
 ### `_ToggleFollowingBehavior(self, bEnable, vObjectToFollow)`
-Manages the AI role between "Follow" and "Idle". Sets feelings, creates roles with callbacks, and manages voice-over sequences.
+Manages the AI role between `"Follow"` and `"Idle"` (via `Ai.Role`). On enable: turns off the actor's
+`"LivingWorldBehaviour"`, forces friendly feeling toward the target if `Ai.GetFeeling < 0`
+(`Ai.SetFeeling(..., 100)`), then creates a hard-priority `"Follow"` role with `MinDistance = 2`,
+`MaxDistance = kMaxFollowDistance` (`30`), `MoveDistance = 4`, `Priority = "hiPri"`, and
+`Callback = _OnFollowerCanceled`. It also wires the `mpPlayerLeft` and `transitStart` `Event.ScriptEvent`
+listeners. On disable: tears those down and swaps in an `"Idle"` `hiPri` role. Fires start/stop VO unless
+`bVOOverride` is set, then invokes the state-change callback with `(uGuid, bEnable)` appended.
 
 ### `_ToggleContextAction(self, bEnable)`
-Adds or removes a context action ("Follow"/"Stay") for the actor.
+Adds or removes a context action for the actor via `Pg.AddContextAction`, using the localized labels
+`"[ContextAction.Follow]"` (when idle) / `"[ContextAction.Stay]"` (when following), and wires an
+`Event.ContextAction` listener that toggles `_Follow` when the player activates it.
 
 ### `_RemoveContextAction(self)`
 Removes any existing context action for the actor.
@@ -67,7 +75,8 @@ Retrieves the GUID of the actor based on its type (string or userdata).
 Handles cancellation of following due to various reasons ("targettoofar", "targethostile", "targetdead"). Triggers appropriate actions like losing or finding the target.
 
 ### `_OnFollowerLost(self)`
-Plays a voice-over sequence when the follower is lost and sets up an event to re-acquire the target when it gets close enough.
+Plays the "lost" VO, then registers an `Event.ObjectProximity` listener that re-acquires the target
+(`_OnFollowerFound`) once the actor comes within `15` metres (`"<", 15`) of `_vObjectToFollow`.
 
 ### `_OnFollowerFound(self)`
 Plays a voice-over sequence when the follower is found and resumes following.
@@ -94,6 +103,14 @@ Handles exiting a transit vehicle and sets up an event for when the transit star
 - Listens for `Event.ContextAction` to toggle follow/idle roles.
 
 ## Notes for modders
-- Ensure that `Activate` is called appropriately to manage the follow behavior lifecycle.
-- Customize voice-over sequences by modifying the indices and tables in the instance.
-- Be aware of network synchronization and multiplayer implications when using this module.
+- **Distance tunables** (all in `_ToggleFollowingBehavior`/`_OnFollowerLost`): `"Follow"` role
+  `MinDistance = 2`, `MaxDistance = kMaxFollowDistance = 30`, `MoveDistance = 4`; the lost-target
+  re-acquire proximity is `15`. `kMaxFollowDistance` is a `local` inside `_ToggleFollowingBehavior`, so
+  changing the leash means editing that function, not an instance field.
+- **VO is driven by tables you supply on the instance**: `tStartFollowVO`, `tStopFollowVO`, `tLostVO`,
+  `tFoundVO`, `tHostileVO` — each an array of cue entries `_PlayVO` cycles through (it wraps at the end and
+  advances the matching `i*VOIdx`). Leave them unset for a silent companion.
+- **The follow toggle also grabs a context action** (`"[ContextAction.Follow]"`/`"[ContextAction.Stay]"`),
+  so the player gets an on-foot prompt to start/stop the escort — that's the intended player-facing hook.
+- Usage flow: `SetActor` -> `SetObjectToFollow` (optional; defaults to the local character) ->
+  `SetCallback` (optional) -> `Activate(true, bStartInFollowState)`. `Activate(false)` tears everything down.

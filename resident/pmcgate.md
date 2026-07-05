@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [pmc, gate]
 verified: true
-verified_note: spot-checked against source (7 lines, 2 functions) — function list, event list, and inheritance claim all confirmed accurate, no changes needed
+verified_note: 'deeper pass: re-confirmed the whole file (2 functions, ObjectHibernation→OpenGate→TimerRelative(2s)→Object.OpenGate); noted the args param is unused and the 2s open delay is the only tunable; cross-linked Event/Object namespaces; pruned the vacuous OnActivate modder bullet.'
 ---
 
 # Pmcgate
@@ -14,27 +14,37 @@ verified_note: spot-checked against source (7 lines, 2 functions) — function l
 *Module: pmcgate.lua*
 
 ## Overview
-The `Pmcgate` module is responsible for managing the activation and opening of PMC gates in the game world. It sets up a timer to open the gate after it has been activated.
+`Pmcgate` is a minimal "auto-open" script for a PMC gate object: once the gate wakes, it opens itself
+2 seconds later. That's the entire module. (Contrast [`FriendlyGate`](friendlygate) for a
+richer/faction-aware gate.)
 
 ## Inheritance
 - Inherits from: none — base/utility module
 - Imports: none
 
 ## Instance pattern
-This is a stateless manager/utility module with no per-instance tables or fields tracked.
+Stateless — no per-instance table, no stored event handles. It just chains two engine events and
+never keeps a reference to them.
 
 ## Functions
 ### `OnActivate(uGateGuid, args)`
-Called when the PMC gate instance is activated. It sets up an event to call `OpenGate` once the object leaves hibernation.
+Engine lifecycle callback. Wires an `Event.ObjectHibernation` `"awake"` event that runs `OpenGate`
+once the gate leaves hibernation. `args` is received but not used.
 
 ### `OpenGate(uGateGuid)`
-Creates a timer that triggers after 2 seconds, calling `Object.OpenGate` with the PMC gate's GUID to open it.
+Schedules `Object.OpenGate(uGateGuid)` via [`Event.TimerRelative`](../namespaces/event) after `2`
+seconds. Note it passes [`Object.OpenGate`](../namespaces/object) directly as the timer callback rather
+than a wrapper.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `OpenGate` when the object leaves hibernation.
-- Listens for `Event.TimerRelative` to trigger the gate opening after a delay.
+- **`Event.ObjectHibernation`** (`"awake"`, in `OnActivate`) → `OpenGate`.
+- **`Event.TimerRelative`** (`2`s, in `OpenGate`) → `Object.OpenGate`.
+
+Neither handle is stored, so there is no cancellation path — the gate will open 2s after waking
+regardless of anything else.
 
 ## Notes for modders
-- Ensure that `OnActivate` is called appropriately to manage the gate's activation lifecycle.
-- The gate opens 2 seconds after it is activated. This delay can be adjusted by changing the timer duration in the `OpenGate` function.
-- No additional customization options are provided for this module; it functions as a simple timer-based gate opener.
+- The **only tunable** is the `2` (seconds) in `OpenGate`'s `Event.TimerRelative` — change it to open
+  the gate sooner or later after it wakes.
+- Because the timer handle isn't kept, you can't cancel the open. If you need a gate that can stay
+  closed conditionally, this module won't do it — override `OpenGate` or use a different gate script.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [task, mission]
 verified: true
-verified_note: read directly from source -- corrects the Instance pattern (class-factory identified by name/lineage, not per-uGuid) and a real inaccuracy about _CreatePersistentEvent cleanup (both event kinds are cleaned up identically); confirms _IssueStateChangeCallbacks' single fOnActivate/fOnComplete/fOnCancel callback is called with zero arguments, found while building a custom mission with a bare fOnActivate config -- see the [Custom Contract deep dive](../deep-dives/custom-contract)
+verified_note: deeper pass -- re-confirmed every function/signature against source line-by-line (Create/Configure/Activate/Activated/Complete/Cancel/Cleanup, the dynamic_import->_ModuleLoaded->PreLoadAssets->LoadAssets->AssetsLoaded->Activated pipeline, and all child/state/save helpers); Instance pattern (class-factory by name/lineage, not per-uGuid), the identical cleanup of _CreateEvent/_CreatePersistentEvent handles, and the zero-argument fOnActivate/fOnComplete/fOnCancel call all still hold -- no changes needed. See the [Custom Contract deep dive](../deep-dives/custom-contract)
 ---
 
 # MrxTask

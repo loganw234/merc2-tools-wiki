@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: confirmed zero Event.* and zero SetEventHandler calls in file; corrected vague Events section; flagged likely bug in SetContextActionMessage (sCurrentText assigned from sText instead of sNewText in the fallback-to-next-queued-message path, line 51)
+verified_note: 'deeper pass: re-confirmed 6 stubs + the one real function (SetContextActionMessage) and its priority-queue/sound-cue mechanics; documented the "[action] " text prefix token, the sound cue string, and lazy _Initialize; re-verified the sCurrentText=sText (should be sNewText) bug at line 51; zero Event.*/SetEventHandler'
 ---
 
 # MrxGuiHudMelee
@@ -14,14 +14,16 @@ verified_note: confirmed zero Event.* and zero SetEventHandler calls in file; co
 *Module: mrxguihudmelee.lua*
 
 ## Overview
-The `MrxGuiHudMelee` module is responsible for managing the melee and context-action HUD prompts in the game. It provides functions to set and display messages, handle widget updates, and manage the initialization of the context action widget.
+The `MrxGuiHudMelee` module drives the **context-action HUD prompt** — the on-screen "[action] Do X" text that appears when the player can perform a contextual action (enter vehicle, hijack, use an object, etc.). Despite the "melee" name, the only working function is `SetContextActionMessage`; the melee/counter-message functions are empty stubs. It manages a priority-keyed message queue on one shared "Context Action Text" widget, shows the highest-priority message, plays an alert sound when the text changes, and fades the prompt out when cleared.
+
+Built on the native GUI framework ([MrxGui](mrxgui)); text/animation only, no Scaleform. Uses [Sound](../namespaces/sound) for the alert cue.
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxGui`
+- Imports: `MrxGui` (via [`import("MrxGui")`](../glossary#importname))
 
 ## Instance pattern
-This is a stateless manager/utility module (no per-instance tables). It does not track any persistent state but manages HUD widgets and their interactions.
+**Stateless module + per-widget `CustomData`.** No per-instance tables at module level. All state lives on the "Context Action Text" widget's `CustomData`, set up lazily by the local `_Initialize` on first `SetContextActionMessage` call: `tMessageQueue` (priority → text string), `nCurrentPriority`, `sCurrentText`, and the `nVisiblePoint`/`nFadePoint` translucency animation points.
 
 ## Functions
 ### `SetCounterMessageVisible(bShow, uPlayerGuid)`
@@ -57,7 +59,11 @@ Initializes a HUD widget by setting up custom data fields such as message queue,
 No `Event.*`/`Event.Create(...)` engine-event references and no `SetEventHandler` calls appear anywhere in this file — confirmed by grep. `HandleUpdateEvent(oWidget, nTime)` and `HandleInitializationEvent(oWidget, oEvent)` are named following the `Handle*Event` convention used elsewhere for widget event handlers, but neither is registered to any handler key in this file — both are empty stubs (see Functions). `SetContextActionMessage` is the module's real entry point and is called directly by name from other modules (not event-driven); it looks up the "Context Action Text" widget via `MrxGui.GetWidgetByName`/`GetWidgetByNameAndOwner`, lazily calls the local `_Initialize` on first use, and manages message text/priority/animation itself.
 
 ## Notes for modders
-- The functions `SetCounterMessageVisible`, `SetMeleeMessage`, and `DisplayCounterMessage` are currently stubbed and do not perform any actions. They can be extended to add custom functionality as needed.
-- The `SetContextActionMessage` function is the primary entry point for setting context action messages. It handles message queuing, priority management, and widget animations.
-- Customizing the behavior of the context action widget requires modifying or extending the functions related to widget initialization and animation handling.
-- Be aware that sound cues (`ui_HUD_Contextual_Action_Alert`) are triggered when messages change, which may affect player experience.
+- **`SetContextActionMessage(sText, uPlayer, nPriority)` is the only working entry point.** Call with a `sText` string to post a prompt at priority `nPriority` (default `1`); call with `sText = nil` at the same priority to clear that entry (the widget then shows the next-highest queued message, or fades out if the queue is empty). If `uPlayer` is not `userdata`, it targets the global "Context Action Text" widget (`MrxGui.GetWidgetByName`); otherwise the owning player's copy (`MrxGui.GetWidgetByNameAndOwner`).
+- **Displayed text is prefixed with the literal `"[action] "`** before your string (`SetText("[action] " .. sText)`). `[action]` is a substitution/markup token the text renderer replaces with the current action-button glyph — pass just the verb ("Enter vehicle"), not the button.
+- **Alert sound**: `Sound.CueSound(0, "ui_HUD_Contextual_Action_Alert")` fires whenever the shown text actually changes (deduped against `sCurrentText`). Repeated identical messages don't re-alert.
+- **Priority queue**: `tMessageQueue` is keyed by priority number. Note the "pick next" loop (`for ... in pairs`) just takes the last iterated entry — with numeric-but-sparse keys `pairs` order is unspecified, so which queued message wins after a clear is not strictly the highest priority. Keep priorities simple.
+- **Six stub functions** — `SetCounterMessageVisible`, `SetMeleeMessage`, `DisplayCounterMessage`, `HandleUpdateEvent`, `HandleInitializationEvent`, `HideOnComplete` — are all empty (`function ... end`). They do nothing; the melee/counter-prompt feature they imply is not implemented in this file.
+
+{: .warning }
+> **Confirmed bug (line 51).** In the clear-and-fall-back path (`sText == nil`, priority matches current), the widget correctly shows the next queued message via `sNewText`, but then writes `CustomData.sCurrentText = sText` — and `sText` is `nil` here. It should be `sNewText`. Result: `sCurrentText` doesn't record what's actually displayed, so the sound-dedup check can mis-fire (re-alert) on the next call for that fallback message.

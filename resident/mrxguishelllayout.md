@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, layout]
 verified: true
-verified_note: enumerated the full real EventHandlers set for both the root and "Shell Background" child widget; corrected Instance pattern field descriptions; flagged AddedWidgetList initialization ambiguity (same as mrxguipauselayout.lua)
+verified_note: 'deeper pass: re-confirmed the full EventHandlers wiring for all three widgets, the ReInit teardown, and the AddedWidgetList init caveat against source; added the concrete widget geometry/color constants (640x480 root, black Shell Background, New Text at 120,390-520,406 font_16 centered)'
 ---
 
 # MrxGuiShellLayout
@@ -46,6 +46,14 @@ Root `"Shell"` widget:
 - `GuiInitialization` → `mrxguishell.MakeFullscreen`
 
 The `"New Text"` grandchild widget has empty `EventHandlerFile`/`EventHandlers`/`EventHandlerNames` — no handlers.
+
+## Widget geometry & constants
+- **`"Shell"` root:** full-screen `640×480`, white (`255,255,255,255`), center-anchored, `visible = 1`.
+- **`"Shell Background"` child:** full-screen `640×480` **black** (`0,0,0,255`) image, full UV (`0,0`–`1,1`), no
+  texture set in the layout (assigned at runtime) — it's the black backdrop the shell movie/flash render over.
+- **`"New Text"` grandchild:** `120,390`–`520,406`, `font_16`, scale `1`, centered/bottom-anchored, starts empty
+  (`text = ""`). This is the strip near the bottom of the shell where runtime status text (e.g. the legal/press-space
+  prompt) is shown by [`mrxguishell`](mrxguishell) handler code.
 
 ## Notes for modders
 - Actual shell behavior (server list updates, controller input, fullscreen sizing) lives in `mrxguishell`, not here — this file only supplies the widget tree and handler-name wiring.

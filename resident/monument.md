@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [structure]
 verified: true
-verified_note: spot-checked against source (entire file is a 3-line empty function stub), no changes needed.
+verified_note: "deeper pass: re-confirmed the entire file is one empty Use(aiguid, floatval) stub — no state, no events, no imports; replaced the cautionary boilerplate Notes with the concrete override lever"
 ---
 
 # Monument
@@ -34,5 +34,8 @@ handlers in this codebase) left unimplemented for monuments.
 - none
 
 ## Notes for modders
-- This module is a stub and does not implement any functionality. Any custom behavior related to monument interactions should be added by extending or replacing this module.
-- Be cautious when modifying this module, as it may affect the game's behavior if other parts of the code rely on its presence or structure.
+- **Override lever:** `Use` is a plain global with an empty body, so it's a ready hook — redefine it to make
+  monuments do something on "use" (e.g. play a sound, award cash, spawn an effect). Its signature
+  `(aiguid, floatval)` matches the other resident `Use` handlers (the same identically-empty pattern as
+  [Hackybench](hackybench)'s `Use` override).
+- There is nothing else here — no state, no events, no imports. Whatever calls `Use` is engine-side.

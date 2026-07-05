@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Blippable
 tags: [blip, radar]
 verified: true
-verified_note: read directly from source -- corrects two inaccuracies in the previous version (OnActivate does not defer through Event.ObjectHibernation/Awake here, and bRotate is a module-level constant, not a per-instance field)
+verified_note: "deeper pass: re-confirmed all functions/events against source (OnActivate creates immediately, no hibernation wait; bRotate is a module constant; flash timer is Event.TimerRelative persistent @0.05s); added sibling cross-link to EnemyBlippable"
 ---
 
 # OrientedBlippable
@@ -16,7 +16,8 @@ verified_note: read directly from source -- corrects two inaccuracies in the pre
 ## Overview
 `OrientedBlippable` extends [`Blippable`](blippable) with rotation (blips that turn to match the object's
 facing) and optional flashing (a blip that periodically re-adds itself with `bFlash=true`). It's the direct
-parent of [`VehicleBlippable`](vehicleblippable).
+parent of [`VehicleBlippable`](vehicleblippable), and a sibling of [`EnemyBlippable`](enemyblippable) in the
+blip chain. The one module-level constant it adds is `bRotate = true`.
 
 **`OnActivate` here does not defer through `Event.ObjectHibernation`/`Awake` like `Blippable`/`Inheritable`
 do** — it calls `oPrototype:Create(uGuid, uRuntimeOwner)` immediately:

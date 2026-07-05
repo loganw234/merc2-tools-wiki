@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [timer, hud]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: surfaced all field defaults (nStartTime 30, nWarning 5, iTray 1, etc.) and the four ui_HUD_Timer_* sound cues, fixed the vague Events section to the real Event.TimerRelative persistent timer, noted countdown-vs-up is inferred from start/stop; all functions re-confirmed against source"
 ---
 
 # MrxTimer
@@ -18,19 +18,21 @@ The `MrxTimer` module is responsible for managing countdown and stopwatch timers
 
 ## Inheritance
 - Inherits from: `none` — base/utility module
-- Imports: `MrxUtil`, `MrxGuiInterface`
+- Imports: [`MrxUtil`](mrxutil), [`MrxGuiInterface`](mrxguiinterface)
 
 ## Instance pattern
 **Not per-`uGuid`** — same class-factory pattern used elsewhere in `resident/`: `Create(mModule, self)` is
 `self = self or {}; setmetatable(self, {__index = mModule}); return self`, no `tInstance` registry. It
 tracks the following key fields:
-- `nStartTime`: The starting time of the timer.
-- `nStopTime`: The stopping time of the timer.
-- `nStep`: The increment/decrement step size for each tick.
-- `bUseTenths`: Whether to display tenths of a second.
-- `nWarning`: The time at which warning sounds and visual alerts are triggered.
-- `iTray`: The HUD tray slot where the timer is displayed.
-- `bPlaySounds`: Whether to play sound cues for various timer events.
+- `nStartTime`: Starting time of the timer (default `30`). If `nStartTime > nStopTime`, the timer counts
+  **down** (`_bCountdown` is set); otherwise it counts up.
+- `nStopTime`: Time the timer stops at (default `0`).
+- `nStep`: Seconds per tick / increment-decrement size (default `1`). Also the `Event.TimerRelative` interval.
+- `bUseTenths`: Whether to display tenths of a second (default `false`).
+- `nWarning`: Threshold at which the display turns `[red]` and warning sounds/`tWarnCallbacks` fire
+  (default `5`).
+- `iTray`: HUD `Hud.ObjectiveTray` slot the timer text is written to (default `1`).
+- `bPlaySounds`: Whether to play the timer sound cues (default `true`).
 - `_iCurrentTime`: The current time value of the timer.
 - `_bCountdown`: Indicates whether the timer is counting down or up.
 - `_TimerEvent`: The event handle for the timer's update callback.
@@ -73,11 +75,22 @@ Sets a new time value for the timer and updates the display.
 A helper function that calls all registered callbacks in a table with optional arguments.
 
 ## Events
-- Listens for custom event triggers within its own methods to manage timer state and fire callbacks.
+- The only `Event.*` used is `Event.CreatePersistent(Event.TimerRelative, {self.nStep}, self._Update,
+  {self})` — a persistent timer that fires `_Update` every `nStep` seconds. Created in `Start`/`Resume`,
+  torn down with `Event.Delete` in `Pause`/`Stop`. No `Event.Create` subscriptions to game events; the
+  `tWarnCallbacks`/`tDoneCallbacks` "callbacks" are plain Lua function tables the module calls directly, not
+  engine events.
 
 ## Notes for modders
-- Ensure that `Start`, `Pause`, `Resume`, and `Stop` are called appropriately to manage the timer's lifecycle.
-- Customize timer behavior by setting fields like `nStartTime`, `nStopTime`, `bUseTenths`, and `iTray`.
-- Use `AddTime` to dynamically adjust the timer value during runtime.
-- Register callbacks for warning and done events using the `tWarnCallbacks` and `tDoneCallbacks` tables.
-- Be aware that sound cues (`bPlaySounds`) may affect player experience, especially in multiplayer scenarios.
+- **Sound cues fired (all via `Sound.CueSound(0, ...)`, gated on `bPlaySounds`)**: `"ui_HUD_Timer_Start"`
+  on `Start`; `"ui_HUD_Timer_Increment"` when the display crosses a minute/10s/1s boundary (the
+  `nIncrementAlert` step in `_Update`); `"ui_HUD_Timer_Alert"` when crossing `nWarning`;
+  `"ui_HUD_Timer_End"` when reaching `nStopTime`. Set `bPlaySounds = false` for a silent timer.
+- **The set-up pattern**: build a table of the fields above, pass it to `Create`, register
+  `tWarnCallbacks`/`tDoneCallbacks` (each an array of `{fn, args}` pairs — `_CallCallbacks` runs them via
+  `MrxUtil.CallWithOptionalArgs`), then call `Start`. Use `AddTime`/`SetTime` to adjust mid-run.
+- **Countdown vs. count-up is inferred, not a flag** — it's decided in `Start` purely from
+  `nStartTime > nStopTime`. To count up, set `nStartTime < nStopTime`.
+- **`Display` colors the text `[red]`** once inside the warning band and prepends `sLabel` if set — the
+  timer is written to `Hud.ObjectiveTray` slot `iTray`, so two timers need different `iTray` values or they
+  overwrite each other.

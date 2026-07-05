@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [bootstrap, initialization]
 verified: true
-verified_note: corrected Events section — file has zero Event.* references, GUI-loaded/player-joined are plain stored-callback wiring via MrxGuiBootstrap/MrxPlayer setter functions
+verified_note: "deeper pass: expanded _End (both-flags gate, full StartWithResources payload incl. support-stock fill + SetIgnoreRequirements) and SetDefaultAtmosphere's concrete graphics constants, cross-linked imports, pruned vacuous notes; zero-Event.* finding re-confirmed"
 ---
 
 # MrxBootstrap
@@ -18,7 +18,10 @@ The `MrxBootstrap` module is responsible for initializing the game world by hand
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxSoundBootstrap`, `MrxFactionManager`, `MrxGuiBootstrap`, `MrxLayerManager`, `MrxSupportData`, `MrxPlayer`, `MrxPmc`, `MrxState`, `MrxUtil`
+- Imports: [`MrxSoundBootstrap`](mrxsoundbootstrap), [`MrxFactionManager`](mrxfactionmanager),
+  [`MrxGuiBootstrap`](mrxguibootstrap), [`MrxLayerManager`](mrxlayermanager),
+  [`MrxSupportData`](mrxsupportdata), [`MrxPlayer`](mrxplayer), [`MrxPmc`](mrxpmc), [`MrxState`](mrxstate),
+  [`MrxUtil`](mrxutil)
 
 ## Instance pattern
 This is a stateless manager/utility module. It does not track per-instance state but manages global initialization tasks.
@@ -37,7 +40,14 @@ Called when the first GUI load event is received. Logs a debug message and sets 
 Called when the local player joins the game session. Logs a debug message and sets `_bLocalPlayerJoined` to true. Calls `_End` to complete initialization.
 
 ### `_End()`
-Completes the bootstrapping process by exiting the `STATE_WAITFORGAME` state, setting up factions, and applying default atmosphere settings for non-VZ levels. If the `StartWithResources` cheat is enabled, it grants 10 million cash and 9999 fuel to the player.
+The real completion step, but it early-returns unless **both** `_bLocalPlayerJoined` and `_bGuiLoaded` are
+true — so whichever of `_GuiLoaded`/`_LocalPlayerJoined` fires second is the one that actually runs the
+body. It exits `STATE_WAITFORGAME` (only if `_bHandleStateTransitions`), calls
+`MrxFactionManager.Setup()`, and applies `SetDefaultAtmosphere()` for non-VZ levels (skipped when the
+lowercased level name is `"vz"`). If `Sys.StartWithResources()` is true it maxes the player out:
+`MrxPmc.AddCashQty(10000000)` (10M cash), fuel capacity/qty `9999`, fills every support type in
+`MrxSupportData.tSupportData` to its `nMaxStock`, and calls `MrxSupportData.SetIgnoreRequirements(true)`.
+Finally it fires the stored done-callback via `MrxUtil.CallWithOptionalArgs`.
 
 ### `SetDefaultAtmosphere()`
 Sets the default atmosphere/bloom/monochrome/contrast settings for non-VZ levels. This function configures various graphics parameters to create a consistent visual environment.
@@ -58,7 +68,14 @@ direct function call when those modules decide the condition is met:
   `_LocalPlayerJoined` as the callback `MrxPlayer` invokes once the local player joins.
 
 ## Notes for modders
-- Ensure that `Start` is called at the beginning of the game to properly initialize the world.
-- Use `SetHeroSpawnLocation` if you need to set a specific spawn point for the hero.
-- Customize atmosphere settings by modifying the parameters in `SetDefaultAtmosphere`.
-- Be aware that enabling `StartWithResources` will grant starting resources to the player, which may not be desirable in all scenarios.
+- **`SetDefaultAtmosphere()` is a big block of concrete graphics tunables** for the non-VZ look — sky
+  `"afternoon"`, time-of-day `0.3` with speed `0` (frozen), bloom (`SetBlurRadius 0.5`, `SetThreshold
+  0.775`, `SetMultiplier 0`), contrast (`SetLimit 0.1`, `SetMultiplier 1.5`), plus full ambient-cube and
+  monochrome-gradient calls, all wrapped in `Graphics.Atmosphere.Begin()`/`.End(8)`. Edit these numbers to
+  reskin the default world lighting. VZ levels skip this entirely.
+- **`StartWithResources` is the "start rich" cheat**: 10M cash, `9999` fuel (capacity + qty), every support
+  type filled to `nMaxStock`, and support requirements ignored. Gated on `Sys.StartWithResources()`.
+- `SetHeroSpawnLocation` only stashes the value in `_sHeroSpawnLocation`; nothing in this file reads it
+  back, so setting it here alone does nothing unless another module consumes it.
+- `_End` runs its body only once both the GUI-loaded and local-player-joined flags are set — don't expect
+  faction/atmosphere setup to happen off just one of them.

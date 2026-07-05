@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, objective]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — confirmed this is the exact inverse of MrxTaskObjectiveDestroy: same single Event.ObjectDeath subscription and bHeroOnly branch, but _TargetDestroyed calls CancelPart (a protected target dying = failure); documented the defend-specific icon overrides
 ---
 
 # MrxTaskObjectiveProtect
@@ -14,7 +14,10 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 *Module: mrxtaskobjectiveprotect.lua*
 
 ## Overview
-The `MrxTaskObjectiveProtect` module is a specific type of task objective that focuses on protecting targets. It inherits from the `MrxTaskObjective` class and adds functionality to handle target deaths, check if targets are valid, and provide various icons for different interfaces (radar, PDA, game space).
+`MrxTaskObjectiveProtect` is a "keep these alive" objective — it fails the moment a target dies. Structurally
+it is the **inverse of [`MrxTaskObjectiveDestroy`](mrxtaskobjectivedestroy)**: identical single
+`Event.ObjectDeath` subscription and `bHeroOnly` branch, but its handler calls `CancelPart` (a dead target is
+a loss) where Destroy calls `CompletePart`. It swaps in "defend" art and text.
 
 ## Inheritance
 - Inherits from: `MrxTaskObjective`
@@ -56,7 +59,10 @@ Returns the game space icon for the target, which is "HUD_objective_defend".
 - Listens for `Event.ObjectDeath` to call `_TargetDestroyed` when a target object dies.
 
 ## Notes for modders
-- Ensure that `Activated` and other lifecycle functions are called appropriately to manage task objective behavior.
-- Customize target validation by modifying the `_IsValidTarget` function.
-- Adjust icons by changing the return values of `_GetTargetRadarIcon`, `GetInlineIcon`, `_GetTargetPdaIcon`, and `_GetTargetGameSpaceIcon`.
-- Be aware that network synchronization may affect multiplayer behavior, especially if targets are player-controlled.
+- **There is no timed "success" here** — a protect objective only *fails* (on target death). Whatever
+  parent mission/task owns it decides when protecting is "done enough" (e.g. a sibling objective completing,
+  or a timer on the parent task). This class just watches for death.
+- **`bHeroOnly`** narrows the fail condition to deaths caused by a player's hero — niche, but present (same
+  branch as [`MrxTaskObjectiveDestroy`](mrxtaskobjectivedestroy)).
+- Defend art overrides: radar `"objective_defend"`, world `"HUD_objective_defend"`, PDA
+  `"icon_defend_1_mc"` / `"icon_defend_2_mc"`, inline `"[objdefend]"` / `"[objdefend2]"`.

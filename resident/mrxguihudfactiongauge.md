@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, faction]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: DELETED fabricated Events section (source has ZERO Event.* calls — no ObjectHibernation/TimerRelative/PlayerJoined; timers use a native oTimer object + GuiUpdate handler); corrected Instance pattern (stateless module + per-widget CustomData, not a singleton — the buffer duplicates one gauge per faction); surfaced all module constants (_knMin/_knMax/_ksPursuit, level thresholds {0,25,50,75}, level colors, mood/delta colors); flagged Initialize referencing undefined _RiseToValue/_CancelRise'
 ---
 
 # MrxGuiHudFactionGauge
@@ -18,18 +18,22 @@ The `MrxGuiHudFactionGauge` module is responsible for managing the graphical rep
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGuiBase`
+- Imports: `MrxGuiBase` (via [`import("MrxGuiBase")`](../glossary#importname)) — uses `MrxGuiBase.Widget.SetVisible` (saved as `_RealSetVisible`). See [MrxGuiBase](mrxguibase).
 
 ## Instance pattern
-**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
-`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD gauge, not something
-spawned per world object. Key fields:
-- `_knMin`: Minimum value of the faction gauge (0).
-- `_knMax`: Maximum value of the faction gauge (100).
-- `_ksPursuit`: String key for the pursuit label ("[0x1cab5133]").
-- `_tLevels`: Array to store the level thresholds.
-- `_tLevelNames`: Array to store the names corresponding to each level.
-- `_tLevelColors`: Array of tables, each containing RGB values for the color of each level.
+**Stateless module + per-widget `CustomData`.** The module-level level tables (`_tLevels`/`_tLevelNames`/`_tLevelColors`) are shared configuration, set once by `Init()` (or overridden by `SetLevels`). Everything else is per-gauge: `Initialize(oWidget)` populates that gauge's `oWidget.CustomData` (bar/delta/icon/mood/pursuit child widgets, animation points, cached geometry) and copies the module functions onto the widget as methods (`oWidget.SetValue = SetValue`, `oWidget.StartPursuit = StartPursuitGauge`, etc.). It is **not** a singleton — [MrxGuiHudFactionBuffer](mrxguihudfactionbuffer) duplicates one gauge widget per faction from a template.
+
+### Module constants & configuration (the tunables)
+- `_knMin = 0`, `_knMax = 100` — the gauge's value range.
+- `_ksPursuit = "[0x1cab5133]"` — localized-string hash for the pursuit label text (shown while a pursuit is active). See [hash-lookup](../hash-lookup).
+- `_tLevels` (default `{0, 25, 50, 75}`) — the four mood-band thresholds, set by `Init()`.
+- `_tLevelNames` (default `{"[0x671b379b]", "[0x7c4225bc]", "[0xdb614732]", "[0x8c4d842e]"}`) — localized-string hashes for the four band names.
+- `_tLevelColors` — per-band bar RGB, set by `Init()`: band1 `{255,96,96}` (red), band2 `{160,160,160}` (grey), band3 `{96,96,255}` and band4 `{96,96,255}` (blue). Applied to `oGaugeFront:SetColor`.
+- **Delta-bar colors** (the trailing change indicator, in `SetValueAndLevel`): dropping = `(128,0,0)` dark red, rising = `(0,128,0)` dark green.
+- **Mood-text animation points** (in `Initialize`): raise = `(64,255,64)`, lower = `(210,0,0)`, plus the widget's original color as the rest point.
+- **Pursuit bar color**: `oGaugeFront:SetColor(210, 0, 0)` while pursuit runs.
+
+`Init()`, `SetLevels`, and the level tables above are the "re-skin the reputation UI" levers. `SetLevels(tThresholds, tNames, sPursuitName, bDisplayResult)` validates its input (thresholds must be numbers, ascending, first == 0; names must be strings and equal in count) and `Debug.Printf`s a specific error and returns `false` on any violation.
 
 ## Functions
 
@@ -150,23 +154,22 @@ Checks if the widget is currently active.
 
 ## Events
 
-- **Event.ObjectHibernation**: Listens for this event to activate or deactivate the widget instance.
-- **Event.TimerRelative**: Used by `StartTimer` and `_AnimateToEnd` to handle timed animations and callbacks.
-- **Event.PlayerJoined / Event.PlayerLeft**: May be used to adjust visibility or behavior based on player session changes.
+{: .warning }
+> **This file contains zero `Event.*` engine calls** (grep-confirmed). The earlier draft listed `Event.ObjectHibernation`, `Event.TimerRelative`, and `Event.PlayerJoined/PlayerLeft` — **none exist in the source** and have been removed. Nothing here subscribes to or posts an engine event.
+
+Timing and callbacks are handled without the engine `Event` system:
+- **The gauge timer** (`StartTimer`/`StopTimer`) drives a native timer *object* stored at `oWidget.CustomData.oTimer` — `oTimer:Start(nTime)`, `oTimer:Stop()`, `oTimer:SetCallback(...)`. When it fires, `_TimerCallback` runs the stored Lua callback.
+- **The faction "countdown" timer** (`_InitializeFactionTimer` / `StartFactionTimer` / `_UpdateTimer`) uses a per-frame widget handler: `oTimer:SetEventHandler("GuiUpdate", _UpdateTimer)` (a widget `EventHandlers` key, not `Event.*`), counting down `nTime` and formatting `MM:SS:CS` text.
+- **Bar/color transitions** are `AnimateToPoint` tweens with Lua callback chains (`_TransitionToLevel`, `_FinishGaugeAnimation`, `_Animate`), not events.
+- **The pursuit ring** uses `oPursuit:SetClockAnimation(...)` + `oPursuit:SetClockAnimationCallback(_PursuitAnimationComplete, ...)`.
 
 ## Notes for modders
 
-1. **Call-order requirements**:
-   - Ensure that `Init()` is called before using any other functions in the module, as it sets up essential data structures and validation.
-   - `Initialize(oWidget)` must be called after creating a widget to set up its custom data and methods.
+- **Re-skin the reputation bands**: change `_tLevels` (thresholds), `_tLevelNames` (label hashes), and `_tLevelColors` (per-band RGB) in `Init()`, or call `SetLevels(...)` at runtime. Thresholds must start at `0`, be ascending, and match the name count, or `SetLevels` logs a `"Faction display level setup error: ..."` line and returns `false` without applying anything.
+- **`SetLevels` does NOT update `_tLevelColors`** — it only rewrites `_tLevels`, `_tLevelNames`, and (optionally) `_ksPursuit`. If you change the number of bands via `SetLevels`, the color array from `Init()` can end up mismatched. Edit `Init()` for a consistent re-skin.
+- **`bDisplayResult` on `SetLevels`** prints each band range and name via `Debug.Printf` (`"[min, max) = name"`) — handy when watching the log to confirm your thresholds parsed.
+- **`GetBarValueAndName` computes but discards `nBarValue`**: it returns `nValue` (raw) and the level name, not the normalized bar value — a likely decompiler-visible quirk; don't rely on the first return being clamped/normalized.
+- **Interaction with the buffer**: this module renders one gauge; slot placement, lifetime, and the two-at-a-time limit are handled by [MrxGuiHudFactionBuffer](mrxguihudfactionbuffer), which calls these methods (`SetValue`, `StartTimer`, `StartPursuit`, `SetIcon`) on each duplicated gauge.
 
-2. **Pitfalls**:
-   - Modifying `_tLevels`, `_tLevelNames`, or `_tLevelColors` directly after initialization may lead to inconsistent behavior unless the module is re-initialized.
-   - Incorrect input to `SetLevels` can result in validation errors and logged messages, so ensure that thresholds are in ascending order and start at 0.
-
-3. **Tunables**:
-   - Adjusting `_knMin` and `_knMax` can change the range of the faction gauge but may require corresponding changes in other related data structures.
-   - Modifying `_tLevelThresholds`, `_tLevelNames`, and `_tLevelColors` allows customization of the gauge's appearance and behavior.
-
-4. **Decompiler artifacts**:
-   - Unused locals or redundant operator groupings are decompiler artifacts and should be ignored when interpreting the code logic.
+{: .note }
+> **`Initialize` references two undefined functions.** Lines 182-183 set `oWidget._RiseToValue = _RiseToValue` and `oWidget._CancelRise = _CancelRise`, but neither `_RiseToValue` nor `_CancelRise` is defined anywhere in this file — both evaluate to `nil`, so those two methods are effectively unset. Likely leftover from a refactor; nothing in this file calls them.

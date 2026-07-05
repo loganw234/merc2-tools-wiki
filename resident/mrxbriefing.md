@@ -12,11 +12,12 @@ inherits: none
 tags: [briefing, UI]
 
 verified: true
-verified_note: corrects the Instance pattern (singleton module table, not per-uGuid) and the fabricated
-  Events section; adds confirmed mechanism detail for Start/_DisplayRootMenu/_BriefingSelected/_LoadSpiel/
-  _FileLoaded/_HandleConfirmDialogInput/_AcceptOrDeclineMission/_End/_EndBegin/_UnloadSpiel/
-  _GetSelectedBriefingConfig/GetSpielFileName from building and debugging a real custom contract end to
-  end — see the [Custom Contract deep dive](../deep-dives/custom-contract) for the full investigation.
+verified_note: 'deeper pass: added a Module constants section with the full CHEAP_* (1-17, incl. the
+  previously-omitted CONFIRM/DECLINE/INTRO 14-16) and NETEVENT_* (0-3) enums, the default camera-effects
+  table, and the forced shadow-base-distance; all prior confirmed mechanism detail (Start/_LoadSpiel/
+  _FileLoaded/_AcceptOrDeclineMission/_End/_EndBegin/_UnloadSpiel/GetSpielFileName and the fabricated-Events
+  correction) re-verified against source. Custom-contract crash/hang findings unchanged — see the
+  [Custom Contract deep dive](../deep-dives/custom-contract).'
 
 ---
 
@@ -84,6 +85,26 @@ one active briefing session at a time, tracked in module-level fields, not one i
 - `_nBaseShadowDistance`: Base shadow distance setting before it is modified for briefing purposes.
 
 
+
+## Module constants
+
+Confirmed from the top and bottom of the source:
+
+**`CHEAP_*` cheap-cinematic types** (the `nType` passed to `_CreateCheapCinematic`/`NetSafePlayCheapCinematic`):
+`CHEAP_GREETING = 1`, `CHEAP_SPECIALCASEGREETING = 2`, `CHEAP_STARTINTRO = 3`, `CHEAP_JOBREQUEST = 4`,
+`CHEAP_JOBACCEPT = 5`, `CHEAP_JOBDECLINE = 6`, `CHEAP_WAGERBEGINWIN = 7`, `CHEAP_WAGERBEGINLOSE = 8`,
+`CHEAP_WAGERWON = 9`, `CHEAP_WAGERLOST = 10`, `CHEAP_WAGERCHICKENSUIT = 11`, `CHEAP_HINT = 12`,
+`CHEAP_GOODBYE = 13`, `CHEAP_CONFIRM = 14`, `CHEAP_DECLINE = 15`, `CHEAP_INTRO = 16`, `CHEAP_PMCWAGER = 17`.
+(The earlier list under `_CreateCheapCinematic` omitted 14/15/16 — CONFIRM/DECLINE/INTRO are handled in
+`NetSafePlayCheapCinematic`, not `_CreateCheapCinematic`.)
+
+**`NETEVENT_*` custom-network-event IDs** (dispatched to `NetEventCallback` via
+`Net.SendCustomEvent("MrxBriefing", ...)`): `NETEVENT_ENABLEMARKERS = 0`, `NETEVENT_DISABLEMARKERS = 1`,
+`NETEVENT_DISPLAYMENU = 2`, `NETEVENT_HIDEMENU = 3`.
+
+**`_tDefaultCameraEffects`** — the briefing's default depth-of-field / FOV: `DOF` = `{nAngle=0, nStartNear=0,
+nEndNear=0.3, nStartFar=4, nEndFar=10, nBlur=0.5}`, `FOV` = `{nAngle=55}`. Shadow base distance is forced to
+`2` for the duration of a briefing (`Graphics.SetShadowBaseDistance(2)` in `Start`, restored in `_EndBegin`).
 
 ## Functions
 

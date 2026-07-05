@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxLaserGuidedBomb
 tags: [support, bomb]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: documented the standard-vs-nuclear FinalExplosion branch, the multi-stage timer chain (0.5/1/1.5/2.75s) and its exact particle/explosion template strings, the AfterShock random-demolition loop, and the "Nuked"/"Busted" Event.Post signals; cross-linked MrxLaserGuidedBomb/Airstrike'
 ---
 
 # MrxBunkerBuster
@@ -14,11 +14,16 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxbunkerbuster.lua*
 
 ## Overview
-The `MrxBunkerBuster` module is responsible for managing the behavior of a bunker buster support weapon in the game. It inherits from `MrxLaserGuidedBomb` and extends its functionality to handle specific behaviors related to bunker destruction, including visual effects and building demolition.
+`MrxBunkerBuster` is the laser-guided "penetrator" support weapon: it reuses the whole drop/guidance
+pipeline of its parent [`MrxLaserGuidedBomb`](mrxlaserguidedbomb) and only overrides `BombExplodes` to play
+a dramatic **multi-stage** detonation — staged ground shockwaves, a big final blast, then a randomized wave
+of nearby-building demolition. It has two modes selected purely by which projectile guid was loaded: a
+standard `"Bunker Buster Projectile"` and a `"Nuclear Bunker Buster Projectile"` (the tactical-nuke path,
+which fires the [tact-nuke screen grade](airstrike_atomsphere_tactnuke)).
 
 ## Inheritance
-- Inherits from: `MrxLaserGuidedBomb`
-- Imports: `MrxSupportDesignatorLaser`
+- Inherits from: [`MrxLaserGuidedBomb`](mrxlaserguidedbomb) → [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorLaser`](mrxsupportdesignatorlaser)
 
 ## Instance pattern
 **Same class-factory pattern as [`MrxLaserGuidedBomb`](mrxlaserguidedbomb)/[`MrxSupport`](mrxsupport), not
@@ -35,33 +40,64 @@ its parent chain. No `OnActivate`/`Awake`, no `tInstance` registry. It tracks th
 - `uDeliveryVehicle`: The GUID of the delivery vehicle.
 - `uSpawnedBomb`: The GUID of the spawned bomb projectile.
 
+## Module constants & templates
+Set at file scope (module-level globals, not `local`):
+- `sBomb = "Bunker Buster Projectile"` and `uBomb = Pg.GetGuidByName("Bunker Buster Projectile")`.
+- `tVOCues` — three `"Misha-None-Freeplay-Support-*"` lines (02/12/20).
+
+Explosion/particle template strings spawned by the detonation chain (all via `Pg.Spawn` /
+`MrxUtil.SpawnObject` / `Graphics.Effect.Terrain`, so all editable only as engine assets):
+- `"Explosion (Bunker Buster Stage 1)"`, `"Explosion (Bunker Buster Stage 2)"`,
+  `"Explosion (Airstike Bomb Final Strike)"` (note the engine's own `Airstike` typo).
+- `"global_particle_exp_shockwave_ground_bunkerbuster"` (ground shockwave).
+- Nuclear branch: `"global_particle_airstrike_tactnuke"` and
+  `"global_particle_exp_shockwave_ground_tactnuke"` (spawned at named location `"loc_shockwave"`).
+
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Creates a new per-instance table for the bunker buster support weapon using the module's prototype. It initializes various fields such as the designator, owner, recruit type, and bomb details.
+Class-factory constructor. Builds a [`MrxSupportDesignatorLaser`](mrxsupportdesignatorlaser), sets owner /
+recruit `"Pilot"` / module name, copies delivery-vehicle and bomb fields onto the instance, and — notably —
+copies `self.BombExplodes` onto the instance so the parent's `DropBomb` (inherited from
+[`MrxLaserGuidedBomb`](mrxlaserguidedbomb)) calls *this* module's override.
 
 ### `BombExplodes(self)`
-Handles the explosion of the bunker buster bomb. It logs debug information, spawns initial explosions, kills the spawned bomb, and schedules subsequent ground explosions and a final explosion using timers.
+Override of the parent stub. Reads `self.uSpawnedBomb`'s position, spawns `"Explosion (Bunker Buster Stage
+1)"`, kills the bomb object, then schedules a staged shockwave chain via `Event.Create(Event.TimerRelative, …)`:
+`GroundExplosion` at **+0.5 s (r=20), +1 s (r=45), +1.5 s (r=65)**, and `FinalExplosion` at **+2.75 s**.
 
 ### `FinalExplosion(self, nBombX, nBombY, nBombZ)`
-Manages the final stages of the bomb explosion. Depending on whether the bomb is a standard bunker buster or a nuclear one, it spawns appropriate visual effects and triggers after-shock events. It also posts an event to indicate that the area has been "nuked" if applicable.
+Branches on which projectile guid `self.uBomb` holds:
+- **Standard** (`"Bunker Buster Projectile"`): spawns `"Explosion (Bunker Buster Stage 2)"`, then schedules
+  `AfterShock` with radius **50** at +2 s.
+- **Nuclear** (`"Nuclear Bunker Buster Projectile"`): spawns the tact-nuke particle, spawns the ground
+  shockwave at `"loc_shockwave"` at +1 s, schedules `AfterShock` radius **80** at +2 s, and `Event.Post("Nuked", {x,y,z})` at +2 s so other systems can react to a nuke detonation.
 
 ### `GroundExplosion(radius, density, nBombX, nBombY, nBombZ)`
-Spawns ground shockwave effects around the bomb's impact point using the provided radius and density parameters.
+Draws a terrain shockwave decal with `Graphics.Effect.Terrain("global_particle_exp_shockwave_ground_bunkerbuster", radius, density, nBombX, 0, nBombZ)`. Called from the timer chain with escalating radii.
 
 ### `AfterShock(self, nRadius, nBombX, nBombY, nBombZ)`
-Handles the after-shock effects of the bomb explosion. It collects buildings within a specified radius, calculates random delays for demolishing them, and schedules demolition events using timers.
+Posts `Event.Post("Busted", {x,y,z})`, collects buildings in range with
+`Pg.FastCollectBuildings(nBombX, nBombY, nBombZ, nRadius)`, and for each schedules a `Demolish` after a
+random `math.randf()`-based delay — so buildings topple in a staggered wave rather than all at once.
 
 ### `Demolish(building)`
-Demolishes a building by spawning an explosion effect at its position.
+Spawns `"Explosion (Airstike Bomb Final Strike)"` at a building's position (guarded by a position check).
 
 ## Events
-- Listens for custom event `BombExplodes` to handle the bomb's explosion sequence.
-- Listens for custom event `FinalExplosion` to manage the final stages of the bomb explosion.
-- Listens for custom event `GroundExplosion` to spawn ground shockwave effects.
-- Listens for custom event `AfterShock` to handle after-shock effects and building demolition.
+- **No `Event.Create` subscriptions.** All `Event.*` use is either **`Event.TimerRelative` scheduling**
+  (the staged 0.5/1/1.5/2.75/+2 s chain above) or **`Event.Post`** broadcasts: `"Nuked"` (nuclear branch)
+  and `"Busted"` (every AfterShock). Modules elsewhere can subscribe to those two signals.
+- `BombExplodes`/`FinalExplosion`/`GroundExplosion`/`AfterShock`/`Demolish` are plain functions invoked via
+  the timer chain and the inherited drop pipeline — they are not event handlers.
 
 ## Notes for modders
-- Ensure that the `Create` function is called appropriately to initialize the bunker buster support weapon.
-- Customize bomb behavior by modifying fields such as `sBomb`, `uBomb`, and `tVOCues`.
-- Be aware of the impact radius and density parameters in `GroundExplosion` to adjust visual effects.
-- Use the `AfterShock` function to manage building demolition and after-shock events.
+- **Radius/timing are the real levers, and they're plain numeric literals in the timer chain** — override
+  `BombExplodes` or `AfterShock` (both plain globals) to change the shockwave radii (20/45/65), the demolish
+  radius (50 / 80 nuclear), or the stage timings.
+- **The standard-vs-nuclear split keys entirely off `self.uBomb`** (the guid of `"Bunker Buster Projectile"`
+  vs `"Nuclear Bunker Buster Projectile"`). Set `uBomb` to the nuclear projectile's guid before firing to
+  get the nuke path (bigger radius + tact-nuke FX + `"Nuked"` broadcast).
+- Listen for the `Event.Post("Nuked", …)` / `Event.Post("Busted", …)` broadcasts if you want your own mod to
+  react to a bunker-buster/nuke detonation.
+- The staged demolition uses `Pg.FastCollectBuildings` — buildings outside `nRadius` of the impact are never
+  touched.

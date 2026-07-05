@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTask
 tags: [mission, task]
 verified: true
-verified_note: read directly from source -- corrects Instance pattern (class-factory via MrxTask, not per-uGuid), removes a fabricated bNetSync reference, and clarifies IsContract/IsJob as override points confirmed used by MrxTaskContract/MrxTaskJob
+verified_note: deeper pass — re-confirmed every function against source (Activated/Cleanup/_PlayVo/RefreshPdaDisplay recursion/GetMissionId=parent name/IsContract+IsJob override points, both confirmed overridden in MrxTaskContract/MrxTaskJob); _knContract/_knJob are module constants; no changes needed
 ---
 
 # MrxTaskMission

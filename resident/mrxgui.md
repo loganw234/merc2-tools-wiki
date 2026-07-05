@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: corrected Events section (UpdateLoadingHint is a widget SetEventHandler binding, not an Event.* constant; file has exactly one real Event.* call); flagged dead _oTimerEvent guard in GlobalFadeFromBlack
+verified_note: 'deeper pass: documented the full Init() aliasing table (MrxGui is a facade that copies MrxGuiBase widget classes + add/remove/getbyname functions, plus MrxGuiDialogBox/MrxGuiNumericBox entry points, into this namespace — this is why every HUD module calls MrxGui.GetWidgetByNameAndOwner / MrxGui.ImageWidget:new); surfaced the loadingscreen_standalone fade SWF, fade widget name, reticle default 48, E3HudMode SendEvent dispatch, AddMessage defaults; re-confirmed the single Event.Delete + dead _oTimerEvent guard'
 ---
 
 # MrxGui
@@ -14,14 +14,26 @@ verified_note: corrected Events section (UpdateLoadingHint is a widget SetEventH
 *Module: mrxgui.lua*
 
 ## Overview
-The `MrxGui` module serves as a facade/alias for the Scaleform-based GUI/HUD system in Mercenaries 2. It provides functions to manage various aspects of the user interface, including dialog boxes, numeric input boxes, and global screen fades. This module is crucial for controlling visual elements that interact with players during gameplay.
+`MrxGui` is the **top-level GUI facade** for Mercenaries 2. Most of its surface is not defined here — `Init()` copies the widget classes and widget-management functions from [MrxGuiBase](mrxguibase) (plus the dialog/numeric-box entry points) into the `MrxGui` namespace. That is why virtually every HUD module in this category calls `MrxGui.GetWidgetByNameAndOwner(...)`, `MrxGui.ImageWidget:new()`, `MrxGui.AddWidget(...)`, `MrxGui.FlashWidget:new()`, etc. — those are aliases established here. On top of that aliasing, this file *originally* implements a handful of things: the objective-description callback, global screen fades (both a Scaleform wipe and a flat color fade), HUD messages, the E3 demo-mode toggle, and a couple of shell/reticle lookups.
+
+The global fade-to-black uses a Scaleform `FlashWidget` (the `loadingscreen_standalone` movie with the spinning skull + loading hints); the simpler `FadeToColor`/`FadeFromColor` uses a plain full-screen `ImageWidget`.
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `MrxGuiBase`, `MrxGuiDialogBox`, `MrxGuiNumericBox`, `MrxUtil_Shell`
+- Imports (via [`import()`](../glossary#importname)): `MrxGuiBase`, `MrxGuiDialogBox`, `MrxGuiNumericBox`, `MrxUtil_Shell` — see [MrxGuiBase](mrxguibase), [MrxGuiDialogBox](mrxguidialogbox), [MrxGuiNumericBox](mrxguinumericbox), [MrxUtil_Shell](mrxutil_shell). Also calls the [Gui](../namespaces/gui) and [Sys](../namespaces/sys) namespaces and the `MessageBox`/`Pda`-style singletons.
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but rather provides global functions to interact with the GUI system.
+**Stateless facade + module-level globals.** No `tInstance`/metatable. State is a few module globals: the fade-flash singleton `_oFadeFlash`, the color-fade widget `_oGlobalScreenFadeWidget`, the fade counters `_nGlobalFadeCountNew`/`_nGlobalFadeCount`, the objective callback `_fObjectiveInformationCallback`/`_tObjectiveInformationCallbackData`, and the E3 flag `_bE3HudModeOn`. The many top-level `X = 0` declarations (`AddWidget = 0`, `ImageWidget = 0`, …) are placeholders that `Init()` overwrites with the real `MrxGuiBase.*` references.
+
+### The facade / aliasing table (set by `Init()`) — HIGH modder value
+`Init()` binds these `MrxGui.*` names to their real implementations:
+- **Widget classes** (call `:new()` on these): `Widget`, `ImageWidget`, `TextWidget`, `FlashWidget`, `SpriteWidget`, `MovieWidget`, `MinimapWidget` ← `MrxGuiBase.*`.
+- **Widget management**: `AddWidget`, `AddWidgetWithChildren`, `RemoveWidget`, `RemoveWidgetWithChildren`, `RemoveEverySingleWidget` (← `MrxGuiBase.WidgetManager.RemoveAll`), `PushWidgetToFront`/`PushWidgetToBack`, `PushAllTextToFront`.
+- **Lookup**: `GetWidgetByName`, `GetAllWidgetsByName`, `GetWidgetByNameAndOwner` ← `MrxGuiBase.*`.
+- **Layout**: `LoadGuiFile`/`LoadGUIFile` (← `MrxGuiBase.LoadGUIFile`), `UnloadGuiFile`, `RemoveAllWidgets`/`RemoveAllWidgetsInLayout`, `DeleteTransientWidgets`, `ReAddAllWidgets`, `HideAllWidgets`, `ShowAllWidgets`, `SetAllWidgetsSleep`, `AssignLayoutToPlayer`, `DuplicateLayout`.
+- **Dialog/numeric**: `DisplayDialogBox` ← `MrxGuiDialogBox.DisplayDialogBox`, `CloseDialogBox` ← `MrxGuiDialogBox.Close`, `DisplayNumericBox` ← `MrxGuiNumericBox.DisplayNumericBox`.
+- **Input constants**: `Joystick` ← `MrxGuiBase.Joystick` (the button-id table other modules read).
+- **Event dispatch**: `SendEvent` ← `MrxGuiBase.SentEvent` (note the source's `SentEvent` spelling).
 
 ## Functions
 ### `GetObjectiveDescription(uGuid)`
@@ -115,7 +127,15 @@ event-handler mechanism, not the engine `Event.*` system:
   update binding, cleared again inside `_FadeUpdate` itself.
 
 ## Notes for modders
-- Ensure that the `Init()` function is called appropriately to set up GUI-related functionality.
-- Use `AddMessage` to display custom messages on the HUD, and `ClearMessages` to clear them.
-- Customize fade effects by adjusting parameters in `FadeToColor` and `FadeFromColor`.
-- Be aware of the E3/HUD mode toggle and its effect on UI elements when developing modded content.
+- **`MrxGui.*` widget calls resolve here**: if you see `MrxGui.ImageWidget:new()` or `MrxGui.GetWidgetByNameAndOwner(...)` in another HUD module, the real function lives in [MrxGuiBase](mrxguibase) — this facade just re-exports it. Before `Init()` runs those names are literally `0`, so nothing in this namespace works until the GUI bootstrap has called `Init()`.
+- **Global fade-to-black**: `GlobalFadeToBlack(fCallback, tData)` / `GlobalFadeFromBlack()` drive the Scaleform `loadingscreen_standalone` movie (skull spin + loading hints via `HandleLoadingHint` → `textDisplay`). They're **reference-counted** (`_nGlobalFadeCountNew`) so nested fades stack — every `GlobalFadeToBlack` must be paired with a `GlobalFadeFromBlack` or the screen stays black. Loading hints are toggled through `Gui.ShowLoadingHints`.
+- **Flat color fade**: `FadeToColor(nTime, uPlayerGuid, nR, nG, nB, nAlpha)` / `FadeFromColor(nTime, uPlayerGuid)` fade a full-screen `ImageWidget` (defaults: color black `0,0,0`, alpha `255`, time `1`s). Pass a `uPlayerGuid` for a split-screen per-player fade, or `nil` for the shared global one (`_oGlobalScreenFadeWidget`, also ref-counted via `_nGlobalFadeCount`). The fade widget is named `"Fullscreen Fade Effect Widget"`.
+- **`AddMessage(tArgs)`**: forwards to `MessageBox:AddMessage`. Recognized keys: `sText`, `iPriority` (default 5), `nDuration` (default 2s), `nFadeTime` (default 0.5s), `bClear`, `bExclusive`. `ClearMessages()` clears them.
+- **E3/demo mode**: `SetE3HudMode(bOn)` fires a GUI event `{EventType = "E3HudMode", bOn = ...}` via `SendEvent` — this is what the `HandleE3HudModeEvent` handlers across the HUD widgets (ammo, health, damage-indicator, etc.) respond to. `IsE3HudModeActive()` reads the flag. `Init()` auto-enables it when `Sys.IsDemoMode()` is true.
+- **`GetReticleSize(uPlayer)`** returns the width of the `"reticle image"` widget, defaulting to `48` if absent. `FindShellWidget()` returns the flash id of the `"Shell"` widget or `nil`.
+- **Objective descriptions**: `SetObjectiveInformationCallback(fCallback, tData)` registers a provider that `GetObjectiveDescription(uGuid)` calls; `RemoveObjectiveInformation(oObjective)` unregisters one entry.
+
+{: .note }
+> **Confirmed dead code** in `GlobalFadeFromBlack`: it guards `if _oTimerEvent then Event.Delete(_oTimerEvent) ... end`, but `_oTimerEvent` is initialized to `nil` and never assigned anywhere in this file (no `Event.Create` sets it), so the guard is always false. This is the module's only `Event.*` call and it never runs — leftover from a removed timer-based fade path.
+
+- **Debug noise**: the fade functions `Debug.Printf` several `~~~~~~ GlobalFadeToBlack, count = N` lines — engine log spam, ignore when watching logs.

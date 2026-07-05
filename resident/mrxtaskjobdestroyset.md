@@ -6,7 +6,10 @@ nav_order: 1
 inherits: MrxTaskJob
 tags: [mission, task]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskJob](mrxtaskjob) for the general mechanism.
+verified_note: 'deeper pass: confirmed all functions; documented the per-target 4-layer swap on kill
+  (pristine/staging/defense removed, destroyed added), the MrxTaskObjectiveDestroy child config
+  (icon_destroy_3_mc PDA icon, quota = target count), the 150/200 near/far radii, and MrxStatsManager.JobDestroyPart;
+  cross-linked MrxTaskObjectiveDestroy/MrxLayerManager/MrxVoSequence; corrected Events section.'
 ---
 
 # MrxTaskJobDestroySet
@@ -33,7 +36,15 @@ identified by name/lineage rather than a world-object GUID. Key fields:
 Adds a target to the task. If the first argument is a table, it configures the target with additional layers (staging, defense, pristine). Otherwise, it calls the base class's `_AddTarget` method.
 
 ### `_Go(self, fCallback, tCallbackArgs)`
-Starts the task by excluding completed targets, adding the task to the PDA, and creating an objective instance (`MrxTaskObjectiveDestroy`). This objective manages the destruction of targets, updates layers as targets are destroyed, and tracks progress. It also handles callbacks for activation, part completion, completion, and cancellation.
+Creates the child [`MrxTaskObjectiveDestroy`](mrxtaskobjectivedestroy) (named `"DestroySet"`) covering the
+named target list: `vTgtInclude = self:_GetTargetList()`, `vTgtExclude` = already-completed parts,
+`nQuota` = remaining targets + completed count, `bDspBounty = true`, PDA icon `"icon_destroy_3_mc"`. On
+`fOnActivate` it arms proximity/VO tracking via the inherited `_CreateNearbyEvent` then runs `fCallback`. Its
+`fOnPartComplete(uGuid)` does the **per-target layer swap** through [`MrxLayerManager`](mrxlayermanager):
+removes that target's `sPristineLayer`/`sStagingLayer`/`sDefenseLayer` and adds its `sDestroyedLayer` (each
+guarded), calls the inherited `_TargetComplete`, then
+[`MrxStatsManager.JobDestroyPart`](mrxstatsmanager)`(self:GetFactionId())`. `fOnComplete`/`fOnCancel` route to
+`self:Complete()`/`self:Cancel()`.
 
 ### `_GetPerTargetLayerKeys(self)`
 Returns a list of keys used to store per-target layer information (target, pristine, staging, defense).
@@ -45,14 +56,23 @@ Returns the radius within which targets are considered "near" (150 units).
 Returns the radius beyond which targets are considered "far" (200 units).
 
 ### `_TargetNearby(self, uGuid)`
-Handles nearby target logic. If the target is alive and has a near-VO sequence, it starts that sequence. Otherwise, it calls the base class's `_TargetNearby` method.
+Overrides the base: if the target is alive **and** has a per-target `vNearVoSequence`, plays it directly via
+[`MrxVoSequence.Start`](mrxvosequence) at `knPriorityBounties`. Otherwise falls back to
+`MrxTaskJob._TargetNearby` (the shared nearby-VO-hat behavior). Note it only acts on a live target — a
+destroyed target near the player produces no VO.
 
 ## Events
-- Listens for custom events related to target completion and destruction within the objective instance.
-- Responds to target activation by creating nearby events and starting VO sequences if applicable.
+No `Event.*` calls of its own. The proximity events are created by the inherited
+[`MrxTaskJob._CreateNearbyEvent`](mrxtaskjob) (fired from this subclass's `fOnActivate`) using this class's
+`150`/`200` near/far radii. `fOnActivate`/`fOnPartComplete`/`fOnComplete`/`fOnCancel` are config callbacks on
+the child [`MrxTaskObjectiveDestroy`](mrxtaskobjectivedestroy), invoked directly — not subscriptions.
 
 ## Notes for modders
-- Ensure that targets are correctly configured with their respective layers (staging, defense, pristine) when adding them to the task.
-- Use `_Go` to start the task and provide any necessary callbacks for task completion or cancellation.
-- Customize target behavior by modifying the objective instance's properties and methods.
-- Be aware of the radius thresholds (`_GetNearRadius`, `_GetFarRadius`) that affect how targets are handled.
+- **Per-target config via the table form of `_AddTarget`:** pass `{sTarget=, sPristineLayer=, sStagingLayer=,
+  sDefenseLayer=, sDestroyedLayer=, sMilestoneKey=}`. The first three layers are removed and `sDestroyedLayer`
+  is added when that target dies — the standard "building intact → rubble" swap. `sMilestoneKey` awards a
+  mission-flow key on that specific kill.
+- **Proximity radii are `150`/`200`** (near/far) here, vs. the `30`/`60` base — destroy targets are large
+  (buildings/vehicles), so the "you're near an objective" trigger fires from much further out. Override
+  `_GetNearRadius`/`_GetFarRadius` to change them (they're no-arg return-a-constant override points).
+- `nQuota` is derived automatically (`#targets + completed`); you set the target set, not the count.

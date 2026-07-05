@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud, resource]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: DELETED fabricated Events section (zero Event.* calls — no CounterUpdate/Show/SetValue) and fabricated Instance-pattern fields (_nValue/_sAppendedString/_bTicking/etc. do not exist; state is in CustomData); surfaced real constants (money magnitude thresholds 1M/100K, cash sounds, tick times, pulse colors, _tNumbers suffix hashes, _knBufferSize=4) and the Money/Fuel Counter branching; pruned OnActivate/Awake boilerplate'
 ---
 
 # MrxGuiHudResourceCounter
@@ -18,20 +18,22 @@ The `MrxGuiHudResourceCounter` module is responsible for managing and displaying
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGui`, `MrxPmc`
+- Imports (via [`import()`](../glossary#importname)): `MrxGui`, `MrxPmc` — see [MrxGui](mrxgui) and [MrxPmc](mrxpmc). `MrxPmc.GetFuelCapacity()` supplies the low-fuel threshold; the money-formatting suffixes are localized-string hashes.
 
 ## Instance pattern
-**Not per-`uGuid` — a singleton module.** Confirmed: only a one-time `Init()` setup function, no
-`OnActivate`/`Create`/`tInstance` registry anywhere in source. This is one shared HUD counter, not
-something spawned per world object. Key fields:
-- `_nValue`: The current value of the counter.
-- `_sAppendedString`: An optional string appended to the counter's display.
-- `_bTicking`: A boolean indicating whether the counter is currently animating.
-- `_nTickSpeed`: The speed at which the counter ticks.
-- `_bSuppressed`: A boolean indicating whether the counter should be suppressed (not shown or updated).
-- `_tReasonList`: A list of reasons and their associated amounts that contribute to the counter's value.
-- `_knBufferSize`: The buffer size for displaying reasons, set to 4.
-- `_tNumbers`: A table mapping numerical factors to their corresponding suffixes for formatting large numbers.
+**Stateless module + per-widget `CustomData`.** All mutable state lives on the counter widgets in `oWidget.CustomData` (`nCurrentValue`, `nDisplayValue`, `nDeltaValue`, `nTickSpeed`, `bActive`, `bSuppressed`, `nMagnitude`, `sAppend`, `oReasonList`, `bFormatMoney`, `bPersistWhenLow`/`bPersist`). The init functions (`_CounterInitialization`, `_TopLevelInitialization`, `InitReasonList`) copy the module functions onto their widgets as methods (`oSelf.SetValue = SetCounterValue`, `oSelf.Show = _Show`, etc.).
+
+{: .note }
+> The earlier draft listed module-level fields `_nValue`, `_sAppendedString`, `_bTicking`, `_nTickSpeed`, `_bSuppressed`, `_tReasonList`. **None of these exist in the source** — the corresponding state is per-widget `CustomData`. Removed.
+
+The only real module-level names are the constants below plus `_knBufferSize = 4` (max reasons shown in a reason list) and `_tNumbers` (large-number suffix map, built by `Init()`).
+
+### Module constants (the tunables)
+- **Sounds** (looping tick cues): `_kTickUpSound = "ui_HUD_Money_Gain"`, `_kTickDownSound = "ui_HUD_Money_Lose"`. Magnitude-based one-shots in `SetCounterValue`: `UI_hud_cashUp_large`/`_med`/`_small` and `UI_hud_cashDown_large`/`_med`/`_small`.
+- **Magnitude thresholds** (pick the sound/tick speed): change `> 1000000` (large), `> 100000` (medium), else small — mirrored for negatives at `< -1000000` / `< -100000`.
+- **Tick/animation times**: `_kDefaultTickTime = 0.5`, `_kTickLong = 2.05`, `_kTickMedium = 1.25`, `_kTickShort = 0.5`, `_kPulseTime = 0.2`, `_kWindowTime = 0.1` (open/close shutter time).
+- **Pulse colors** (`_CounterInitialization`): base = widget's authored color; fall/loss = RGB `(255, 64, 64)`; rise/gain = RGB `(255, 255, 255)`.
+- **Number formatting** (`_ConvertNumber`): emits `"[SHELL.Common.Money:whole:tenths:suffix]"`; `_tNumbers` maps `1e3/1e6/1e9/1e12/1e15` to localized suffix hashes (`[0xe00c096a]` for thousands, etc.); values are clamped to `≤ 1e15` and `≥ 0`.
 
 ## Functions
 
@@ -161,26 +163,23 @@ Converts a number into a formatted string with appropriate suffixes for large nu
 Initializes the `_tNumbers` table with mappings of numerical factors to their corresponding suffixes for formatting large numbers.
 
 ## Events
-(list engine events this module subscribes to/fires, and what triggers it)
 
-- **Event.CounterUpdate**: Triggers when the counter's value is updated. This event is handled by `_HandleCounterUpdateEvent`.
-- **Event.Show**: Triggers when the widget needs to be shown. This event is handled by `_HandleShowEvent`.
-- **Event.SetValue**: Triggers when a new value needs to be set for the counter. This event is handled by `_HandleSetValueEvent`.
+{: .warning }
+> **This file has zero `Event.*` engine calls** (grep-confirmed). The earlier draft listed `Event.CounterUpdate`, `Event.Show`, `Event.SetValue` — **none exist** and have been removed. (`tEvent.nTime`/`tEvent.uGuid`/`tEvent.nValue` are just fields of the payload passed to widget handlers, not engine events.)
+
+Animation and value ticking are driven by widget-level handlers via `SetEventHandler("GuiUpdate", ...)`:
+- `_HandleCounterUpdateEvent` — set while a value change is animating; interpolates `nDisplayValue` toward `nCurrentValue` each frame, then halts/persists the pulse when done.
+- `_TopLevelUpdate` — runs the shake effect while ticking and the auto-hide `nVisibleTime` countdown.
+- `_HandleShowEvent(oSelf, tEvent)` / `_HandleSetValueEvent(oSelf, tEvent)` are handler callbacks (wired in a layout), reading `tEvent.nTime` / `tEvent.uGuid`+`tEvent.nValue`. `_HandleSetValueEvent` only applies if `tEvent.uGuid` matches the widget owner or is `nil` (broadcast).
 
 ## Notes for modders
-(call-order requirements, pitfalls, tunables, decompiler artifacts)
 
-- **Call Order Requirements**:
-  - Ensure that `Init()` is called before using any functions related to formatting numbers or managing reasons.
-  - The `OnActivate` and `Awake` lifecycle functions should be used to set up the counter's initial state.
+- **`Init()` must run before any money formatting**: it builds `_tNumbers`. Until then `_ConvertNumber` iterates an unset table (`_tNumbers = false`) and errors — this is the module's one hard init requirement.
+- **Two counter instances** are recognized by widget name in `_CounterInitialization`: `"Money Counter"` (sets `bFormatMoney = true`, so it renders via the `[SHELL.Common.Money:...]` template) and `"Fuel Counter"` (sets `bPersistWhenLow = true` and gives its reason list `nBufferSize = 0`, i.e. no reason lines). Renaming these widgets changes which behavior they get.
+- **Low-fuel persistence**: when `bPersistWhenLow`, the counter stays on screen while its value is at/below `MrxPmc.GetFuelCapacity() * 0.1` (10% of capacity, default `300` → `30`). Gains above that threshold clear the persist flag. Change the `0.1` to re-tune the "low fuel stays visible" band.
+- **Reason list**: each `SetValue` with a `sReason` string adds a line to a floating reason list (`AddReason`); with no reason it falls back to `[Generic.MoneyReasons.Credit]` / `[Generic.MoneyReasons.Debit]`. The list shows a running total colored `[green]`/`[red]`/`[white]`, holds `2`s, fades `0.5`s. `_knBufferSize = 4` caps how many individual lines display (only the most recent 4).
+- **Suppression**: `SetSuppressed(oSelf, true)` snaps the counter to its value without animation/sound and hides it — use it to silently sync a value (e.g. on load) without the tick/shake/cash sounds.
+- **Shake effect**: `_TopLevelUpdate` cycles through 4 hard-coded jitter offsets (`tShakePoints[1..4]`, ±1-2px) while ticking. Purely cosmetic.
 
-- **Pitfalls**:
-  - Modifying the `_tNumbers` table directly can lead to unexpected behavior if the mappings are not correctly formatted.
-  - Directly calling private methods (those prefixed with an underscore) may break encapsulation and lead to maintenance issues.
-
-- **Tunables**:
-  - `_kTickUpSound`, `_kTickDownSound`: These constants control the sound cues for when the counter value increases or decreases. Modifying these can change the auditory feedback.
-  - `_kDefaultTickTime`, `_kTickLong`, `_kTickMedium`, `_kTickShort`, `_kPulseTime`, `_kWindowTime`: These constants control the timing of various animations and updates. Adjusting these values can affect the visual and auditory experience.
-
-- **Decompiler Artifacts**:
-  - The decompiler may produce unused local variables or redundant operator groupings, which should be ignored as they do not affect the functionality of the code.
+{: .note }
+> Do not call the underscore-prefixed helpers directly; the public levers are the methods copied onto the widget (`SetValue`, `ModifyValue`, `SetAppendedString`, `SetTickSpeed`, `Show`, `Hide`, `SetSuppressed`, `IsTicking`).

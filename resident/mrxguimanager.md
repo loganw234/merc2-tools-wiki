@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: function coverage was already accurate and complete; Events section was entirely fabricated (no Event.ObjectHibernation/Awake/HideMarker exist in source) — replaced with the three real MrxGui.SendEvent EventType payloads (E3HudMode, SatelliteStateChange, SatelliteProgressUpdate); added full Instance pattern field list
+verified_note: 'deeper pass: re-confirmed all functions, the three real MrxGui.SendEvent EventType payloads, and the singleton instance pattern against source; added the four master GUI layout asset names (MrxGuiHudLayout2/MrxGuiBinocularsLayout/MrxGuiSatelliteLayout/MrxGuiPdaLayout), the ToggleHud context whitelist, and the cached local-HUD widget names; pruned the vacuous CreateGui boilerplate note'
 ---
 
 # MrxGuiManager
@@ -117,8 +117,21 @@ No `Event.*` calls appear anywhere in this file — there is no `OnActivate`/`Aw
 - `EventType = "SatelliteStateChange"` with `uPlayerGuid`, `bActivate`, `bAdvanced`, `bMinigame` — sent from `ToggleSatellite`.
 - `EventType = "SatelliteProgressUpdate"` with `uPlayerGuid`, `nX`, `nY`, `nZ`, `nPercent` — sent from both `ToggleSatellite` (reset to 0%) and `ApplySatelliteUpdateEvent` (the callback registered via `Player.SetPDAMapModeCallback` in `ToggleSatellite`).
 
+## Module constants & tunables
+- **The four master layout asset names** loaded once by `CreateGui` (via `MrxGui.LoadGuiFile`):
+  `"MrxGuiHudLayout2"` (HUD), `"MrxGuiBinocularsLayout"` (scope), `"MrxGuiSatelliteLayout"` (satellite overlay),
+  `"MrxGuiPdaLayout"` (PDA). These are the layout definitions every player's GUI is duplicated from.
+- **`ToggleHud` context whitelist** — the `sContext` strings that selectively keep some widgets awake while the
+  rest of the HUD sleeps: `"briefing"`, `"hijack"`, `"satellite"`, `"scope"`. Any other string hides everything.
+  Each context wakes a specific hard-coded widget set (e.g. `"briefing"` keeps `"MessageBox"`,
+  `"Subtitle Buffer"`, `"Context Action Text"`, `"Faction Display"`, `"Resource Counters"` visible).
+- **Cached local-HUD widget names** (`CreateGui`, local player only): `"MessageBox"`, `"Minimap"`,
+  `"Objective Tray"`, `"Subtitle Buffer"`, `"Map Label"` — exposed as the globals
+  `_G.MessageBox`/`_G.Minimap`/`_G.ObjectiveTray`/`_G.SubtitleBuffer`/`_G.MapLabel`.
+- **Satellite overlay widget name: `"Satellite overlay"`** — the target of `SetSatelliteSuccessCallback`,
+  `SetSatelliteMinigameData`, and `SetSatelliteCost` (all via `MrxGui.GetWidgetByNameAndOwner`).
+
 ## Notes for modders
-- Ensure that `CreateGui` is called appropriately to create and initialize player GUIs.
 - Use `ToggleHud` to control the visibility of the HUD for players — it's refcounted via `nHudState`, so mismatched enable/disable calls will leave the HUD in an unexpected state.
 - Customize widget behavior by adding or removing widgets using `AddWidgetToHud` and `RemoveWidgetFromHud` — both work correctly even before the target player's GUI exists yet, queuing into `_tPendingHudWidgets` and flushing once `CreateGui` runs for that player.
 - Manage satellite overlay state with `ToggleSatellite`, which also drives `Player.SetPDAMapModeCallback` — disabling swaps the callback to the no-op `DoNothing`, it does not clear the callback.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [hq, faction]
 verified: true
-verified_note: function/event coverage was already accurate; added two confirmed bugs (UnlockHq logs undeclared global sName instead of sHqName; _SetupRespawn overwrites _tHqEvents[uHqGuid] with nil because _CreateDeathEvent has no return statement) and noted redundant local tHq re-fetch in _OnHqDeath
+verified_note: "deeper pass: spot-checked all functions/events/Imports against source — accurate, no changes needed; the two confirmed bugs (UnlockHq logs undeclared sName; _SetupRespawn clobbers the death-event handle with nil) and the -100 HQ-destroyed relation drop remain verified"
 ---
 
 # MrxHqManager
@@ -88,8 +88,19 @@ Retrieves the unload callback function and its arguments.
 - Listens for `Event.ObjectHibernation` to handle HQ hibernation events.
 
 ## Notes for modders
-- Use `GetHq`, `AddStarter`, and `RemoveStarter` to manage HQ starters.
-- Use `UnlockHq` and `LockHq` to control the lock state of HQs.
-- Use `SetHqRespawn` to enable or disable respawn behavior for HQs.
-- Be aware that faction relations may change when an HQ is destroyed.
-- The module uses internal functions prefixed with `_` for internal operations.
+- **Manage HQs** with `GetHq` / `AddStarter` / `RemoveStarter`, and lock state with `UnlockHq` / `LockHq`
+  (or `LockAllHq` / `UnlockAllHq`, which use the per-HQ `bGloballyLocked` flag so a global lock doesn't stomp
+  individually-locked HQs). `AddStarter` auto-unlocks the HQ if it doesn't exist yet.
+- **Destroying an HQ is a hard `-100` relation hit**: `_OnHqDeath` calls
+  `MrxFactionManager.SetRelation(sFaction, "Pmc", -100)` — i.e. it slams that faction to fully hostile — but
+  **only if the player caused it** (culprit is player-controlled or not a raw engine handle). That's the
+  gameplay lever behind "blow up their HQ, lose all standing."
+- **Respawn** is on by default (`UnlockHq` calls `SetHqRespawn(sHqName, true)` when respawn is unset). A
+  destroyed HQ with respawn on revives on the next `Event.ObjectHibernation`. Watch out for the
+  `_SetupRespawn` handle-clobber bug below if you're debugging why an HQ's death event won't clear.
+
+{: .warning }
+> Two confirmed source bugs (see the function notes above): `UnlockHq` logs the undeclared global `sName`
+> (always `nil`) on data-load failure, and `_SetupRespawn` overwrites the live death-event handle in
+> `_tHqEvents[uHqGuid]` with `nil` (because `_CreateDeathEvent` has no `return`), leaking that handle so
+> `LockHq` can't later delete it.

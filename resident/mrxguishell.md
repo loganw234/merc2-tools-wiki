@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, shell]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: rewrote the fabricated Events section (claimed Event.ObjectHibernation/Input.ButtonPress/Server.Add/GameState.Change/Flash.Command — none exist; real Event.* calls are only Event.GameStateChange and Event.TimerRelative, plus GUI-system named handlers and Flash SetFlashEventHandler callbacks). Added real constants: _nTimeToAttractMode=60, shell.gfx, 4.5s first-run legal-skip delay, tMissions skip list, game-state strings. Singleton instance pattern re-confirmed; pruned vacuous notes'
 
 ---
 
@@ -601,56 +601,63 @@ Handles changes to pause menu items based on the `iNumber` parameter by calling 
 
 ## Events
 
+User interaction here comes through **three** distinct mechanisms — none of them are the invented dotted names
+the old version of this page listed:
 
+1. **GUI-system named events**, wired by the [`MrxGuiShellLayout`](mrxguishelllayout) layout's `EventHandlers`
+   table and by `oWidget:SetEventHandler(...)` in `HandleInitializationEvent`. These are string kinds, not
+   `Event.Create` subscriptions: `ControllerInput` → `HandleInput`, `LobbyServerAdded`/`LobbyServerRemoved`/
+   `LobbyServerUpdated` → `HandleServerAdd`/`Remove`/`Update`, `GuiInitialization` → `HandleInitializationEvent`,
+   `GuiGameStateChange` → `HandleGameStateChangeEvent`, `GuiUpdate` → `HandleUpdate` (attract-mode timer), and the
+   locally-registered `OpenShell`/`CloseShell`/`SetAttractModeEnable`/`ResetStartButton` handlers.
+2. **Scaleform (Flash) callbacks**, registered via `oFlash:SetFlashEventHandler(sName, fCallback, {})` in
+   `HandleInitializationEvent` and `CompleteFlashSetup`. The `.gfx` menu fires these by name: `"newGame"`,
+   `"exitGame"`, `"joinGame"`, `"Enter.Lobby"`/`"Exit.Lobby"`, `"onlineQuickmatch"`, `"quickmatchJoinGame"`,
+   `"startMovie"`/`"stopMovie"`, and the whole `LTI*` options-menu family. These are ActionScript→Lua bridges,
+   not engine events.
+3. **Real engine `Event.Create` calls** — only two event types actually appear in the file:
+   - **`Event.TimerRelative`** — the first-run legal-screen skip delay (`{4.5, true}` → `_ClearPressSpaceDelay`),
+     server-list repopulation after lobby entry (`{0.2}`), and deferred shell-close on join (`{0.01}`).
+   - **`Event.GameStateChange`** — `_CloseShell` schedules `ExitLoad` on `{"Loading", "Exit"}`; `ExitLoad` (in E3
+     HUD mode) schedules a fade on `{"Pause", "Exit"}`.
 
-- **Event.ObjectHibernation**: Listens for this event and calls `Awake` when the object leaves hibernation.
+{: .note }
+> The previous version listed `Event.ObjectHibernation`, `Event.Input.ButtonPress`, `Event.Server.Add/Remove/Update`,
+> `Event.GameState.Change`, and `Event.Flash.Command`. **None of those `Event.*` types exist in
+> `mrxguishell.lua`** (there's no `Awake`/`OnActivate` here at all). The server/input/flash/gamestate handling is
+> the named-handler and Flash-callback wiring described above — they've been corrected.
 
-- **Event.Input.ButtonPress**: Listens for button press events and handles them via `HandleInput`.
-
-- **Event.TimerRelative**: Listens for timer events to manage attract mode timing in `HandleUpdate`.
-
-- **Event.Server.Add**: Listens for server addition events and updates the server list in `HandleServerAdd`.
-
-- **Event.Server.Remove**: Listens for server removal events and updates the server list in `HandleServerRemove`.
-
-- **Event.Server.Update**: Listens for server update events and handles them via `HandleServerUpdate`.
-
-- **Event.GameState.Change**: Listens for game state change events to open the widget when entering the "Shell" state.
-
-- **Event.Flash.Command**: Listens for various Flash commands and handles them through specific callback functions like `_NewGameFlashCallback`, `_JoinGameFlashCallback`, etc.
-
-
+## Module constants & tunables
+- **`_nTimeToAttractMode = 60`** — seconds of shell idle before the game auto-transitions to attract mode
+  (`Sys.RequestGameState("attract")` in `HandleUpdate`). Raise it to delay the attract loop.
+- **Shell Scaleform file: `"shell.gfx"`** (returned by `GetShellGfxFilename`) — the front-end menu movie.
+- **First-run legal-screen skip delay: `4.5` seconds** — on `LTILibName.FirstRun() == 1`, `_bWaitForDelay` blocks
+  skipping the legal screen until this timer fires.
+- **`tMissions`** — the hard-coded 73-entry mission-skip list (`"AllCon001"`, `"ChiCon001"`, `"PmcCon031"`, …)
+  offered by the dev "Skip to mission" dialog (opened with `_SkipButton` = `BUTTON_ALT1_2`, gated on
+  `not Sys.IsFinalConfig()`). Editing this table changes which missions the skip menu lists.
+- **Game-state strings** requested here via `Sys.RequestGameState`: `"attract"`, `"Exiting"`, `"Shell"`, `"Pause"`.
+- **Shell movie geometry:** the intro `MovieWidget` is `396.6667` px wide, right-anchored, full height
+  (`HandleInitializationEvent`).
+- **Character selection map** (`_NewGameFlashCallback`): flash `"chris"`→`"Chris"`, `"jennifer"`→`"Jen"`,
+  anything else→`"mattias"` (the internal character names passed to `MrxGuiShellBootstrap.SetSelectedCharacter`).
 
 ## Notes for modders
 
 
 
-1. **Call-order requirements**:
-
-   - Ensure that `HandleInitializationEvent` is called during the initialization of the shell widget to set up necessary properties and event handlers.
-
-   - The sequence of events such as server addition, removal, and updates should be handled in the order they are received to maintain consistency in the GUI.
-
-
-
-2. **Pitfalls**:
-
-   - Modifying the `tMissions` table directly can affect the mission selection menu. Ensure that any changes do not disrupt the intended flow of the game.
-
-   - The `_SkipButton` constant is used to skip legal screens. Changing its value might interfere with player navigation, so proceed with caution.
-
-
-
-3. **Tunables**:
-
-   - `_nTimeToAttractMode`: Adjusting this value can change how long the attract mode remains active before enabling. Be mindful of user experience when making changes.
-
-   - `_bWaitForDelay`: This flag controls whether a delay is active before allowing the legal screen to be skipped. Modifying it might affect the timing of certain UI elements.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Unused local variables or redundant operator groupings in the code are decompiler artifacts and should not be interpreted as intentional logic.
-
-   - Duplicate table keys in literals (where the last one wins) are a known behavior of Lua, so ensure that only the intended key-value pairs are used.
+- **The dev "Skip to mission" menu is a live example of [`MrxMultiPageMenu`](mrxmultipagemenu).**
+  `OpenSkipToMissionDialog` calls `Reset()`, `AddOption(...)` for every entry in `tMissions`, an every-page
+  briefings toggle, an every-page cancel-bound `"Cancel"`, then `Display("Select starting mission:")` — exactly
+  the pagination pattern the wiki tells modders to reuse. `OpenInstallDialog` is a second, shorter example.
+- **Most of this file is the front-end options menu**, bridged from the `shell.gfx` Scaleform movie. The `_LTI*`
+  functions are thin forwards to a global `LTILibName` (video/input/joystick/profile settings) that is not
+  defined anywhere in the decompiled `resident/` corpus — it's an engine/native-provided global, same as noted on
+  [`mrxmultipagemenu`](mrxmultipagemenu).
+- **Real bug in `_LTIStartNewGame`:** it branches on a bare `sCharacter` that is never a parameter or local in
+  that function (its signature is `(oFlash, sUnused)`), so `sCharacter` is always `nil` and the character always
+  falls through to `"mattias"`. The working path is `_NewGameFlashCallback`, which does receive `sCharacter`.
+- **`ResetStartButtonState`/`HandleResetStartButton`** clear `CustomData.bHitStart` on the `"Shell"` widget — the
+  guard that stops the start button (`BUTTON_PAD2_D`) from re-triggering sign-in/install checks. Relevant only if
+  you hook the start flow.
+- Decompiler artifacts: a few handlers have assigned-but-unused locals; treat those as noise, not logic.

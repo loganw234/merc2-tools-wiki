@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [inventory, weapon]
 verified: true
-verified_note: spot-checked against source (single-function 3-line file), no changes needed.
+verified_note: "deeper pass: re-confirmed the 3-line source — the sole function UnUse drops the prop weapon via Human.Inventory.DropWeapon(holdersGuid, objectGuid); replaced vacuous Notes bullets with the one real gotcha (arg order) and the override lever"
 ---
 
 # LivingWorldProp
@@ -33,5 +33,10 @@ calling `Human.Inventory.DropWeapon(holdersGuid, objectGuid)`. This is the only 
 - Listens for: none — this module does not subscribe to any engine events directly.
 
 ## Notes for modders
-- Ensure that `UnUse` is called appropriately when a player interacts with a living world prop to drop the associated weapon.
-- This module does not require any specific initialization or cleanup beyond ensuring that `UnUse` is triggered correctly.
+- **Override lever:** `UnUse` is a plain (non-`local`) global, so a mod can redefine it to do something
+  other than drop the weapon when the player releases the prop. The whole module is this one behavior.
+- **Argument order gotcha:** `Human.Inventory.DropWeapon(holdersGuid, objectGuid)` — the *holder* (the
+  human) comes first, the *prop object* second, which is the reverse of the `(objectGuid, holdersGuid)`
+  order the engine passes into `UnUse`. Keep that straight if you reuse the call.
+- `UnUse` is the engine's release-counterpart to a `Use` handler; no `Use` is defined here, and the module
+  subscribes to no events.

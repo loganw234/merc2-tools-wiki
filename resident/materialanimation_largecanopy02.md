@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [material animation, canopy]
 verified: true
-verified_note: removed fabricated Event.ObjectStateChange (not in source — OnStateChange is engine-invoked by naming convention, only real Event.* reference is Event.ObjectIsReady); noted the animation name is still "largecanopy01" despite this being the 02 file, and that this file has no node-hash check (unlike largecanopy01).
+verified_note: "deeper pass: re-confirmed the 9-line source — no node-hash check, fires on CollapseFireState/CollapseState, and (confirmed) plays the 01 animation name jungle_env_largecanopy01_material_anim; only Event.* is ObjectIsReady; cross-linked sibling drivers"
 ---
 
 # MaterialAnimation_LargeCanopy02
@@ -44,7 +44,21 @@ or intentional asset reuse can't be determined from static reading alone.
   name was previously listed here in error. `OnStateChange` is invoked directly by the engine via naming
   convention, not through an `Event.Create`/`Event.ObjectStateChange` registration.
 
+## Module constants & tunables
+- **Trigger:** state `"CollapseFireState"` **or** `"CollapseState"` (hashed via `String.GetHash`). No node
+  check — unlike [MaterialAnimation_LargeCanopy01](materialanimation_largecanopy01), which also gates on the
+  `"Slice00"` node.
+- **Animation:** `"jungle_env_largecanopy01_material_anim"` — the `01` name, one-shot (`false`).
+
+{: .note }
+> The animation string is literally the `largecanopy01` name even though this is the `02` module. This is
+> what the decompiled source contains; it may be intentional asset reuse or an authoring copy-paste — it
+> can't be determined from static reading alone. If you clone this file for a new canopy, double-check the
+> animation name is the one you intend.
+
 ## Notes for modders
-- Ensure that the state names ("CollapseFireState", "CollapseState") match exactly with those used in the game.
-- The animation name "jungle_env_largecanopy01_material_anim" should be verified to ensure it exists and is correctly named in the game assets.
-- This module does not require any specific initialization or cleanup beyond what is provided by default.
+- Change the two state strings and/or the animation name to retarget — that's the whole knob set.
+- **Sibling drivers:** [MaterialAnimation_LargeCanopy01](materialanimation_largecanopy01) (adds a `"Slice00"`
+  node check, fires only on `CollapseFireState`) and
+  [MaterialAnimation_TreePlaza02](materialanimation_treeplaza02) (fires on `FireDebrisState`/
+  `FireDestroyedState`; plays `global_env_treeplaza02_anim`).

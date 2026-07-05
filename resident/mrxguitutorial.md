@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, tutorial]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: fixed Imports (only MrxGuiBase, not MrxGui/MrxUtil); rewrote fabricated Events (there are ZERO Event.* calls — removed invented Event.OnPlayerJoined/OnPlayerLeft/OnInputReceived; real input is a "ControllerInput" widget handler); added arrow texture/prompt string/sound cues/_knIncrement=25/fonts and the tutorial-off toggle button'
 
 ---
 
@@ -35,7 +35,7 @@ The `mrxguitutorial` module is responsible for managing in-game tutorials that g
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: `MrxGui`, `MrxUtil`
+- Imports: `MrxGuiBase` only (the source's single `import("MrxGuiBase")` — the previous draft's "MrxGui, MrxUtil" was wrong). It also calls `Gui.*`, `Sys.*`, and `Sound.*` engine namespaces directly without importing them. See [MrxGuiBase](mrxguibase) for the widget/animation/control-focus primitives it builds on.
 
 
 
@@ -43,15 +43,25 @@ The `mrxguitutorial` module is responsible for managing in-game tutorials that g
 
 **Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry
 anywhere in source. This is the one shared tutorial-message system, not something spawned per world
-object. Key fields:
+object. Each `DisplayTutorial` call builds a fresh container widget whose state (`fCallback`,
+`tCallbackData`) lives on that widget's `CustomData`. Module-level state/constants:
 
-- `_bTutorialsOn`: A boolean flag indicating whether tutorials are enabled globally.
+- `_bTutorialsOn = true`: fallback global "tutorials enabled" flag, used only when the engine's
+  `Sys.TutorialsEnabled`/`Sys.SetTutorialsEnabled` aren't present.
+- `_knIncrement = 25`: the pixel step `_OptimizeSize` uses when shrinking the text box to a squarer aspect.
 
-- `_knIncrement`: An integer constant used in the `_OptimizeSize` function to adjust text size incrementally.
+## Module constants & tunables
 
-
-
-The module manages tutorial widgets, their children, and associated animations. It also handles input events and state changes to ensure proper functionality and user experience.
+- Tutorial body font is `"english_20"` at scale `1`.
+- Every message has this prompt appended automatically:
+  `"[n][n][confirm] [Generic.Continue][n][action] [Generic.DisableTutorials]"` — the two localized button
+  hints. So the on-screen text is always your `sMessage` plus a Continue / Disable-Tutorials footer.
+- The pointing arrow is a `SpriteWidget` with texture `"temp_tutorial_arrow"` (128×64 sheet, 32×64 frames),
+  animated frames 0-3 at `0.25`s, looping; it's rotated 90/180/270° to point at the highlighted spot.
+- Backdrop behind the text is black at alpha `192` (`SetColor(0,0,0,192)`).
+- Sound cues: dismissing a tutorial plays `"ui_HUD_Continue"`; `SetTutorialWidgetText` (the info-image
+  variant) plays `"ui_signal_ding_up"` on show.
+- Open/close/resize animations run over `nTime = 0.5`s.
 
 
 
@@ -133,19 +143,19 @@ The module manages tutorial widgets, their children, and associated animations. 
 
 ### _HandleInput(oTutorial, tInput)
 
-- **Description**: Handles input events for a tutorial widget. Closes the tutorial if certain buttons are pressed and calls the callback function.
+- **Description**: The `"ControllerInput"` handler bound in `_CreateTutorial`. `BUTTON_PAD2_D` (confirm) closes the tutorial; `BUTTON_PAD2_U` (the "disable tutorials" button) calls `_SetTutorialsEnabled(false)` *and* closes it. On close it plays `Sound.CueSound(0, "ui_HUD_Continue")`, fires `fCallback(unpack(tCallbackData))`, then `_DeleteTutorial`. Any other button is ignored.
 
 - **Parameters**:
 
-  - `oTutorial`: The tutorial widget that received the input.
+  - `oTutorial`: The tutorial container widget (holds the callback in `CustomData`).
 
-  - `tInput`: A table containing information about the input event.
+  - `tInput`: The input event; `tInput.ButtonPress` is compared against `MrxGuiBase.Joystick.BUTTON_*` constants.
 
 
 
 ### _HandleStateChange(oTutorial, vStateInfo)
 
-- **Description**: Handles state change events for a tutorial widget. Currently does nothing (stub function).
+- **Description**: Empty stub — defined but does nothing and is not bound to anything in this file.
 
 
 
@@ -268,44 +278,31 @@ Brings a tutorial to the front by pushing its children widgets to the front usin
 
 ## Events
 
-
-
-- **Event.OnPlayerJoined**: This module listens for this event to initialize tutorials when a new player joins the session.
-
-- **Event.OnPlayerLeft**: This module listens for this event to clean up any active tutorials when a player leaves the session.
-
-- **Event.OnInputReceived**: This module listens for input events to handle interactions with tutorial widgets, such as closing them.
-
-
+**There are no `Event.*` (engine event) subscriptions in this file** — the previous draft's
+`Event.OnPlayerJoined`/`Event.OnPlayerLeft`/`Event.OnInputReceived` do not exist in the source and have been
+removed. The only input plumbing is widget-level: `_CreateTutorial` calls
+`oContainer:SetEventHandler("ControllerInput", _HandleInput)` and takes control focus with
+`MrxGuiBase.GetControlFocus(oContainer, true)` (the `true` pauses). Dismissal is driven entirely by that
+handler.
 
 ## Notes for modders
 
-
-
-1. **Call-order requirements**:
-
-   - Ensure that `DisplayTutorialForObject` or `DisplayTutorial` is called after the GUI has been fully initialized and before any player interaction that might trigger a tutorial.
-
-   - The `_CreateTutorial` function should not be called directly by modders unless they have a specific need to bypass the standard tutorial creation process.
-
-
-
-2. **Pitfalls**:
-
-   - Modifying the internal functions (those prefixed with an underscore) can lead to unexpected behavior or instability, as these are intended for internal use only.
-
-   - Be cautious when changing the size constraints (`nMaxWidth`, `nMaxHeight`) in `_OptimizeSize` to ensure that text remains readable and does not overflow.
-
-
-
-3. **Tunables**:
-
-   - The `_knIncrement` constant can be adjusted to change how much the text size is incremented during optimization, which might affect readability on different screen resolutions.
-
-   - The `bAnimateResize` flag in `ResizeInfoImage` controls whether resizing animations are performed, allowing modders to disable animations for performance reasons.
-
-
-
-4. **Decompiler artifacts**:
-
-   - There are no known decompiler artifacts in this module that require special attention or interpretation.
+- **Entry points are `DisplayTutorial` / `DisplayTutorialForObject`.** `DisplayTutorialForObject` needs the
+  engine's `Gui.FindGuiLocation(uPlayerGuid, uGuid)` to turn an object handle into a screen rect; if that
+  function is absent it returns `false` and shows nothing.
+- **Tutorials-off is a real gate, not a no-op.** If `_GetTutorialsEnabled()` is false, `DisplayTutorial`
+  skips all UI, immediately calls your `fCallback(unpack(tCallbackData))`, and returns `true`. So your
+  callback fires whether or not the tutorial was actually shown — don't put "user acknowledged" logic there
+  and assume they saw it.
+- **The enabled flag prefers the engine.** `_GetTutorialsEnabled`/`_SetTutorialsEnabled` use
+  `Sys.TutorialsEnabled`/`Sys.SetTutorialsEnabled` when present and only fall back to the module global
+  `_bTutorialsOn`. Pressing the disable button (`BUTTON_PAD2_U`) while a tutorial is up turns tutorials off
+  for the rest of the session.
+- **Retheme knobs**: swap the arrow texture `"temp_tutorial_arrow"`, change the appended prompt string, or
+  adjust the `0.5`s animation time / `_knIncrement` box-shrink step (above). `_OptimizeSize` shrinks the text
+  box toward a square-ish aspect within the available screen quadrant, which is how the tutorial picks a side
+  (left/right/top/bottom) and arrow direction relative to the highlighted object.
+- The `InitInfoImage`/`ShowInfoImage`/`HideInfoImage`/`ResizeInfoImage`/`SetTutorialWidgetText`/
+  `TutorialWidgetInitialize`/`PushTutorialToFront` family is a **second, layout-driven tutorial widget**
+  (four-piece expanding "info" panel with a typewriter text reveal), distinct from the coordinate-based
+  `_CreateTutorial` path — these are bound from a GUI layout, not called by the two `Display*` entry points.

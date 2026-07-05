@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Blippable
 tags: [enemy, blip]
 verified: true
-verified_note: corrected — this file has no OnActivate/OnDeactivate/HideMarker/bNetSync of its own (those are Blippable/Inheritable behavior); fixed Create description, added GetFromGuid dedup detail, removed fabricated HideMarker event
+verified_note: "deeper pass: surfaced exact color-table RGB values + their relation thresholds (ally>=60, enemy<=-60, neutral in-between, pmc by label, empty=no driver), cross-linked the full blip chain; all functions/events re-confirmed against source"
 ---
 
 # EnemyBlippable
@@ -14,15 +14,19 @@ verified_note: corrected — this file has no OnActivate/OnDeactivate/HideMarker
 *Module: enemyblippable.lua*
 
 ## Overview
-The `EnemyBlippable` module extends `Blippable` to manage radar objectives and off-screen world markers specifically for vehicles, colored by the relationship between the vehicle's driver and the PMC faction. Despite the name, the color logic covers ally/neutral/enemy/empty/PMC cases, not just "enemy" — see `PickColor`.
+The `EnemyBlippable` module extends [`Blippable`](blippable) to manage radar objectives and off-screen
+world markers specifically for vehicles, colored by the relationship between the vehicle's driver and the
+PMC faction. Despite the name, the color logic covers ally/neutral/enemy/empty/PMC cases, not just "enemy"
+— see `PickColor`. It is a sibling of [`OrientedBlippable`](orientedblippable)/[`VehicleBlippable`](vehicleblippable)
+in the blip chain (all three inherit from `Blippable`).
 
 ## Inheritance
-- Inherits from: `Blippable` (which itself inherits from `Inheritable`)
+- Inherits from: [`Blippable`](blippable) (which itself inherits from [`Inheritable`](inheritable))
 - Imports: `MrxUtil`, `MrxFactionManager`
 
 ## Instance pattern
 Per-instance object module (keyed by `uGuid`), but this file itself defines no `OnActivate`/`Awake` — those are inherited from `Blippable` (`Blippable.OnActivate` → `Awake` → `oPrototype:Create(uGuid, iArg)`, which resolves to this file's own `Create` since it overrides the parent). This file tracks the following key fields on the instance:
-- `tColor`: The color of the radar objective (one of `tColorAlly`, `tColorNeutral`, `tColorEnemy`, `tColorEmpty`, `tColorPmc`, all module-level globals).
+- `tColor`: The color of the radar objective (one of the module-level color tables below, selected by `PickColor`).
 - `bHostile`: Set `true` only in the `nRelation <= -60` branch of `PickColor`; not reset in the other branches.
 - `DriverEnter`: Persistent event handle for when a driver enters the vehicle.
 - `DriverExit`: Persistent event handle for when a driver exits the vehicle.
@@ -46,5 +50,13 @@ Determines the appropriate blip color based on the vehicle driver, via `Vehicle.
 ## Notes for modders
 - This file has no `OnActivate`/`OnDeactivate` of its own — instance lifecycle (activation, hibernation wake, teardown call sites) is entirely inherited from `Blippable`/`Inheritable`. Only `Create`, `Delete`, and `PickColor` are overridden here.
 - Customize blip properties by setting fields like `tColor`; the actual HUD/marker rendering (`AddObjective`/`RemoveObjective`, `bNetSync` handling) lives in `Blippable`, not this file.
-- The module uses predefined color tables (`tColorAlly`, `tColorNeutral`, `tColorEnemy`, `tColorEmpty`, `tColorPmc`) — all plain module-level globals, not `local`s — to determine blip colors based on faction relations.
+- **Blip colors are module-level globals with exact `{r, g, b}` values you can change** (all plain
+  globals, not `local`s):
+  - `tColorAlly = {0, 127, 255}` (blue) — driver relation `>= 60`
+  - `tColorNeutral = {230, 230, 255}` (near-white) — relation strictly between `-60` and `60`
+  - `tColorEnemy = {255, 0, 0}` (red) — relation `<= -60` (also sets `self.bHostile = true`)
+  - `tColorEmpty = {100, 100, 100}` (grey) — no driver
+  - `tColorPmc = {0, 255, 0}` (green) — object or driver has the `"pmc"` label
+  `PickColor` reads these as `self.tColorPmc`/`self.tColorNeutral`/etc., which resolve through the
+  `__index` metatable up to these module globals — so editing the globals recolors every instance.
 - The `Create` reuse-via-`GetFromGuid` pattern means calling `Create` again for a `uGuid` that already has a live instance returns the existing instance rather than creating a duplicate.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupportDesignator
 tags: [support, designator]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: "deeper pass: confirmed the whole module is Create + GetType only; documented what makes a beacon differ (jammer AA level, bDesignateOnDeath=false, Beacon Designator type) and which strikes use it; cross-linked base + consumers"
 ---
 
 # MrxSupportDesignatorBeacon
@@ -14,10 +14,10 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxsupportdesignatorbeacon.lua*
 
 ## Overview
-The `MrxSupportDesignatorBeacon` module is a subclass of `MrxSupportDesignator` that handles the creation and management of beacon designators. Beacon designators are used to mark specific locations in the game world, typically for support operations like air strikes or supply drops.
+`MrxSupportDesignatorBeacon` is the thrown-beacon [designator](mrxsupportdesignator) subtype. It's the simplest of the five — just a `Create` that stamps the beacon-specific fields plus a `GetType`. A beacon is a persistent object the strike can track (falling ordnance re-reads its live position — see [`MrxArtillery.TriggerFallingMissile`](mrxartillery)), and the base [`GetTarget`](mrxsupportdesignator) returns its `uGuid` so callers can remove it after the strike. Used by [`MrxArtillery`](mrxartillery), [`MrxCruiseMissile`](mrxcruisemissile), [`MrxStrategicMissile`](mrxstrategicmissile), and [`MrxHARMStrike`](mrxharmstrike).
 
 ## Inheritance
-- Inherits from: `MrxSupportDesignator`
+- Inherits from: [`MrxSupportDesignator`](mrxsupportdesignator)
 - Imports: `none`
 
 ## Instance pattern
@@ -36,16 +36,20 @@ builds a new table via `setmetatable`/`__index`, exactly like its parent. No `On
 
 ## Functions
 ### `Create(self, oNewDesignator)`
-Creates a new per-instance table for the beacon designator using the module's prototype. Initializes various fields such as owner, designation type, and coordinates.
+Stamps the beacon fields onto a fresh (or passed-in) table, then `setmetatable`s it to this module. Beacon-specific settings vs. the base: `sDesignationType = "Beacon Designator"`, `sAATestLevel = "jammer"`, `bDesignateOnDeath = false`, `fValidationFunction = nil`. Everything else (owner, coords, `uGuid`) is copied through from the prototype.
 
 ### `GetType(self)`
-Returns the type of the designator, which is "beacon".
+Returns `"beacon"`.
 
 ## Events
-- Listens for none (this module does not subscribe to any engine events).
+None — this module subscribes to no engine events and schedules no timers. All lifecycle is driven by the base class's callback list.
+
+## Module constants & tunables
+Set inside `Create` (there are no module-level `local`s):
+- `sDesignationType = "Beacon Designator"` — the item [`Airstrike.EquipDesignator`](mrxsupportdesignator) hands the player.
+- `sAATestLevel = "jammer"` — a beacon strike is only denied by a **jammer**, not by ordinary AA (the strongest "always allowed unless jammed" setting among the five subtypes).
+- `bDesignateOnDeath = false` — designation does **not** auto-complete if the beacon object is destroyed.
 
 ## Notes for modders
-- Ensure that the `Create` function is called appropriately when initializing a new beacon designator.
-- The `sAATestLevel` field is set to "jammer" by default, which may affect how the designator interacts with anti-air systems.
-- Customize the designator's behavior by modifying fields like `bDesignateOnDeath` and `tCallbackList`.
-- Be aware that the validation function (`fValidationFunction`) is not used in this module.
+- The `"jammer"` AA level is the beacon's defining trait: beacon-based strikes ([artillery](mrxartillery), [cruise](mrxcruisemissile), [strategic](mrxstrategicmissile), [HARM](mrxharmstrike)) ignore basic/medium/advanced AA and are only blocked by a jammer. Change `sAATestLevel` in `Create` to make them AA-blockable.
+- `fValidationFunction` is deliberately `nil` here — a beacon can be dropped anywhere. Assign one of the base [`ValidateGroundDropZone`/`ValidateWaterDropZone`](mrxsupportdesignator) functions if you want placement restrictions.

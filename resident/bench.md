@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: spot-checked against source, no changes needed.
+verified_note: 'deeper pass: re-confirmed all five functions; clarified that Query* are engine "what action string?" dispatchers returning "MakeUpright"/"SuperUse", while SuperUse/Use/MakeUpright are empty engine-called hook stubs; fixed misleading Notes'
 ---
 
 # Bench
@@ -14,7 +14,10 @@ verified_note: spot-checked against source, no changes needed.
 *Module: bench.lua*
 
 ## Overview
-The `Bench` module provides utility functions for querying repair actions and handling object interactions. It defines methods to determine specific use actions based on input values and includes placeholders for actual implementation of those actions.
+The `Bench` module is a thin action-dispatch script for a bench prop. The two `Query*` functions are called
+by the engine to ask "what named action should this input map to?" and return an action-name string; the
+three action functions (`SuperUse`, `Use`, `MakeUpright`) are the hooks the engine then calls — all three are
+empty stubs here, so the actual behaviour is engine-side (or intentionally a no-op).
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
@@ -25,10 +28,12 @@ This is a stateless manager/utility module with no per-instance tables or fields
 
 ## Functions
 ### `QueryRepair(intVal)`
-Determines the repair action based on the input integer value. If `intVal` is 1, it returns "MakeUpright". Otherwise, it returns an empty string.
+Engine dispatcher: returns the name of the repair action to run. Returns the string `"MakeUpright"` when
+`intVal == 1`, otherwise `""` (no action). The returned name is the function the engine will call.
 
 ### `QueryActiveUse(intVal)`
-Determines the active use action based on the input integer value. If `intVal` is 1, it returns "SuperUse". Otherwise, it returns an empty string.
+Engine dispatcher: returns the name of the "active use" action. Returns `"SuperUse"` when `intVal == 1`,
+otherwise `""`. Again the return value is a function name, not the behaviour itself.
 
 ### `SuperUse(floatval, aiguid)`
 Placeholder function for handling the "SuperUse" action. Currently does nothing.
@@ -43,5 +48,9 @@ Placeholder function for making an object upright. Currently does nothing.
 This module does not listen to or fire any engine events.
 
 ## Notes for modders
-- The `QueryRepair` and `QueryActiveUse` functions can be used to determine specific actions based on input values.
-- Implement the `SuperUse`, `Use`, and `MakeUpright` functions to define the actual behavior for these actions.
+- The `Query*` → action-name → action-function indirection is the reusable lever here: change what
+  `QueryRepair`/`QueryActiveUse` return (or the `intVal` they gate on) to remap which action fires, and fill
+  in the matching `SuperUse`/`Use`/`MakeUpright` body to give it behaviour. The names returned by the
+  `Query*` functions must match the action functions the engine then calls.
+- All three action functions are currently empty — this bench prop does nothing scripted out of the box, so
+  there is no existing behaviour to preserve if you override them.

@@ -12,7 +12,7 @@ inherits: none
 tags: [utility, helper]
 
 verified: true
-verified_note: TeleportHeroesToLocations' indoor-crash caveat confirmed by live testing via MrxCheatBootstrap; GetFaction/GetCharacterIdentity/GetSecondaryObjectiveRgb cross-links confirmed via their real call sites in VehicleBlippable/Blippable/ConsoleCheatsMenu
+verified_note: "deeper pass: corrected Imports (source imports MrxCheatBootstrap/MrxGui/MrxGuiShellBootstrap/MrxState/WifPmcInterior/MrxHqManager, not none), documented GetFaction's exact full-name return set and FormatMoney/_tNumbers suffix table, added marker-index lookup tables and objective-RGB constants; TeleportHeroesToLocations indoor-crash caveat and all cross-links re-confirmed"
 
 ---
 
@@ -36,7 +36,9 @@ The `MrxUtil` module is a comprehensive utility library providing a wide range o
 
 - Inherits from: `none` (base/utility module)
 
-- Imports: `none`
+- Imports: [`MrxCheatBootstrap`](mrxcheatbootstrap), [`MrxGui`](mrxgui),
+  [`MrxGuiShellBootstrap`](mrxguishellbootstrap), [`MrxState`](mrxstate), `WifPmcInterior`,
+  [`MrxHqManager`](mrxhqmanager) (an earlier draft said `none` — the source has all six `import()` lines).
 
 
 
@@ -474,7 +476,9 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
   - `uGuid`: The GUID of the object.
 
-- **Returns**: The faction label of the object — pass this to
+- **Returns**: The object's faction as a **full-name string** by testing `Object.HasLabel(uGuid, ...)`
+  against the fixed list `{"VZ", "Allied", "China", "Guerilla", "OC", "Pirate", "PMC", "Civ"}` (returns the
+  first matching label, or `nil` if none). Pass the result to
   [`MrxFactionManager.GetFactionAbbrev`](mrxfactionmanager) to get the short abbreviation
   (`"All"`/`"Chi"`/`"Gur"`/etc.) used everywhere else on this wiki. Used exactly this way by
   [`VehicleBlippable`](vehicleblippable)'s `Create` to look up a vehicle's faction for its attitude-change
@@ -642,13 +646,33 @@ This function removes all vehicles (ground and helicopters) within a specified r
 
 
 
+## Module constants & tables
+These module-level tables back the `Marker*` / `GetInlineIcon*` / `FormatMoney` helpers — handy if you're
+reverse-engineering marker or money strings:
+- `tInlineIcons` — 12 objective inline-icon tags (`"[objaction]"`, `"[objdestroy]"`, `"[objverify]"`, …); the
+  1-based index into this list is what `GetInlineIconIndexByName`/`...NameByIndex` translate.
+- `tObjWorldMarkers`, `tObjPdaMarker`, `tObjRadarMaker` — ordered name lists for HUD/PDA/radar marker icons;
+  the `MarkerGetIndexByName_*`/`MarkerGetNameByIndex_*` pairs convert between the string name and the numeric
+  index sent over the network. A miss logs `"Could not find marker <name> in <World/Pda/Radar> table"`.
+- `_tNumbers` (built in `Init`) — money magnitude → localized suffix hash used by `FormatMoney`
+  (`1e3 → "[0xe00c096a]"`, `1e6 → "[0xcd15e5e8]"`, `1e9 → "[0x4cf9c95f]"`, `1e12`, `1e15`). `FormatMoney`
+  clamps its input to `[0, 1e15]`.
+- Objective colors are hard-coded: `GetPrimaryObjectiveRgb()` → `255, 200, 0` (amber);
+  `GetSecondaryObjectiveRgb()` → `51, 204, 153` (teal-green).
+
 ## Events
 
+`MrxUtil` **subscribes to nothing at load time** — it has no top-level `Event.Create`/`CreatePersistent`. It
+does, however, create *transient* events from inside its functions as part of doing their work, so it isn't
+purely event-free:
+- Teleport flow: `Event.GameStateChange` (`"waitfortether"`) and short `Event.TimerRelative` timers in
+  `TeleportSecondaryHeroToPrimaryHero`/`_CompleteTeleportHeroes`/`_TeleportComplete`; `Event.Player`
+  (`"Human"`,`"Enter"`) after a forced vehicle exit.
+- `SpawnActor` waits on `Event.ObjectHibernation` (`"awake"`) before running `_SpawnActorComplete`.
+- `DisplayHealthBar` creates `Event.ObjectHealth` (`"<"`) and `Event.TimerRelative` events via `self:_CreateEvent`
+  (so `self` must be an event-capable instance); `StopHealthBar` deletes them.
 
-
-This module does not explicitly subscribe to or fire any engine events as listed in the provided functions.
-
-
+These are per-call, self-cleaning subscriptions, not module lifecycle hooks.
 
 ## Notes for modders
 
@@ -658,8 +682,10 @@ This module does not explicitly subscribe to or fire any engine events as listed
 - **`GetFaction` + [`MrxFactionManager.GetFactionAbbrev`](mrxfactionmanager)** is the standard two-step path
   from "I have a `uGuid`" to "I have a short faction abbreviation" — used this way by
   [`VehicleBlippable`](vehicleblippable) and worth reusing rather than re-deriving.
-- Be cautious when using `SetDefault` on variables that might have side effects or dependencies — it just
-  returns the default if the value is `nil`, it doesn't validate that the default is actually safe for
-  whatever comes next.
-- This module doesn't explicitly subscribe to or fire any engine events itself — it's a pure function
-  library other modules call into, not something with its own lifecycle to hook.
+- `SetDefault(vVar, vDefaultValue)` returns `vDefaultValue` only when `vVar` is `nil` — note it takes the
+  value by copy, so `SetDefault(x, 5)` does **not** mutate `x` in the caller; use the return value
+  (`x = SetDefault(x, 5)`), which is how the rest of this file uses it.
+- `SpawnObject(sTemplate, sLocation, sName)` and `SpawnActor(...)` are the standard spawn helpers other
+  modules (e.g. [`MrxPmc`](mrxpmc)'s fuel tanks) call — `sLocation` may be a spawn-point **name string** or a
+  `uGuid`; it's resolved via `Pg.GetGuidByName`. `SpawnActor` disables AI/physics on the result unless the
+  name is exactly `"HqInterior"`.

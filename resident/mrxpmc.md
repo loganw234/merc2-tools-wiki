@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [economy, support]
 verified: true
-verified_note: AddCashQty/AddFuelQty/SetFuelCapacity/AddSupportQty/GetSupportQty confirmed by live testing via MrxCheatBootstrap; instance-pattern claim corrected against source (stateless, not per-uGuid)
+verified_note: "deeper pass: corrected imports (MrxFactionManager is NOT imported; real imports are WifEquipmentData/MrxGui/MrxSupportData/MrxUnlockFanfare/MrxUtil/MrxStatsManager/MrxTutorialManager/WifMissionFlow), fixed Events section (only real sub is Event.CreatePersistent(Event.ObjectDeath,{FuelTank}); Event.Post(CashAdded) is fired — no PlayerJoined/PlayerLeft/TimerRelative in source), surfaced knBillion cash cap + fuel-cap constants; all functions re-confirmed"
 ---
 
 # MrxPmc
@@ -18,7 +18,10 @@ The `MrxPmc` module manages the player's economy and support items in Mercenarie
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`, `MrxFactionManager`
+- Imports: `WifEquipmentData`, [`MrxGui`](mrxgui), [`MrxSupportData`](mrxsupportdata),
+  [`MrxUnlockFanfare`](mrxunlockfanfare), [`MrxUtil`](mrxutil), [`MrxStatsManager`](mrxstatsmanager),
+  [`MrxTutorialManager`](mrxtutorialmanager), `WifMissionFlow`
+  (`MrxFactionManager` is **not** imported here, despite an earlier draft claiming so.)
 
 ## Instance pattern
 **Not a per-`uGuid` instance module** — despite that being the default assumption for most `resident/`
@@ -37,14 +40,30 @@ fields:
 - `_tClientSupportSpendings`: A table tracking client-side support spendings.
 - `_knMinFuelCapacity`, `_knMaxFuelCapacity`: Constants defining the minimum and maximum fuel capacities.
 
+## Module constants & tunables
+| Constant | Value | Meaning |
+|---|---|---|
+| `knBillion` (local in `AddCashQty`) | `1000000000` | Hard ±cap on a single cash change and on the running total. |
+| `_knMinFuelCapacity` | `300` | Floor for fuel capacity; also the starting capacity set in `Init`. |
+| `_knMaxFuelCapacity` | `9999` | Ceiling for fuel capacity via the normal (non-cheat) path. |
+| `_ksFuelTank` | `"_pmcoutpost_bld_fueldepot"` | Template spawned for each equipped fuel tank. |
+| `_ksFuelTankLocation` | `"PMC Fuel Tank "` | Spawn-point name prefix (suffixed with `nFuelTankId`). |
+
+`SetFuelCapacity(n, true, ...)` — passing `bCheat = true` **bypasses** the `_knMin`/`_knMax` range check, which
+is exactly why the cheat path can raise the cap to arbitrary values before topping off fuel.
+
 ## Functions
 
 ### Init()
 Initializes the player's economy by setting the initial fuel capacity to `_knMinFuelCapacity` and creating a high-score event.
 
 ### AddCashQty(nAmt, bMateriel, sReason, bSuppressDisplay)
-Adds a specified amount of cash to the player's total. It ensures that the cash does not exceed the hard
-ceiling (`knBillion`). If `bSuppressDisplay` is false, it displays the updated cash amount in the HUD.
+Adds a specified amount of cash to the player's total. Both the per-call `nAmt` and the resulting total
+are clamped to the hard ceiling `knBillion` (a local = `1000000000`); the total is also floored at `0`, so
+you can never drive cash negative through this call. Writes via `Player.SetCash(nTotal)`. If
+`bSuppressDisplay` is false (the default when a non-boolean is passed), it calls `DisplayCash` to refresh
+the HUD. It then fires `Event.Post("CashAdded", {nAmtAdded = nAmt})` and reports the delta to
+[`MrxStatsManager`](mrxstatsmanager) (credit vs debit, plus an optional `sReason` breakdown).
 **Confirmed working, HUD updates** — see [`MrxCheatBootstrap`](mrxcheatbootstrap): `import("MrxPmc");
 MrxPmc.AddCashQty(100000)`. Prefer this over the lower-level `Player.AddCash(...)`, which changes the real
 value but skips this HUD-refresh trigger, so the on-screen number won't visibly update even though the
@@ -173,13 +192,20 @@ This function loads the player's PMC resources and equipment from a previously s
   - `tSaveData`: A table containing the saved game state with fields similar to those returned by `SaveSingleton()`.
 
 ## Events
-This module subscribes to and fires several engine events related to player economy management. The key events include:
+The only real event **subscription** in this module is the fuel-tank death watch, created lazily the first
+time a fuel tank is spawned:
 
-- **`Event.PlayerJoined` / `Event.PlayerLeft`**: These events are used to handle changes in the co-op player session, ensuring that the player's economy state is correctly synchronized across players.
-  
-- **`Event.ObjectDeath`**: This event is triggered when a world object (such as a fuel tank) dies. The module uses this event to adjust the player's fuel capacity and update internal state.
+- **`Event.CreatePersistent(Event.ObjectDeath, {"FuelTank"}, _OnFuelTankDeath)`** — fires when a spawned
+  fuel-tank prop (tagged `"FuelTank"`) is destroyed; the handler subtracts that tank's capacity. Created in
+  `AddFuelTank`, deleted (via `Event.Delete`) once the last tank is gone.
 
-- **`Event.TimerRelative`**: This event is used for various timed operations, such as triggering tutorials for low or no fuel conditions.
+The module also **posts** one event outward: `Event.Post("CashAdded", {nAmtAdded = nAmt})` inside
+`AddCashQty`, which other modules can listen for.
+
+{: .note }
+> No `Event.PlayerJoined`/`Event.PlayerLeft`/`Event.TimerRelative` subscriptions exist in this file — an
+> earlier draft listed them but the source does not contain them. The low/no-fuel tutorials are triggered by
+> a direct `MrxTutorialManager.StartTutorial` call inside `AddFuelQty`, not by a timer event.
 
 ## Notes for modders
 - **This is the go-to module for economy cheats/mods** — `AddCashQty`/`AddFuelQty`/`AddSupportQty` are all
@@ -191,5 +217,14 @@ This module subscribes to and fires several engine events related to player econ
   [`MrxSupportData.tSupportData`](mrxsupportdata#support-item-catalog) keys, not free-form strings.
 - When adding or removing equipment (`AddEquipment`/`RemoveEquipment`), fuel tanks specifically also spawn
   or remove a corresponding world object and adjust fuel capacity — not a pure data change.
-- Some local variables may appear unused or assigned but never read in the decompiled source — a
-  decompiler artifact, not intentional logic.
+- Equipment type dispatch keys off `WifEquipmentData.knTypeFuelTank` / `knTypeGrapplingHook`; the grappling
+  hook routes to `WifMissionFlow.SetGrappleEnabled(true)`.
+- `AddFuelQty`/`AddFuelCapacity` read the module-level `_nFuelCapacity` global directly in some branches
+  (rather than `GetFuelCapacity()`); these are only valid after `Init` (or any `SetFuelCapacity`) has run, so
+  `_nFuelCapacity` is populated. Set the cap first before pushing fuel past the default.
+
+{: .warning }
+> Source bug to be aware of: `RemoveFuelTank` calls `Object.Remove(_tEquipment.uGuid)` — reading `.uGuid`
+> off the whole `_tEquipment` table instead of `_tEquipment[sName].uGuid`. As written it removes nothing
+> (the entry's world object is orphaned) even though the capacity is subtracted. If you mod around fuel-tank
+> removal, don't rely on this to despawn the prop.

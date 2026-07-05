@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [vehicle, boost]
 verified: true
-verified_note: confirmed all 21 functions and 4 Event.* constants against source (no fabrications found); flagged DisplayBoost/nBoost as dead code with a latent undefined-global bug — gbEnableBoostMeter is hardcoded false with no setter anywhere in the corpus, and nBoost is never assigned anywhere in the file
+verified_note: 'deeper pass: re-confirmed all functions + the ObjectInSeat/ScriptEvent/TimerRelative/Button subscriptions and 4 NETEVENT_* codes; added the particle-effect hash names, the jetexhaust node, the jump/cooldown timings (0.8s/5.5s/8s, nJump 0-5 impulses) and Sound.SetVehicleEngineBoost; re-confirmed the DisplayBoost/nBoost dead-code bug; cross-linked ObjectState/Object/Net/Event namespaces.'
 ---
 
 # SpyHunter
@@ -102,10 +102,37 @@ Marks the Spy Hunter as ready for another jump and resets it if there is a drive
 Starts the cooldown process after a boost, including setting up smoke effects and sending network events if active. It also updates the boost meter display if enabled.
 
 ## Events
-- Listens for `Event.ObjectInSeat` to handle player entry and exit.
-- Listens for `Event.ScriptEvent` with `"mpPlayerLeft"` to handle multiplayer player left scenarios.
-- Listens for `Event.TimerRelative` to schedule cool checks and cooldowns.
-- Listens for custom network events (`NETEVENT_STARTEMITTERS`, `NETEVENT_STOPEMITTERS`, `NETEVENT_STARTEMITTERSMOKE`, `NETEVENT_STOPEMITTERSMOKE`) to manage particle effects and sound cues.
+All are real [`Event.Create`](../namespaces/event) subscriptions (stored in `tEvents[uGuid]`):
+
+- **`Event.ObjectInSeat`** — driver enter (`"d","ei"` → `OnEnter`, handle `eEnter`) and exit (`"d","a"`
+  → `OnExit`, handle `eExit`).
+- **`Event.ScriptEvent`** named **`"mpPlayerLeft"`** (filtered on the driver, handle `eMPquit`) — treats
+  an MP player leaving as an exit.
+- **`Event.Button`** — the actual boost trigger: while seated and cool, a `"lbutton"` `"press"` (handle
+  `eJump`) fires `SetupBoost`. (This was missing from the previous draft's list.)
+- **`Event.TimerRelative`** — the readiness poll (`0.5`s `CoolCheck`), the per-stage jump ticks (`0.8`s
+  `OnJump`), and the cooldown timers (`5.5`s `DontSmoke`, `8`s `IsCool`).
+- **Custom `"spyhunter"` net events** — `NETEVENT_STARTEMITTERS`, `NETEVENT_STOPEMITTERS`,
+  `NETEVENT_STARTEMITTERSMOKE`, `NETEVENT_STOPEMITTERSMOKE` dispatched by `NetEventCallback` to the
+  `NetSafe*` emitter helpers (visual-only sync).
+
+## Module constants & tunables
+- **Net event codes**: `NETEVENT_STARTEMITTERS=0`, `NETEVENT_STOPEMITTERS=1`,
+  `NETEVENT_STARTEMITTERSMOKE=2`, `NETEVENT_STOPEMITTERSMOKE=3` (channel `"spyhunter"`).
+- **Emitter node**: all effects attach to the vehicle node hash `"hp_fx_jetexhaust"`.
+- **Particle effect hashes** ([`ObjectState.StartEmitter`](../namespaces/object)/`StopEmitter`):
+  - `"global_particle_fire_jetengine_orange_infinite"` — idle/ready jet flame
+  - `"global_particle_fire_jetengine_boost_infinite"` — active boost flame
+  - `"global_particle_fire_jetengine_infinite"` — cooldown smoke
+- **Timings**: readiness poll `0.5`s; jump stage interval `0.8`s; smoke-stop `5.5`s after boost;
+  ready-again (`IsCool`) `8`s after boost.
+- **Jump impulse profile** (`OnJump`, `nJump` 0→5, each 0.8s apart, `myMass = Object.GetMass`):
+  stage 0 `Object.ApplyPointImpulse(...,50000,...)`; stages 1–2 upward `Object.ApplyImpulse` scaled by
+  mass (`6*`/`8*`); stages 3–5 forward-ish (`10*`/`6*`/`4*` mass with slight down). These are the knobs
+  for how the Spy Hunter "hops".
+- **Engine boost sound**: `Sound.SetVehicleEngineBoost(uGuid, 1/0)` (guarded by a nil-check on the
+  function itself).
+- **HUD string** (dead-code path): `"[GurCon003.Objectives.Boost]"`.
 
 ## Notes for modders
 - Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage Spy Hunter lifecycle.

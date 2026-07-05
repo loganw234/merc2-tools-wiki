@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, objective, verification]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — REPLACED a fabricated Events section (Event.HelicopterSpawned/Destroyed/Damaged/PilotKilled/Landed/TargetSubdued/TargetExtracted/NetEvent do NOT exist; heli states arrive via oSupport:SetHeli*CB callbacks) with the real events (ObjectDeath/ObjectProximity/HumanStateTransition/ObjectHibernation/ContextAction/ObjectInSeat/HumanActionComplete/TimerRelative/ScriptEvent/ObjectDelete + MrxFactionManager attitude event); corrected imports (7 modules, not "none"); trimmed non-existent instance fields
 ---
 
 # MrxTaskObjectiveVerify
@@ -17,23 +17,31 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 The `MrxTaskObjectiveVerify` module is responsible for handling the verification process of a high-value target (HVT) in the game. It manages various events related to the HVT's state, such as being subdued, destroyed, or damaged, and coordinates the extraction process. The module also handles network synchronization for multiplayer scenarios and ensures that the correct voice-over sequences and visual effects are played during the verification process.
 
 ## Inheritance
-- Inherits from: `MrxTaskObjective`
-- Imports: `none`
+- Inherits from: [`MrxTaskObjective`](mrxtaskobjective)
+- Imports: `MrxUtil`, [`MrxSupportData`](mrxsupportdata), [`MrxTutorialManager`](mrxtutorialmanager),
+  [`MrxVerifyManager`](mrxverifymanager), [`MrxVoSequence`](mrxvosequence),
+  [`MrxFactionManager`](mrxfactionmanager), [`MrxSupportPickup`](mrxsupportpickup)
 
 ## Instance pattern
 **Not per-`uGuid` — inherits [`MrxTaskObjective`](mrxtaskobjective)'s class-factory pattern** (itself
-inherited from [`MrxTask`](mrxtask); see that page for the general mechanism), identified by name/lineage
-rather than a world-object GUID. Key fields:
-- **NETEVENT_VERIFY**: A constant representing the network event type for verification.
-- **HVTNORMAL, HVTSUBDUED, HELIDESTROYED, HELIDAMAGED, HELILANDED, HELIPILOTKILLED, HVTDEAD**: Constants representing different states of a target (High Value Target).
-- **tHasExtractionFreebie**: A table to track extraction freebies.
-- **tHVTDistanceEvents**: A table to manage distance events related to the High Value Targets.
-- **tActiveHelicopters**: A table to keep track of active helicopters.
-- **bIsVerified**: Indicates whether the target has been verified.
-- **uCurrentHVT**: The GUID of the current HVT being tracked.
-- **sCurrentFaction**: The faction associated with the current HVT.
-- **nSupportCount**: The number of support units for the current HVT.
-- **tTargetActions**: A table to manage target actions and their states.
+inherited from [`MrxTask`](mrxtask); see that page). Real per-instance fields:
+- `self.nCurrHVTState` — the HVT state machine value (one of the `HVT*`/`HELI*` constants below).
+- `self._bIsVerified` / `self._bIsDead` — has the target been verified / has it died.
+- `self._nSupportCount` — reference count of extraction-support grants (drives the freebie on/off).
+- `self._AttitudeChangeEvent` — handle for the faction-attitude event (from
+  [`MrxFactionManager`](mrxfactionmanager)).
+
+### Module-level constants & tables (NOT per-instance)
+- `NETEVENT_VERIFY = 0` — custom-net event id.
+- `HVTNORMAL=1, HVTSUBDUED=2, HELIDESTROYED=3, HELIDAMAGED=4, HELILANDED=5, HELIPILOTKILLED=6, HVTDEAD=7`
+  — the target-state enum (these are `local` to the module).
+- `tHasExtractionFreebie`, `tHVTDistanceEvents`, `tActiveHelicopters` — **module-level shared tables**
+  (globals), not per-objective state — a second concurrent verify objective shares them.
+- `_tSubduedVO` — per-faction voice-cue lists played when a target is subdued.
+
+{: .note }
+> The previous page listed `uCurrentHVT`, `sCurrentFaction`, `tTargetActions` as fields — **none exist** in
+> the source; they've been removed.
 
 ## Functions
 
@@ -196,25 +204,41 @@ Handles the event when the player gets too far from the HVT. It performs several
 - Creates a new distance event that triggers when the player gets closer to the target, adding support again.
 
 ## Events
+Real `Event.*` subscriptions (created across `Activated`, `_SetupVerify`, `_TargetBashed`, `_TargetSubdued`,
+`_TargetOnHibernate`, and the distance helpers):
+- **`Event.ObjectDeath`** (persistent, on target filter) → `_TargetDestroyed`.
+- **`Event.ObjectProximity`** — hero-within-10 → `HeroProximity`; and the HVT distance guard (>150 / <140)
+  → `_OnHVTOutOfRange` / `_AddSupport`.
+- **`Event.HumanStateTransition`** (persistent) — `→ "KnockedDown.Idle"` → `_TargetBashed`; `KnockedDown.*`
+  → `Upright.*` → `_TargetOutOfSubdued`; `→ "Subdued.Idle"` → `_TargetSubdued`.
+- **`Event.ObjectHibernation`** — `"awake"` → `_TargetOnAwake`, `"hibernated"` → `_TargetOnHibernate`
+  (re-shows the correct tutorial hint when the target streams back in).
+- **`Event.ContextAction`** (after death) → `_TargetActioned` (the "Verify" prompt).
+- **`Event.ObjectInSeat`** (`"ExtractionHelicopter"`) → `_TargetExtracted` (subdued HVT stowed in the heli).
+- **`Event.HumanActionComplete`** → `_TargetActionedComplete` (verify animation finished).
+- **`Event.TimerRelative`** — the `3` s pre-verify delay, the flash animation timer, etc.
+- **`Event.ScriptEvent`** (`"mpPlayerJoin"`) → `SendPlayerJoinEvents` (re-grant extraction freebie to a
+  joining co-op player).
+- **`Event.ObjectDelete`** → prunes a heli from `tActiveHelicopters`.
+- **Faction attitude:** `MrxFactionManager.CreatePersistentAttitudeChangeEvent` / `CreateAttitudeChangeEvent`
+  toggles extraction support as the faction's attitude to the PMC flips.
 
-- **`Event.ObjectDeath`**: Listens for the death of an object and calls `_TargetDestroyed`.
-- **`Event.ObjectProximity`**: Listens for proximity events with heroes and calls `HeroProximity`.
-- **`Event.ObjectHibernate`**: Listens for objects waking up from hibernation and calls `_TargetOnAwake`.
-- **`Event.HelicopterSpawned`**: Listens for helicopters being spawned and calls `_HelicopterSpawnedCallback`.
-- **`Event.HelicopterDestroyed`**: Listens for helicopters being destroyed and calls `_HelicopterDestroyedCallback`.
-- **`Event.HelicopterDamaged`**: Listens for helicopters taking damage and calls `_HelicopterDamagedCallback`.
-- **`Event.PilotKilled`**: Listens for helicopter pilots being killed and calls `_PilotKilledCallback`.
-- **`Event.HelicopterLanded`**: Listens for helicopters landing and calls `_HelicopterLandedCallback`.
-- **`Event.TargetSubdued`**: Listens for targets being subdued and calls `_TargetSubdued`.
-- **`Event.TargetExtracted`**: Listens for targets being extracted and calls `_TargetExtracted`.
-- **`Event.NetEvent`**: Listens for network events and calls `NetEventCallback`.
+{: .warning }
+> The previous page invented `Event.HelicopterSpawned` / `Destroyed` / `Damaged`, `Event.PilotKilled`,
+> `Event.HelicopterLanded`, `Event.TargetSubdued` / `Extracted`, `Event.NetEvent`, and mis-spelled
+> `Event.ObjectHibernate`. **None of the heli events exist** — helicopter state changes arrive through
+> *callbacks* set on the support object (`oSupport.oSupport:SetHeliDestroyedCB(...)`,
+> `SetHeliLandedCB`, `SetPilotKilledCB`, `SetHeliSpawnedCB`, `SetHeliDamagedCB`), which are not
+> `Event.Create` subscriptions. `NetEventCallback` is the custom-net handler, not an event.
 
 ## Notes for modders
-
-- **Call-order requirements**: Ensure that the module is properly activated before any other operations are performed. The `Activated` function sets up necessary event listeners.
-  
-- **Pitfalls**: Be cautious with modifying the state of active helicopters or targets, as it can affect gameplay balance and objectives.
-
-- **Tunables**: There are no tunable parameters exposed in this module. All behavior is hardcoded.
-
-- **Decompiler artifacts**: The decompiler may produce unused locals or redundant operator groupings. These should be ignored unless they affect the logic of the code.
+- **`sFactionId` (config) drives which extraction support is granted.** `_GetSupportByFaction` maps it:
+  `All→Extraction_AL`, `Chi→_CH`, `Gur→_GR`, `Oil→_OC`, `Pmc→_PMC`, `Pir→_PR` (defaults to `Extraction_PMC`).
+  Support is granted while the player stays within `150` m of the HVT and revoked past it.
+- **Distances and the `3`-second verify delay are hardcoded**; the state machine (`HVT*`/`HELI*`) picks which
+  `"[Tutorial.ObjectiveVerify.Key*]"` hint shows.
+- **German SKU branch:** `Sys.IsGermanSKU()` skips the on-screen verify animation entirely and completes the
+  part directly (`"CENSORED!!!!"` in the logs) — expect different flow on that SKU.
+- Verify art overrides: radar `"objective_verify"`, world `"HUD_objective_verify"`, PDA
+  `"icon_verify_1_mc"` / `"icon_verify_2_mc"`, inline `"[objverify]"` / `"[objverify2]"`;
+  `_GetJust2DCheckNeeded()` returns `true` here (world blip uses a 2D distance check).

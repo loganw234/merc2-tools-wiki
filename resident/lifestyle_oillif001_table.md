@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [lifestyle, vehicle]
 verified: true
-verified_note: added the module-load-time Debug.Printf, noted SetStaging's unused self param and lack of nil-guard on riders/count assumption; events section confirmed empty.
+verified_note: "deeper pass: re-confirmed the 24-line source — module-load Debug.Printf, Init->SetStaging, the unguarded two-rider pairs loop and dead self param; surfaced the vehicle name and both Human.SetState state strings as constants; no events, purely an Init-driven staging script"
 ---
 
 # LifestyleOilLif001Table
@@ -46,7 +46,15 @@ if the vehicle has fewer than two riders (`iRider2`, or both, could be left `nil
 into `Human.SetState`).
 
 ## Events
-- Listens for none (no engine events are subscribed to or fired).
+None — no engine events are subscribed to or fired. This is a one-shot staging script driven entirely by
+`Init()`.
+
+## Module constants & tunables
+- **Target vehicle:** the named world object `"OilLif001 Table"` (looked up via `Pg.GetGuidByName`).
+- **Rider states** (both set via `Human.SetState(..., "InVehicle", ...)`):
+  `"lifestylejobPlayerArmwrestlingWinningloop01"` (first rider → `iRider1`) and
+  `"lifestylejobOpponentArmwrestlingWinningloop01"` (subsequent rider → `iRider2`). Swap these to change the
+  arm-wrestling pose loop.
 
 ## Notes for modders
 - Ensure that the vehicle asset model "OilLif001 Table" exists in the game world.

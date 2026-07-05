@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, objective, destroy]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjective](mrxtaskobjective) for the general mechanism.
+verified_note: deeper pass — re-confirmed both persistent events (ObjectDeath + ScriptEvent "ClientKill"); documented the bHeroOnly config lever (credit only when a hero landed the kill) and the destroy-specific icon overrides; contrasted with MrxTaskObjectiveProtect (same shape, CancelPart instead of CompletePart)
 ---
 
 # MrxTaskObjectiveDestroy
@@ -32,7 +32,11 @@ rather than a world-object GUID. Key fields:
 Called when the task objective is activated. It sets up persistent events to listen for object deaths and client kills, and registers them in the `_tEvents` table. It also asserts that the death event handle is valid.
 
 ### `_TargetDestroyed(self, uGuid, uCause, uKiller)`
-A private function called when a target object dies. It checks if the objective requires hero-only destruction and processes the destruction accordingly by removing the target and completing the part of the task.
+The `Event.ObjectDeath` handler. If config `bHeroOnly` is set, it only counts the kill when `uKiller`
+matches one of the players' hero characters (loops `Player.GetAllPlayers()` → `Player.GetCharacter`);
+otherwise any death of a valid `userdata` target counts. On a counted kill it `RemoveTarget` + `CompletePart`.
+This is the mirror image of [`MrxTaskObjectiveProtect`](mrxtaskobjectiveprotect), which shares this exact
+shape but calls `CancelPart` (a protected target dying is a *failure*).
 
 ### `_GetShortDescription()`
 Returns a short description string for the task objective.
@@ -53,11 +57,18 @@ Returns the game space icon for the target object.
 A private function that checks if a given GUID is a valid target. It verifies if the GUID corresponds to any player character or an alive object.
 
 ## Events
-- Listens for `Event.ObjectDeath` to call `_TargetDestroyed` when a target object dies.
-- Listens for `Event.ScriptEvent` with the event name "ClientKill" to handle client kills and remove targets accordingly.
+Both `Event.CreatePersistent`, created in `Activated` and stored in `_tEvents`:
+- **`Event.ObjectDeath`** (on `self._uTgtObjFilter`) → `_TargetDestroyed`.
+- **`Event.ScriptEvent`** with name `"ClientKill"`, filtered by `ObjectFilter.Eval` on the target filter →
+  an inline handler that `RemoveTarget` + `CompletePart` for the reported GUID. This is the co-op path so a
+  kill made on a client still counts.
+
+Inherits [`MrxTaskObjective`](mrxtaskobjective)'s `Event.TimerRelative` initial-notes timer.
 
 ## Notes for modders
-- Ensure that `Activated` is called appropriately to set up event listeners.
-- Customize the behavior by modifying the `_uTgtObjFilter` to target specific objects.
-- Use `_GetShortDescription`, `GetInlineIcon`, `_GetTargetRadarIcon`, `_GetTargetPdaIcon`, and `_GetTargetGameSpaceIcon` to provide appropriate UI feedback for the task objective.
-- Be aware of the hero-only destruction requirement, which may affect how the task is completed.
+- **`bHeroOnly`** (config) restricts credit to kills where a player's hero character was the killer — use it
+  for "you personally must destroy X" objectives so an AI or environment kill doesn't count.
+- **Choose targets via the filter**, not by editing this module: config `sTgtLabelFilter` /
+  `vTgtInclude` / `vTgtExclude` / `nQuota` all flow into the inherited `_uTgtObjFilter` and quota.
+- Destroy-specific art overrides: radar `"objective_destroy"`, world `"HUD_objective_destroy"`, PDA
+  `"icon_destroy_1_mc"` / `"icon_destroy_2_mc"`, inline `"[objdestroy]"` / `"[objdestroy2]"`.

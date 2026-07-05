@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, airstrike]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: documented the "distance"-triggered drop (nSpeedScale 60), the two-stage ignition→fireball chain with all its particle/light template strings and the exp_oiltrucker sound cue, flagged the Test() dev helper and that only the smoke designator of the three imports is used; cross-linked Airstrike/MrxSupport'
 ---
 
 # MrxFuelAirBomb
@@ -14,11 +14,19 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxfuelairbomb.lua*
 
 ## Overview
-The `MrxFuelAirBomb` module is responsible for managing the deployment and detonation of fuel air bombs as a support action in the game. It inherits from the `MrxSupport` module and utilizes designator functionalities to target and deploy the bomb.
+`MrxFuelAirBomb` is the thermobaric support weapon. It drops a **"Fuel Air Bomb Projectile"** that detonates
+by **distance-to-target** rather than on impact, then plays a distinctive **two-stage** effect: an initial
+airburst + debris, a ~1.6 s pause, then an **ignition** (light + `exp_oiltrucker` sound) and finally a
+ground-hugging **fireball**. Extends [`MrxSupport`](mrxsupport). The screen-flash grade is the separate
+[Airstrike_Atmosphere_FuelAirBomb](airstrike_atomsphere_fuelairbomb) object (whose 1.75 s delay is timed to
+this ignition).
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportDesignatorSmoke`, `MrxSupportDesignatorLaser`, `MrxSupportDesignatorSatellite`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke),
+  [`MrxSupportDesignatorLaser`](mrxsupportdesignatorlaser),
+  [`MrxSupportDesignatorSatellite`](mrxsupportdesignatorsatellite) — **only the smoke designator is actually
+  instantiated**; the laser/satellite imports are unused in this file.
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
@@ -33,37 +41,63 @@ registry. It tracks the following key fields:
 - `uJet`: The GUID of the jet performing the flyby.
 - `uSpawnedBomb`: The GUID of the spawned bomb projectile.
 
+## Module constants & templates
+No module-level named constants — all templates are literals in the effect chain:
+- Ordnance: `"Fuel Air Bomb Projectile"` (velocity scale `nSpeedScale = 60`; detonation trigger
+  `"distance"` with `nDistance = Math.Length(vector) - 24`, i.e. it explodes 24 units short of the target).
+- Airburst particles (via `Airstrike.SpawnDirectedObject`): `"global_particle_airstrike_fuelairbomb"`,
+  `"global_particle_explosion_flash_large"`.
+- Ignition stage: `"Light_airstrike_fuelairbomb_sml"`, `"global_particle_exp_falling_debris_airstrike"`,
+  plus sound cue `Sound.CueSound(0, "exp_oiltrucker")`.
+- Fireball stage: `"Explosion (Fuel Air Bomb)"`, `"Light_airstrike_fuelairbomb_lrg_flash"`,
+  `"global_particle_exp_shockwave_ground"`.
+
 ## Functions
 ### `Create(self, uPlayerGuid)`
-Creates a new instance of the `MrxFuelAirBomb` support action. It sets up the designator with specific properties and initializes the module's fields with the provided player GUID.
+Class-factory constructor. Builds a smoke designator (`SetValidationFunction(nil)`, `"basic"` AA test,
+`SetTargetValidationRequired(false)`, `SetSmokeColor("red")`), sets owner / recruit `"Pilot"` / module name,
+and copies the delivery-vehicle fields onto the instance.
 
 ### `DesignationCallback(self)`
-Handles the designation callback for placing the fuel air bomb. It calculates the spawn and launch points, retrieves the target coordinates from the designator, and initiates the flyby of the delivery vehicle towards the target location. It also plays a voice-over for the airstrike.
+Computes an approach and a set of offset vectors, flies the jet with `Airstrike.Flyby(…, 200, DropBomb,
+{self})`, and plays a Misha VO (cues 06/07/16/24).
 
 ### `DropBomb(self)`
-Drops the fuel air bomb at the designated target location. It calculates the direction vector from the jet to the target, normalizes it, and spawns the bomb projectile with an appropriate speed.
+Reads jet + designator target, computes `nDistance = length(vector) - 24`, normalizes the direction, and
+fires:
+```lua
+self.uSpawnedBomb = Airstrike.SpawnOrdnance("Fuel Air Bomb Projectile", nX, nY-5, nZ,
+  nVX*60, nVY*60, nVZ*60, "distance", nDistance, self.uOwner, BombExplodes, {self, "distance"})
+```
+The `"distance"`/`nDistance` pair is what gives the fuel-air its **airburst** rather than a ground impact.
 
 ### `BombExplodes(self, sTrigger)`
-Handles the explosion of the dropped bomb. It retrieves the current position of the bomb, calculates the direction vector towards the target, spawns explosion particles, and schedules the ignition sequence.
+First stage. Spawns the airburst + flash via `Airstrike.SpawnDirectedObject` (oriented back along the flight
+vector), then schedules `Ignition` **1.6 s** later.
+
+### `Ignition(nBombX … nVectorZ)`
+Second stage. Spawns the ignition light + falling-debris particle at the target, plays
+`Sound.CueSound(0, "exp_oiltrucker")`, and schedules `Fireball` **0.15 s** later.
+
+### `Fireball(nBombX … nVectorZ)`
+Final stage. Spawns `"Explosion (Fuel Air Bomb)"`, the large flash light, and a ground shockwave —
+the visible thermobaric burst.
 
 ### `Test(nVZ, nVY, nVZ, nTargetX, nTargetY, nTargetZ)`
-A test function that spawns a fuel air bomb particle at the specified target location. This is likely for debugging purposes.
-
-### `Ignition(nBombX, nBombY, nBombZ, nTargetX, nTargetY, nTargetZ, nVectorX, nVectorY, nVectorZ)`
-Handles the ignition sequence of the bomb. It spawns light and debris particles at the target location, schedules the fireball effect, and plays a sound cue for the explosion.
-
-### `Fireball(nBombX, nBombY, nBombZ, nTargetX, nTargetY, nTargetZ, nVectorX, nVectorY, nVectorZ)`
-Handles the fireball effect of the bomb. It spawns explosion particles at the bomb's position and ground shockwave particles towards the target location.
+**Dev helper** — spawns a lone `"global_particle_airstrike_fuelairbomb"` at given coords. Not called by the
+weapon; note its params are mistyped (`nVZ` declared twice), so it's clearly leftover debug scaffolding.
 
 ## Events
-- Listens for custom event `DesignationCallback` to handle the designation of the bomb drop location.
-- Listens for custom event `DropBomb` to handle the actual dropping of the bomb.
-- Listens for custom event `BombExplodes` to handle the explosion of the bomb.
-- Listens for custom event `Ignition` to handle the ignition sequence of the bomb.
-- Listens for custom event `Fireball` to handle the fireball effect of the bomb.
+- **No `Event.Create` subscriptions.** The staged effect is driven entirely by `Event.TimerRelative`
+  scheduling: `BombExplodes → +1.6 s → Ignition → +0.15 s → Fireball`. `DesignationCallback`/`DropBomb` are
+  wired by the parent designation flow and the `Airstrike.Flyby`/`SpawnOrdnance` callbacks.
 
 ## Notes for modders
-- Ensure that the designator is properly set up and validated before attempting to drop the bomb.
-- Customize the delivery vehicle and other properties as needed for different game scenarios.
-- Be aware of the timing and sequence of events, especially during the ignition and explosion phases.
-- Use the `Test` function for debugging purposes to visualize the bomb placement.
+- **The `"distance"` detonation + `nDistance - 24` is the fuel-air's defining behavior** — change the `- 24`
+  (in an override of `DropBomb`, a plain global) to burst higher or closer, or switch the trigger to
+  `"impact"` for a ground detonation.
+- The whole look is a **timer chain of particle spawns** (1.6 s then 0.15 s) — retime or reskin it by
+  overriding `BombExplodes`/`Ignition`/`Fireball` (all plain globals) and swapping the template strings above.
+- The `exp_oiltrucker` sound cue is the ignition "whoomph"; swap it in `Ignition` for a different blast SFX.
+- `Test()` is safe to call from a dev/`OnKey` script to preview the airburst particle; it is not part of the
+  live weapon.

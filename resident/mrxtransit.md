@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [transit, landing zone]
 verified: true
-verified_note: UnlockAllLandingZones confirmed by live testing via MrxCheatBootstrap; rest read directly from source
+verified_note: "deeper pass: surfaced _nTransitFuelCost=20, the ACHIEVEMENT_BURN_THE_SKY grant in SetLocationEnabled, zone-6-is-fake and the per-faction attitude wiring in Reset, and FinishTransit's 0.75s timer; cross-linked imports; UnlockAllLandingZones still confirmed by live testing"
 ---
 
 # MrxTransit
@@ -18,14 +18,19 @@ The `MrxTransit` module manages the transit system in the game, including handli
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `MrxGui`, `MrxSupportTransit`, `MrxUnlockFanfare`, `MrxFactionManager`, `MrxUtil`, `MrxSound`, `MrxAchievements`, `MrxState`, `MrxStatsManager`
+- Imports: [`MrxGui`](mrxgui), [`MrxSupportTransit`](mrxsupporttransit), [`MrxUnlockFanfare`](mrxunlockfanfare),
+  [`MrxFactionManager`](mrxfactionmanager), [`MrxUtil`](mrxutil), [`MrxSound`](mrxsound),
+  [`MrxAchievements`](mrxachievements), [`MrxState`](mrxstate), [`MrxStatsManager`](mrxstatsmanager)
 
 ## Instance pattern
 This is a stateless manager/utility module. It tracks the following key fields:
-- `_tLandingZones`: A table containing data for each landing zone.
-- `_bInitialized`: Indicates whether the transit system has been initialized.
+- `_tLandingZones`: A table (indexed by numeric zone id) of per-zone data — each entry carries
+  `uLocation1`/`uLocation2` (spawn points), `sName`, `sFactionAbbrev`, and the flags `bEnabled`,
+  `bSuppressed`, `bIsNuked`, `bFake`, `bHasPlayedFanfare`. Built by `Reset` from `Pg.GetAllLandingZones`.
+- `_bInitialized`: Indicates whether the transit system has been initialized (`Reset` sets it).
 - `_bEnabled`: Indicates whether the transit system is enabled.
-- `_nTransitFuelCost`: The fuel cost per fast-travel.
+- `_nTransitFuelCost`: **Module-level constant `20`** — the fuel cost per fast-travel (read via
+  `GetTransitFuelCost`). Change this one number to make transit cheaper/free.
 - `_bInTransit`: Indicates whether a transit is currently in progress.
 
 ## Functions
@@ -57,7 +62,11 @@ Returns the number of valid, enabled, and not suppressed landing zones.
 Enables or disables all landing zones associated with the specified faction based on the `bAllow` parameter.
 
 ### `SetLocationEnabled(nLocation, sFactionAbbrev, bSuppressFanfare)`
-Sets a specific landing zone as enabled and assigns it to the given faction. Optionally suppresses the fanfare if `bSuppressFanfare` is true.
+Sets a specific landing zone as enabled and assigns it to the given faction. Plays an unlock fanfare
+(`MrxUnlockFanfare.AddUnlockedItem`, type `"landingzone"`) unless `bSuppressFanfare` is set or it already
+fired. Skips zones flagged `bFake`, and marks the zone `bSuppressed` if the faction isn't at least Neutral
+with PMC. After enabling, if the count of unlocked zones has reached the count of unlockable zones, grants
+achievement `"ACHIEVEMENT_BURN_THE_SKY"` to the primary player.
 
 ### `_GetTableSizeSlow(t)`
 A helper function that returns the size of a table by counting its elements.
@@ -81,7 +90,11 @@ Enables or disables the transit system. Optionally animates the change and hides
 Returns whether the transit system has been initialized.
 
 ### `Reset()`
-Resets the transit system by initializing it with data from `Pg.GetAllLandingZones`.
+Initializes `_tLandingZones` from `Pg.GetAllLandingZones(1)`/`(2)` (bails if the API is missing, already
+initialized, or returns no zones). Flags zone index `6` as `bFake` (excluded from the unlockable set), then
+registers a persistent attitude-change event per faction (via
+`MrxFactionManager.CreatePersistentAttitudeChangeEvent`) so zones auto-enable/suppress as that faction's
+attitude toward PMC crosses Neutral. Sets `_bInitialized = true`.
 
 ### `SaveSingleton()`
 Saves the current state of the transit system, including enabled status and landing zone data.
@@ -105,7 +118,9 @@ Checks if a transit is currently in progress.
 Starts a transit process by entering the waiting-for-streaming state and sending a custom network event.
 
 ### `FinishTransit(fCallback, tCallbackArgs)`
-Finishes the transit process by exiting the waiting-for-streaming state and calling the provided callback function.
+Finishes the transit process. Waits `0.75` seconds (`Event.TimerRelative`, one-shot) before clearing
+`_bInTransit`, exiting `MrxState.STATE_WAITFORSTREAMING`, and invoking the callback via
+`MrxUtil.CallWithOptionalArgs`.
 
 ### `NetEventCallback(nEventType, tArgs)`
 Handles network events related to the transit system. It processes events for enabling/disabling the system and starting a transit.
@@ -117,6 +132,10 @@ Handles network events related to the transit system. It processes events for en
 ## Notes for modders
 - **`UnlockAllLandingZones()` is the fastest way to open every fast-travel destination** — confirmed
   working, one line, see above.
+- **Fuel cost is the constant `_nTransitFuelCost = 20`** (returned by `GetTransitFuelCost`, applied to the
+  support-menu item in `SetSystemEnabled`). Set it to `0` for free fast-travel.
+- **Zone index `6` is hardcoded as fake** in `Reset` (`bFake = true`) and is excluded from the unlockable
+  count — don't expect it to appear as a real destination.
 - Use `Transit(nLocation)` to initiate fast-travel to a specific landing zone by numeric ID; `GetName(nId)`
   gives you the display name if you need to enumerate options first.
 - Customize landing zone properties by modifying `_tLandingZones` data directly, the same "it's just a

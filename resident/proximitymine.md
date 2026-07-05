@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [mine, proximity]
 verified: true
-verified_note: corrects the Instance pattern section -- confirmed via source as a bare module-level uEvent[uGuid] bookkeeping table (no Create/setmetatable/tInstance factory), not the Inheritable rich-instance pattern
+verified_note: 'deeper pass: re-confirmed all 5 functions + the ObjectProximity/TimerRelative subscriptions; documented the exact trigger (6-unit "human" filter, non-networked flags) and the Airstrike.SpawnOrdnance payload ("Grenade MG Projectile", +8 up, distance 1.8, Object.Kill cleanup); cross-linked Airstrike/Object/Event namespaces + mine.'
 ---
 
 # ProximityMine
@@ -14,7 +14,9 @@ verified_note: corrects the Instance pattern section -- confirmed via source as 
 *Module: proximitymine.lua*
 
 ## Overview
-The `ProximityMine` module is responsible for handling the behavior of proximity mines in the game. When a human player enters a 6-meter radius around the mine, it triggers an event that removes the mine and spawns upward-firing ordnance (`Grenade MG Projectile`) at the mine's location.
+`ProximityMine` implements a buried anti-personnel mine: when any human comes within 6 units, the mine
+removes itself and fires a `"Grenade MG Projectile"` straight up from its position, killing whoever
+tripped it. (Contrast the more general [`mine`](mine) module.)
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -37,22 +39,42 @@ Initializes the module by creating an event handle table and setting up an objec
 Cleans up the module by clearing the event handle table and object filter.
 
 ### `OnActivate(uGuid, nArg)`
-Called when the proximity mine instance is activated. It sets up a proximity event that triggers when a human player enters a 6-meter radius around the mine.
+Engine lifecycle callback. Registers an `Event.ObjectProximity` event using the shared `uFilter`
+(humans only), radius `6`, comparison `"<"`, and the two trailing `false` flags. Stores the handle in
+`uEvent[uGuid]`. `nArg` is unused.
 
 ### `OnDeactivate(uGuid)`
-Called when the proximity mine instance is deactivated. It deletes the associated proximity event and clears its handle.
+Deletes the proximity event for this mine and clears `uEvent[uGuid]`.
 
 ### `Triggered(uGuid, tListOfObjects)`
-A callback function triggered when the proximity event detects a human player within range. It schedules a timer to call the `Popup` function after a short delay (0.001 seconds).
+Proximity callback. Schedules `Popup` after `0.001s` via [`Event.TimerRelative`](../namespaces/event)
+(a one-frame defer). `tListOfObjects` is received but not used.
 
 ### `Popup(uGuid)`
-Removes the proximity mine instance and spawns upward-firing ordnance (`Grenade MG Projectile`) at the mine's location.
+Reads the mine's position (bails if it has none), removes the mine, and fires the ordnance:
+```lua
+Airstrike.SpawnOrdnance("Grenade MG Projectile", nX, nY, nZ, 0, 8, 0, "distance", 1.8, nil, Object.Kill, {})
+```
+i.e. a grenade projectile launched with a `+8` vertical velocity component, `"distance"` fuze mode at
+`1.8`, and `Object.Kill` as the on-hit callback. See [`Airstrike`](../namespaces/airstrike).
 
 ## Events
-- Listens for `Event.ObjectProximity` to detect when a human player enters a 6-meter radius around the mine.
-- Listens for `Event.TimerRelative` to schedule the `Popup` function after a short delay.
+- **`Event.ObjectProximity`** (in `OnActivate`, handle `uEvent[uGuid]`) — detects a human within 6
+  units. This is a real subscription; `OnActivate`/`OnDeactivate` themselves are lifecycle callbacks.
+- **`Event.TimerRelative`** (`0.001`s, in `Triggered`) — defers `Popup` by a frame.
+
+## Module constants & tunables
+- **Trigger radius**: `6` (units), the `Event.ObjectProximity` distance in `OnActivate`.
+- **Filter**: `uFilter` is created once in `Init()` as `ObjectFilter.SetFilter(uFilter, "human")` — the
+  mine only reacts to humans, not vehicles.
+- **Ordnance**: template `"Grenade MG Projectile"`, launch offset `(0, 8, 0)`, `"distance"` fuze
+  `1.8`, cleanup callback `Object.Kill`. These are the payload knobs.
+- **Detonation delay**: `0.001s` (effectively immediate).
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the proximity mine's lifecycle.
-- Customize the trigger radius or ordnance behavior by modifying the code in the `Triggered` and `Popup` functions.
-- Be aware of the network synchronization settings if using this module in multiplayer scenarios.
+- Change the **radius** (`6`) in `OnActivate` and the **ordnance** args in `Popup` to retune the mine
+  (bigger blast, different projectile, longer arming distance, etc.).
+- The proximity filter is **humans only** by design — this mine ignores vehicles. Rebuild `uFilter` in
+  `Init()` if you want it to trigger on something else.
+- `Init()` must run before any mine activates (it creates `uEvent`/`uFilter`); `Deinit()` clears them.
+  These are **shared module-level singletons**, not per-mine state.

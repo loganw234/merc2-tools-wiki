@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [pickup, transit]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: rewrote Events section (real Event.ScriptEvent/ObjectDeath/ObjectHibernation subscriptions, not "custom events"), flagged bPickupInProgress/tImmediatePickupData as module-level globals not per-instance state, added the green-smoke designator + Copter recruit constants; all functions re-confirmed'
 ---
 
 # MrxMunitionsPickup
@@ -28,10 +28,19 @@ registry. It tracks the following key fields:
 - `sDeliveryVehicle`: The name of the vehicle template used for delivery.
 - `uDeliveryVehicle`: The GUID of the delivery vehicle.
 - `oUpdateEvent`: An event handle for periodic updates.
-- `oDesignator`: A designator object for targeting.
+- `oDesignator`: a [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke) set to **green** smoke, AA test
+  level `"none"`, and a `nil` validation function (any target accepted). Recruit type is `"Copter"`.
 - `oFinalDestination`: The final destination point for the pickup operation.
-- `bPickupInProgress`: A flag indicating if a pickup is currently in progress.
-- `tImmediatePickupData`: Data used for immediate pickup operations.
+- Per-designation event handles: `oNoMunitionsScriptEvent`, `oMunitionsKilledEvent`,
+  `oMunitionsSleepEvent`, `oUntagScriptEvent` — created in `_WaitCallback`/`PickMunitionsTarget`, deleted in
+  `Pickup`/`ImmediatePickup`.
+
+{: .warning }
+> **`bPickupInProgress` and `tImmediatePickupData` are module-level globals, not per-`self` fields.** Both
+> are declared at file scope and read/written by bare name (not through `self`), so they are shared across
+> every munitions-pickup object. `tImmediatePickupData` even caches a `self` reference so the free-function
+> `ImmediatePickup()` (which takes no arguments) can reach back into the active pickup. This works only
+> because at most one munitions pickup is ever in flight — it is not safe for concurrent pickups.
 
 ## Functions
 ### `Create(self, uOwnerGuid)`
@@ -56,17 +65,40 @@ Called after the heli wakes up. Starts a voice-over sequence, sets up damage eve
 Detaches cargo from the winch, gets tagged munitions, and sets up events to handle various scenarios (e.g., no munitions, untagged munitions).
 
 ### `ImmediatePickup()`
-Handles immediate pickup operations by cancelling relevant events, removing objects, and updating faction infraction logic.
+A free function (no `self` parameter) that force-completes an in-progress pickup: it no-ops unless
+`bPickupInProgress` and there's still a tagged munition, then calls `Munitions.PickupAllMunitions()`,
+deletes the four per-pickup events via the cached `tImmediatePickupData.self`, fades out the heli (and any
+winched target), frees the `"Copter"` recruit, and resets the module globals. Reaches its target object
+entirely through the module-level `tImmediatePickupData` table — see the warning above.
 
 ### `Pickup(self, uHeli, uDriver, pu, nState)`
 Handles the actual pickup of munitions. Updates faction infraction, picks up all tagged munitions, and returns the heli to its home position.
 
 ## Events
-- Listens for custom event `DesignationCallback` to handle designation events.
-- Listens for various other custom events (`NoMunitions`, `UntagMunitions`, etc.) to manage pickup operations.
+Confirmed from source — all one-shot registrations tied to a specific pickup. `DesignationCallback` is
+**not** an event; it's the framework hook called by [`MrxSupport`](mrxsupport) and it just forwards to the
+plain function `_DesignatorCallback`.
+
+- **`Event.ObjectHibernation`** (`"awake"`) — waits for the spawned heli to wake, then runs `_WaitCallback`.
+- **`Event.ScriptEvent`** `"NoMunitions"` — if the game posts this, calls `MrxSupport.Abort(self, uHeli,
+  "NoMunitions")`.
+- **`Event.ScriptEvent`** `"UntagMunitions"` (filtered to the current target `self.pu`) — if the target is
+  un-tagged mid-run, re-picks a new target via `PickMunitionsTarget`.
+- **`Event.ObjectDeath`** (on `self.pu`) and **`Event.ObjectHibernation`** (`"hibernated"`, on `self.pu`) —
+  if the current target munition dies or sleeps, re-run `PickMunitionsTarget`.
+
+Damage abort comes from the inherited `MrxSupport.SetupDamageEvent` (aborts if the heli drops below 60%
+health — see [`MrxSupport`](mrxsupport)).
 
 ## Notes for modders
-- Ensure that `SetDeliveryVehicle` and `SetFinalDestination` are called appropriately to configure the pickup operation.
-- Use `Pickup` and `ImmediatePickup` functions to control the pickup process.
-- Customize voice-over sequences by modifying the `tVO` table in `_WaitCallback`.
-- Be aware of faction infraction logic, as picking up munitions will add a +5 infraction per pickup.
+- **`SetDeliveryVehicle`/`SetFinalDestination`** configure the heli and where it returns; the module-level
+  default vehicle is `"UH1 Transport (PMC) (Driver)"`.
+- **This is a mission/freebie support type, not a purchasable catalog entry** — [`MrxSupportData`](mrxsupportdata)
+  wires two `tFreebieData` instances of it (`GurCon001_Munitions`, `MunitionsPickup`), each with a fixed
+  delivery vehicle + faction HQ landing zone.
+- **Faction infraction**: `Pickup` adds `+5` infraction (via `Ai.AddInfraction`) against the picked-up
+  munition's faction, for each local player character — grabbing another faction's dropped ordnance is a
+  hostile act.
+- Customize the "on the way" VO by editing the `tVO` table in `_WaitCallback`.
+- **`bPickupInProgress`/`tImmediatePickupData` are shared module globals** (see the Instance-pattern
+  warning) — don't build logic that assumes two pickups can run at once.

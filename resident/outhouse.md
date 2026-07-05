@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: spot-checked against source (2-line stub, single no-op function) — no inaccuracies found, no changes needed
+verified_note: 'deeper pass: re-confirmed the whole file (2-line stub, one empty Use function, no imports/inherit/events); tightened the stub note and made the modder guidance actionable (Use is an overridable global hook).'
 ---
 
 # Outhouse
@@ -25,11 +25,16 @@ This is a stateless manager/utility module with no per-instance pattern or track
 
 ## Functions
 ### `Use(aiguid, floatval)`
-A placeholder function that currently does nothing. It takes two parameters, `aiguid` and `floatval`, but neither are used within the function.
+Empty function — the body does nothing. `aiguid` is the object handle of the outhouse; `floatval` is
+unused. By naming convention this is the "use/interact" hook the engine calls when the player
+activates the object, but as shipped it is a no-op (the outhouse is pure set dressing).
 
 ## Events
-- none
+- none — no `Event.*` calls of any kind.
 
 ## Notes for modders
-- This module is currently a stub with no functionality. To extend or modify its behavior, you would need to implement logic within the `Use` function.
-- Ensure that any modifications respect the game's internal state and do not introduce unintended side effects.
+- `Use` is a plain global, so overriding it is the whole point of this file: drop your own `Use`
+  implementation to make the outhouse do something on interaction. See
+  [Function override](../deep-dives/function-override).
+- Nothing else is wired up — no inherit, no imports, no state — so there is no lifecycle or cleanup to
+  worry about.

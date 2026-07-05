@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, delivery]
 verified: true
-verified_note: read directly from source -- corrects the Instance pattern (class-factory, not per-uGuid) and Events section (the previous version listed internal functions as if they were subscribed-to custom events), and documents a real confirmed bug in SetCargoDropHeight
+verified_note: 'deeper pass: re-confirmed the SetCargoDropHeight bug + SetFinalDestination field mismatch + class-factory pattern; added the module-constants list (default templates, nCargoDropHeight/nAltitude, per-faction tVOOnTheWay) and cross-links to the subclasses that inherit this base'
 ---
 
 # MrxSupportDelivery
@@ -24,9 +24,22 @@ top of that base.
 table via `setmetatable`/`__index`, exactly like its parent. No `OnActivate`/`Awake`, no `tInstance`
 registry.
 
+**Subclasses that build on this base** (cross-linked so you can navigate the family):
+[`MrxCrateDelivery`](mrxcratedelivery) (ground crates — the bulk of the catalog),
+[`MrxBoatDelivery`](mrxboatdelivery) (water drops), and [`MrxOilCon002Delivery`](mrxoilcon002delivery)
+(mission listening-post). Each is a thin `Create`-only subclass that reconfigures the designator and cargo.
+(The `Heli`/`Soldier`/`Pickup`/`Transit` types inherit from [`MrxSupport`](mrxsupport) directly, not this
+base — they don't winch cargo.)
+
 ## Inheritance
 - Inherits from: [`MrxSupport`](mrxsupport)
-- Imports: `MrxSupportManager`, `MrxSupportDesignatorSmoke`, `MrxGui`, `MrxUtil`
+- Imports: `MrxSupportManager`, [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke), `MrxGui`, `MrxUtil`
+
+Module constants (file scope): `sDeliveryVehicle = "UH1 Transport (PMC) (Driver)"` and
+`sCargoToDeliver = "box"` (the defaults every subclass overrides), `uCargoToDeliver` (resolved once from
+`sCargoToDeliver`), `nCargoDropHeight = 0.5`, `nAltitude = 250` (declared here but the spawn height actually
+used comes from `MrxSupport.GetSpawnHeight()`), and `tVOOnTheWay` — a per-faction table of "incoming
+support" cues (`PMC`/`Allied`/`China`/`VZ`/`Guerilla`/`OC`) played in `_DeployWinch`.
 
 ## Instance pattern
 Class-style object (see Overview). Fields set by `Create`:

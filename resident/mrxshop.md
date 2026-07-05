@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [economy, shop]
 verified: true
-verified_note: fixed fabricated Events section (no Event.* in source, all Hud.Shop callbacks); confirmed all 15 functions and call sites from mrxbriefing.lua
+verified_note: "deeper pass: documented the _ShopSelection affordability gate (nCost <= MrxPmc.GetCashQty()) and its MrxPmc.AddCashQty(-nCost, ...) debit path, surfaced tTypeToIcon, cross-linked economy modules, replaced vacuous modder notes; all functions/imports re-confirmed"
 ---
 
 # MrxShop
@@ -18,7 +18,8 @@ The `MrxShop` module is responsible for managing the in-game store system, inclu
 
 ## Inheritance
 - Inherits from: `none`
-- Imports: `WifMissionData`, `MrxSupportData`, `WifEquipmentData`, `MrxPmc`, `MrxUtil`, `MrxFactionManager`, `MrxRewardData`
+- Imports: `WifMissionData`, [`MrxSupportData`](mrxsupportdata), `WifEquipmentData`, [`MrxPmc`](mrxpmc),
+  [`MrxUtil`](mrxutil), [`MrxFactionManager`](mrxfactionmanager), [`MrxRewardData`](mrxrewarddata)
 
 ## Instance pattern
 This is a stateless manager/utility module. It does not follow the per-instance pattern (keyed by `uGuid`). Instead, it maintains global state through `_tGlobalShopList` and `_oVender`.
@@ -37,7 +38,24 @@ Generates a list of potential shop items based on the vendor's faction. It retri
 Determines the price scale for items in the shop. Returns 1.0 if the vendor has a custom vehicle shop; otherwise, it uses `MrxFactionManager.GetPriceScale` to get the faction's PMC price scale.
 
 ### `_ShopSelection(sId, nAmt)`
-Handles the purchase of an item from the shop. It calculates the total cost based on the base price, price scale, and quantity, checks if the player has sufficient cash, and updates the player's resources and purchased items accordingly.
+The purchase handler wired into `Hud.Shop` (see Events). Returns `false` immediately if `sId == "Locked"`.
+Otherwise it looks the id up in [`MrxSupportData.tSupportData`](mrxsupportdata#support-item-catalog) (or, failing
+that, `WifEquipmentData.GetEquipmentData`), computes `nCost = base * nPriceScale * nAmt`, and applies the
+**affordability gate**:
+
+```lua
+if nCost <= MrxPmc.GetCashQty() then   -- can afford (a $0 item always passes)
+  MrxPmc.AddSupportQty(sId, nAmt, false, nCost)   -- or MrxPmc.AddEquipment(sId)
+  MrxPmc.AddCashQty(-nCost, nil, "[Generic.ShopItems]")   -- debit, HUD-updating
+  return true
+end
+```
+
+This single `nCost <= MrxPmc.GetCashQty()` comparison is the whole "can the player buy this?" check — there is
+no separate free-item flag. Zeroing an item's `nCashCost`/`nCost` (in `MrxSupportData`/`WifEquipmentData`) makes
+`nCost` evaluate to `0`, which always passes the gate, i.e. makes the item free. Note the debit goes through
+[`MrxPmc.AddCashQty`](mrxpmc#addcashqtynamt-bmateriel-sreason-bsuppressdisplay) (HUD-updating), not
+`Player.SetCash`.
 
 ### `_AddPurchasedSupportItem(sId)`
 Adds a support item to the list of purchased items for the vendor's faction.
@@ -81,8 +99,25 @@ No `Event.*` references appear anywhere in this file. Shop interaction is wired 
 Both callback targets (`_ShopSelection`, the inline closure) are defined in this file, so there's no
 undefined-callback issue here.
 
+## Module constants
+- `tTypeToIcon` — maps an item's `sType`/`nType` to a HUD icon tag string used as a name prefix, e.g.
+  `Airstrike = "[airstrike] "`, `Light = "[vehmlight] "`, `Heavy = "[vehmheavy] "`, `Boat = "[vehboat] "`,
+  `Heli = "[vehheli] "`, and `[WifEquipmentData.knTypeFuelTank] = "[fuelsilo] "`. Change these to reswap the
+  shop-row icons.
+
 ## Notes for modders
-- Ensure that `Init()` is called during game initialization to set up the global shop list.
-- Use `Open` and `Close` to manage the shop interface lifecycle.
-- Customize item prices and availability by modifying the relevant data tables in `MrxSupportData` and `WifEquipmentData`.
-- Be aware of network synchronization (`Net.IsClient`) when handling client-server interactions for shop items.
+- **Make an item free / change its price without touching this file** — prices come from the source data
+  tables, not from `MrxShop`. Support prices are `tSupport.nCashCost` in
+  [`MrxSupportData`](mrxsupportdata); equipment prices are `tEquipmentData.nCost` in `WifEquipmentData`. The
+  faction/vendor multiplier is `nPriceScale` from `_GetPriceScale` (via
+  [`MrxFactionManager.GetPriceScale`](mrxfactionmanager)); a vendor with `HasCustomVehicleShop()` forces scale
+  `1.0`.
+- **The affordability check is `nCost <= MrxPmc.GetCashQty()`** in `_ShopSelection` — a `$0` item always
+  passes. There is no separate "unlock = free" path here; a locked item is filtered out earlier (its `sId`
+  becomes `"Locked"`, which `_ShopSelection` rejects).
+- Item availability (which ids appear at all) is driven by
+  [`MrxRewardData.GetAllPotentialShopItems(sFactionId)`](mrxrewarddata) inside `_GetShopList`, and per-item
+  unlock state by `MrxSupportData.IsItemUnlocked` / `WifEquipmentData.IsItemUnlocked`.
+- On clients (`Net.IsClient()`), unlock status is read from a synced `_tIndexedShopList` (set via
+  `SetIndexedShopList`) rather than recomputed locally, and grappling hooks are suppressed from the client
+  list. Keep that in mind if you mod shop contents in co-op.

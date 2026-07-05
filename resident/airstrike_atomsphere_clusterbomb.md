@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [airstrike, atmosphere]
 verified: true
-verified_note: spot-checked against source, no changes needed — OnActivate/_GraphicsAto, no imports, and Events section all confirmed accurate
+verified_note: 'deeper pass: reframed as a screen-tint override (not an ordnance spawner), surfaced the high-bloom cluster-bomb Atmosphere tunables, cross-linked Graphics/Event/mrxclusterbomb'
 ---
 
 # AirstrikeAtomsphereClusterbomb
@@ -14,26 +14,52 @@ verified_note: spot-checked against source, no changes needed — OnActivate/_Gr
 *Module: airstrike_atomsphere_clusterbomb.lua*
 
 ## Overview
-The `AirstrikeAtomsphereClusterbomb` module is responsible for modifying the atmospheric and visual effects of the game world when an airstrike with cluster bombs occurs. It adjusts various atmosphere settings to create a specific visual impact.
+This module is the **screen-grade / post-process flash** for the Cluster Bomb airstrike — it does **not**
+spawn any bomblets. On activation it overrides the global [`Graphics.Atmosphere`](../namespaces/graphics)
+look (max bloom, neutral ambient) for a moment, then lets the engine restore the previous state. The
+actual ordnance and its cone of bomblets are handled by [MrxClusterBomb](mrxclusterbomb) via
+[`Airstrike.SpawnOrdnance`](../namespaces/airstrike)/`Airstrike.ConeSpawn`.
+
+{: .note }
+> `atomsphere` is a typo baked into the real in-game object name (it means *atmosphere*). Leave it as-is.
 
 ## Inheritance
-- Inherits from: none — base/utility module
-- Imports: none
+- Inherits from: `none`
+- Imports: `none`
 
 ## Instance pattern
-This is a stateless utility module (no `Create`/instance pattern). It does not track any per-instance state.
+Stateless utility module — no `Create`/instance pattern, no `uGuid` keying, no persistent state. Reacts to
+one engine `OnActivate` call.
 
 ## Functions
 ### `OnActivate(guid)`
-Called when the airstrike object instance is activated. It sets up an event to call `_GraphicsAto` after a short delay of 0.1 seconds.
+Engine lifecycle callback. Schedules `_GraphicsAto` 0.1 s later via
+`Event.Create(Event.TimerRelative, {0.1}, _GraphicsAto, {guid})`.
 
 ### `_GraphicsAto(guid)`
-Modifies the atmospheric settings to create a specific visual effect for the cluster bomb airstrike. This function adjusts various atmosphere parameters such as ambient colors, bloom effects, and light intensity.
+Runs the `Graphics.Atmosphere.Begin()` … `End()` override block (see tunables). `guid` is accepted but
+unused (no `ShieldFace` in this variant).
+
+## Module constants & tunables
+Hardcoded literals inside `_GraphicsAto` (no named module constants). Notable for *this* variant:
+
+| `Graphics.Atmosphere` key | Value | Effect |
+|---|---|---|
+| `fAtmosphereLimit` | `200` | Standard haze reach. |
+| `fBloomAmount` / `fBloomBlurRadius` / `fBloomThreshold` | `1` | Bloom pinned to max — bright, hazy flash. |
+| `fBloomMultiplier` | `0.8` | Strong bloom output. |
+| `fLightIntensity` | `1` | Neutral scene light. |
+| `fTimeRestore` | `1.7` | Blends back over ~1.7 s. |
+
+Ambient/cube/rim colors are neutral grey `128,128,128,255`; gradient stops `uiGradient0_Color2` /
+`uiGradient1_Color1` are zeroed to `0,0,255,0`.
 
 ## Events
-- Listens for `Event.TimerRelative` to call `_GraphicsAto` after a delay of 0.1 seconds.
+- **Not an `Event.Create` subscription.** `Event.TimerRelative` schedules `_GraphicsAto` once, 0.1 s after
+  activation. `OnActivate` is an engine lifecycle callback.
 
 ## Notes for modders
-- Ensure that `OnActivate` is called appropriately when the airstrike object is activated.
-- Customize the atmospheric effects by modifying the parameters set in `_GraphicsAto`.
-- Be aware that these changes will affect the visual atmosphere globally during the airstrike event.
+- Override `_GraphicsAto` (a plain global) from an `OnLoad` script to retune bloom/light/restore time.
+- These overrides are **global** — they hit every player's screen, not just the strike zone. `fTimeRestore`
+  controls how long the graded look lingers.
+- To change the bomblet count/spread, edit [MrxClusterBomb](mrxclusterbomb) — this file is visuals only.

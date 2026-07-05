@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, satellite]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- has an Init() setup function but no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: fixed Imports (MrxGui/MrxGuiBase/MrxPmc/MrxGuiManager/MrxUtil — not the namespaces the draft listed); rewrote fabricated Events (no Event.SatelliteStateChange/MinigameUpdate/etc — real ones are the "Satellite ..." Event.Post signals + Event.Create/Delete timers); surfaced tunables (_nMoneyCost=5000, minigame time 1/1.2/7, _tDefaultSectorData), sound cues, and feedback textures'
 
 ---
 
@@ -35,7 +35,17 @@ The `MrxGuiSatellite` module is responsible for managing the satellite GUI overl
 ## Inheritance
 
 - Inherits from: none — base/utility module
-- Imports: `MrxUtil`, `MrxFactionManager`, `Pg`, `Player`, `Sound`, `Net`
+- Imports (the real `import(...)` lines): [MrxGui](mrxgui), [MrxGuiBase](mrxguibase), [MrxPmc](mrxpmc) (`AddCashQty` to charge the player), [MrxGuiManager](mrxguimanager) (HUD toggle), [MrxUtil](mrxutil) (`FormatMoney`). (The previous draft listed `MrxFactionManager`/`Pg`/`Player`/`Sound`/`Net` — of those, `Pg`/`Player`/`Sound`/`Graphics`/`Sys`/`Math`/`Gui` are engine namespaces called directly but **not** imported, and `MrxFactionManager` is not referenced at all.)
+
+## Module constants & tunables
+
+- `_bUseMinigame = true` — master switch for the timing minigame; when false the overlay skips all minigame setup.
+- `_nMinigameTime = 1` — starting seconds per cursor sweep; `_nMinigameTimeIncrease = 1.2` (each cycle multiplies the time, i.e. slows the cursor); `_nMinigameMaxTime = 7` — cap.
+- `_nMoneyCost = 5000` — default cash-per-second charged while the minigame runs (settable per-use via `SetMinigameCost`). Cost accrues in `_CostUpdate` and is deducted in `_CleanupMinigame` via `MrxPmc.AddCashQty(-nCost, nil, "[Generic.SupportDesignators.Satellite]")`.
+- `_tDefaultSectorData = {{-30, 30}, {150, 210}}` — the default two target pie-slice sectors (angle ranges in degrees), set in `Init()`. Override per-use with `SetMinigameSectors`.
+- Sector colors: base grey `(nSliceR/G/B = 172)`, lit white `(255)`; background base white `(255)` with red/green flash points for miss/hit feedback.
+- Sound cues: `"ui_SatDes_Turn_On"`, `"ui_SatDes_BG_Loop"`, `"ui_SatDes_Turn_Off"`, `"ui_SatDes_Circular_PopUp"`, `"ui_SatDes_Circular_Beep"`, `"ui_SatDes_Circular_Timing_Correct"`, `"ui_SatDes_Circular_Timing_Fail"`.
+- Feedback textures: `"icon_success"` / `"icon_fail"`; the confirm button uses `"icon_hijack_button_B"` when `Sys.IsConfirmOnCircle()`.
 
 
 
@@ -557,32 +567,17 @@ Checks if all sectors in the minigame have been hit. It iterates through the sec
 
 ## Events
 
-- **Event.SatelliteStateChange**: Triggered when the satellite's state changes. The module handles this event by updating the overlay accordingly.
+**No engine `Event.*` subscriptions exist in this file** — the previous draft's `Event.SatelliteStateChange`/`MinigameUpdate`/`MinigameCycleEnd`/`MinigameComplete`/`PlayerInput` were invented. The real event usage is:
 
-- **Event.MinigameUpdate**: Triggered during gameplay to update the minigame. The module handles this event by checking for collisions with sectors, updating sector colors, and handling player input.
-
-- **Event.MinigameCycleEnd**: Triggered at the end of a cursor animation cycle in the minigame. The module adjusts the tolerance for sector hits, restarts the cursor animation, and posts events for timing success or failure.
-
-- **Event.MinigameComplete**: Triggered when the minigame is completed. The module hides the cursor, resets sectors, posts an event for targetting success, and sets up a callback to remove the targeting mode.
-
-- **Event.PlayerInput**: Triggered by player input during gameplay. The module handles this event by checking for specific button presses and handling sector hits.
-
-
+- **Outbound `Event.Post` signals** (payload is `{uPlayer}` unless noted) other systems can listen for: `"Satellite Targetting Start"`, `"Satellite Targetting Cancelled"`, `"Satellite Targetting Success"`, `"Satellite Minigame Start"`, `"Satellite Minigame Sector Hit"`, `"Satellite Minigame Sector Miss"`.
+- **Timers**: `Event.Create(Event.TimerRelative, ...)` for the static-effect delay (0.1 s) and the minigame open animation (`BeginEvent`, deleted with `Event.Delete` on cleanup).
+- **Widget-level handlers** (`oOverlay:SetEventHandler(...)`): `"SetSatelliteBackground"` → `HandleBackgroundMessage`, `"ScanFoundGuid"` → `HandleGuidFound`, `"ControllerInput"` → `_HandleInput`/`_HandleMinigameInput`, `"GuiUpdate"` → `_CostUpdate`/`_TimeUpdate`/`_HandleMinigameUpdate`. `HandleSatelliteStateChangeEvent` is the entry point that opens/closes the overlay (bound elsewhere), forwarding to `SetActivated`.
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `Init()` is called before any other functions to properly initialize the module state.
-
-- **Pitfalls**: Be cautious when modifying the minigame's cost or time settings, as incorrect values can lead to unexpected behavior. Always validate sector data using `SetSectorData` to ensure proper functionality.
-
-- **Tunables**: The following tunable variables can be adjusted for different gameplay experiences:
-
-  - `_nMinigameTime`: Initial time limit for the minigame.
-
-  - `_nMinigameTimeIncrease`: Factor by which the minigame time increases.
-
-  - `_nMinigameMaxTime`: Maximum time limit for the minigame.
-
-  - `_nMoneyCost`: Cost in money to use the satellite.
-
-- **Decompiler artifacts**: There are no known decompiler artifacts in this module. All functions and variables appear to be correctly named and used according to their intended purpose.
+- **Retune the minigame** with `_nMinigameTime`/`_nMinigameTimeIncrease`/`_nMinigameMaxTime` (cursor speed ramp) and `_nMoneyCost` (cash/sec). Per-invocation overrides exist as `oOverlay:SetMinigameCost(nCost)` and `oOverlay:SetMinigameSectors(tSectors)`.
+- **Sectors are `{lowAngle, highAngle}` degree ranges.** `SetSectorData`/`SetMinigameSectors` validate the shape and fall back to `_tDefaultSectorData` (printing a Debug warning) if any entry is malformed. Rendered as pie slices via `SetPieSliceRender`. `_DetectCollision` handles ranges that wrap past 0°.
+- **Cost is only charged on cleanup**, so a cancelled minigame still deducts the accrued `nCost` (via `MrxPmc.AddCashQty`) — the meter runs the whole time the minigame is open.
+- **The minigame auto-cancels if the player moves the reticle** more than 5 world units from the start target (`25 < dx² + dz²` in `_HandleMinigameUpdate`) — it snaps back to the aim reticle rather than the pie.
+- **Success payload**: `_RemoveSatelliteTargettingMode` appends `uGuid, nX, nY, nZ, 1, uGuid` (from `Player.GetTargetUnderReticle`) to your `SetSuccessCallback`/`SetMinigameCallback` data before firing it.
+- The overlay forces the player scope off and toggles the HUD with reason `"satellite"` on activate, restoring both on deactivate.

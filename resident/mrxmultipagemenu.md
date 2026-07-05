@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, menu]
 verified: true
-verified_note: high-level pattern was already accurate; added _Display pagination/cancel-index internals, _ChooseOption page-nav vs callback dispatch detail, _knMaxOptionsPerPage field, and two source quirks (undeclared nDefaultOption global, LTILibName not defined anywhere in this corpus)
+verified_note: 'deeper pass: re-confirmed the full public API (Reset/AddOption/Display) against source and cross-checked it matches the AI Primer + Snippets pages exactly (AddOption param order, ~8-option pagination via _knMaxOptionsPerPage=8, nil-callback-only-safe-on-cancel-option); added a copy-paste usage shape and the module-name casing note (file mrxmultipagemenu → global; primer imports "MrxMultiPageMenu"). _Display/_ChooseOption internals, undeclared nDefaultOption global, and undefined LTILibName still confirmed'
 ---
 
 # MrxMultipageMenu
@@ -64,8 +64,41 @@ The callback passed to `MrxGui.DisplayDialogBox` (bound with `{nPage, sQuery}` a
 ## Events
 No `Event.*` calls appear in this file. User interaction is routed entirely through `MrxGui.DisplayDialogBox`'s callback parameter (`_ChooseOption`), not the `Event` system. `LTILibName.ChangeShellState` (called in `Close()`, `_Display`, and `_ChooseOption`) toggles a shell-active flag around the dialog's lifetime; `LTILibName` itself is not defined anywhere in this file or elsewhere in the decompiled `resident/` corpus — presumably an engine/native-provided global.
 
+## Public API — the exact shape modders use
+
+This is the auto-paginating menu the [AI Primer](../ai-primer) and [Snippets](../snippets) tell modders to
+reach for. The three-call `Reset` → `AddOption` (×N) → `Display` sequence below is confirmed against the
+game's own callers (`mrxguishell.lua`, `mrxcheatbootstrap.lua`):
+
+```lua
+import("MrxMultiPageMenu")
+MrxMultiPageMenu.Reset()
+MrxMultiPageMenu.AddOption("Say hello", function() Loader.Printf("hi!") end)
+MrxMultiPageMenu.AddOption("Close this menu", nil, nil, true, true)  -- nil callback, on every page, cancel-bound
+MrxMultiPageMenu.Display("Test Menu:")
+```
+
+`AddOption(sOptionName, fCallback, tCallbackArgs, bEveryPage, bBindToCancelButton)` — the parameter order
+above is exact and matches how every stock caller invokes it. `tCallbackArgs` is a plain table `unpack`ed into
+`fCallback` when the option fires (so `AddOption("Skip", _Skip, {true})` calls `_Skip(true)`).
+
+{: .note }
+> **Module name casing:** the file is `mrxmultipagemenu.lua`, but the callable global is `MrxMultiPageMenu`
+> (capital **P**) — that's the name every stock `import("MrxMultiPageMenu")` uses, and the name to `import`.
+> The engine registers this module under its CamelCase name, not a naive lowercase-of-filename, so don't guess
+> `Mrxmultipagemenu`.
+
 ## Notes for modders
-- Ensure that options are added correctly using `AddOption`, specifying whether they should appear on every page or not.
-- Use `BindOptionToCancelButton` to ensure that a specific option's callback is triggered when the cancel button is pressed.
-- Customize the menu display by adding appropriate options and callbacks.
-- Be aware of the maximum number of options per page (`_knMaxOptionsPerPage`) to avoid overflow.
+- **A `nil` callback is only safe on the cancel/close option.** The `"Close this menu"` idiom above passes
+  `nil` for `fCallback` *because* it's bound to the cancel button (last two args `true, true`) — `_ChooseOption`
+  guards with `if tCallbackData then`, so a `nil` callback simply closes the menu without erroring. Give every
+  *other* option a real callback.
+- **Only one menu can be live at a time.** State is module-global (see Instance pattern), so a fresh
+  `Reset()`/`AddOption`/`Display` sequence overwrites any menu already in progress — always `Reset()` first.
+- **Pagination is automatic past `_knMaxOptionsPerPage` (`8`).** You never build pages yourself; add all your
+  options and `Display` inserts `"Next page"`/`"Previous page"` entries and the `(Page N/M)` suffix as needed.
+  "Every page" options (`bEveryPage = true`) eat into that 8-slot budget on *every* page, so a menu with 2
+  every-page options only fits 6 regular options per page.
+- **Built on [`MrxGui.DisplayDialogBox`](mrxguidialogbox).** The menu is a native dialog box under the hood
+  (see [`mrxguibase`](mrxguibase) for the widget/focus machinery it rides on); this module is just the
+  paginating wrapper around it.

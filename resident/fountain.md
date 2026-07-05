@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: all 4 functions confirmed against source (QueryActiveUse, Use, SuperUse, QueryRepair); no events, no inheritance; page was already accurate
+verified_note: 'deeper pass: re-confirmed all four functions; reframed them as the engine query→action-name→action-function dispatch pattern (QueryActiveUse returns "SuperUse", QueryRepair always ""), cross-linked Bench which shares the pattern, and clarified they are engine callbacks not Event.* subscriptions'
 ---
 
 # Fountain
@@ -14,7 +14,10 @@ verified_note: all 4 functions confirmed against source (QueryActiveUse, Use, Su
 *Module: fountain.lua*
 
 ## Overview
-The `Fountain` module provides utility functions for querying and handling interactions with fountains in the game world. It includes methods to determine active uses, handle use actions, and query repair states.
+The `Fountain` module is a thin action-dispatch script for a fountain prop — the same shape as
+[Bench](bench). The `Query*` functions are called by the engine to ask "what named action does this input
+map to?" and return an action-name string; the action functions (`Use`, `SuperUse`) are the hooks the engine
+then calls, and both are empty here, so the fountain has no scripted behaviour out of the box.
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -25,21 +28,26 @@ This is a stateless manager/utility module. It does not track any per-instance s
 
 ## Functions
 ### `QueryActiveUse(intVal)`
-Determines the active use type based on the input integer value. If `intVal` is 1, it returns `"SuperUse"`. Otherwise, it returns an empty string.
+Engine dispatcher: returns the name of the "active use" action. Returns `"SuperUse"` when `intVal == 1`,
+otherwise `""`. The returned string is the function name the engine then calls.
 
 ### `Use(floatval, aiguid)`
-Handles the general use action for the fountain. Empty body — takes both arguments but does nothing with them.
+Engine-invoked "use" hook. Empty body — both arguments are declared but unused.
 
 ### `SuperUse(floatval, aiguid)`
-Handles the super use action for the fountain. Empty body, same as `Use`.
+Engine-invoked "super use" hook (the action `QueryActiveUse` maps `intVal == 1` to). Empty body, same as
+`Use`.
 
 ### `QueryRepair(intVal)`
-Queries the repair state based on the input integer value. Ignores `intVal` entirely and always returns an empty string.
+Engine dispatcher for the repair action. Ignores `intVal` entirely and always returns `""` — so this fountain
+exposes no repair action (contrast [Bench](bench), whose `QueryRepair` returns `"MakeUpright"`).
 
 ## Events
-This module does not listen for or fire any engine events.
+This module does not listen for or fire any engine events. The `Query*`/`Use`/`SuperUse` functions are
+engine callbacks, not `Event.Create` subscriptions.
 
 ## Notes for modders
-- The `Use` and `SuperUse` functions are currently placeholders without implementation. Modders should extend these functions to add desired behavior.
-- The `QueryActiveUse` function can be used to determine the type of use action being performed on a fountain.
-- The `QueryRepair` function is always empty, indicating no repair functionality by default.
+- Same query→action-name→action-function indirection as [Bench](bench): change what `QueryActiveUse` returns
+  (or the `intVal` it gates on) to remap which action fires, and fill in the matching `SuperUse`/`Use` body
+  to give it behaviour. The returned name must match an action function the engine can call.
+- Both action functions are empty, so there is no existing behaviour to preserve if you override them.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: spot-checked against source, no changes needed.
+verified_note: 'deeper pass: confirmed the whole 1-line source; clarified Use is an intentionally-empty engine hook (behaviour lives engine-side / in the GUI layer) and pointed at MrxGuiBinoculars for the real binoculars view; trimmed speculative prose'
 ---
 
 # Binoculars
@@ -14,7 +14,9 @@ verified_note: spot-checked against source, no changes needed.
 *Module: binoculars.lua*
 
 ## Overview
-The `Binoculars` module is a utility script that handles the functionality of binoculars in the game. It provides a function to simulate using binoculars, which could include adjusting zoom levels or activating specific visual effects.
+The entire `binoculars.lua` is a single empty `Use` hook. The engine calls it when the binoculars prop is
+used, but the file scripts no behaviour — the actual binoculars view (zoom, overlay) is handled elsewhere,
+see [MrxGuiBinoculars](mrxguibinoculars). This script exists so the prop has a valid `Use` entry point.
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -25,11 +27,14 @@ This is a stateless utility module (no `uGuid`). It does not track any per-insta
 
 ## Functions
 ### `Use(aiguid, floatval)`
-Simulates the use of binoculars. The function takes two arguments: `aiguid` (likely an AI or player GUID) and `floatval` (possibly a zoom level or other floating-point value). Currently, this function is empty and does not perform any actions.
+The engine-invoked "use" hook for the binoculars prop. Parameters `aiguid` and `floatval` are declared but
+unused; the body is empty, so scripting nothing on use is the intended behaviour (the real binoculars view is
+driven engine-side / by the GUI layer).
 
 ## Events
-This module does not subscribe to or fire any engine events.
+This module does not subscribe to or fire any engine events. `Use` is an engine callback, not an
+`Event.Create` subscription.
 
 ## Notes for modders
-- The `Use` function is currently a placeholder with no implementation. Modders should extend this function to add the desired functionality when binoculars are used.
-- Ensure that any additional logic added to `Use` is compatible with the game's existing mechanics and does not introduce unintended behavior.
+- There is no existing behaviour to preserve — the hook is empty by design. If you fill in `Use`, note the
+  real binoculars UI/zoom lives in [MrxGuiBinoculars](mrxguibinoculars), not here.

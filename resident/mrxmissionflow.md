@@ -6,10 +6,12 @@ nav_order: 1
 inherits: none
 tags: [mission, flow]
 verified: true
-verified_note: corrects the Instance pattern (singleton module, no uGuid keying or Create factory anywhere
-  in source — _tActiveMissions is keyed by mission name); adds confirmed UnlockMission/
-  GetMissionStartLocations mechanism from building and debugging a real custom contract end to end — see
-  the [Custom Contract deep dive](../deep-dives/custom-contract).
+verified_note: 'deeper pass: rewrote the fabricated Events section (source has NO Event.MissionUnlock/
+  MissionDestroy/PlayerAcceptMissions/etc. subscriptions — grep-confirmed zero Event.Create for those; the
+  only real Event.* here are two mpPlayerJoin Event.CreatePersistent handles in SetGrapple/VehicleDisguise,
+  plus the NETEVENT_* custom-event constants dispatched via NetEventCallback); documented the file-vs-module
+  name (file mrxmissionflow.lua, called as WifMissionFlow); Instance pattern + UnlockMission/
+  GetMissionStartLocations mechanism re-confirmed against source.'
 ---
 
 # mrxmissionflow
@@ -18,6 +20,12 @@ verified_note: corrects the Instance pattern (singleton module, no uGuid keying 
 
 ## Overview
 The `mrxmissionflow` module is responsible for managing the mission flow in the game. It handles various aspects of missions, including enabling/disabling mission flow, tracking active missions, awarding keys, refreshing mission states, and updating the PDA with mission details. This module also manages network-related settings such as grapple and vehicle disguise functionality.
+
+{: .note }
+> **File name vs. module name:** the source file is `mrxmissionflow.lua`, but the module registers itself as
+> `WifMissionFlow` — every call site in the corpus (and this page) uses `WifMissionFlow.X`, and the module's
+> own recursive calls reference `WifMissionFlow.` too. Treat `mrxmissionflow` and `WifMissionFlow` as the
+> same module.
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -221,30 +229,51 @@ This function removes a mission from the PDA map. It takes a mission name or ind
 
 ## Events
 
-- **`Event.MissionUnlock`**: Triggered when a mission is unlocked. The module listens for this event and calls `UnlockMission` with the mission name.
-- **`Event.MissionDestroy`**: Triggered when a mission is destroyed. The module listens for this event and calls `DestroyMission` with the mission name.
-- **`Event.PlayerAcceptMissions`**: Triggered when the player accepts missions. The module listens for this event and calls `AcceptMissions` with the list of accepted missions.
-- **`Event.MissionBriefingStart`**: Triggered when a mission briefing starts. The module listens for this event and handles briefing-related logic.
-- **`Event.PlayerDeath`**: Triggered when a player dies. The module listens for this event and performs cleanup or other related actions.
-- **`Event.NetworkEvent`**: Triggered by network events. The module listens for specific network events (grapple, vehicle disguise settings, autosave requests) and handles them in `NetEventCallback`.
-- **`Event.MissionRefresh`**: Triggered to refresh the mission flow. The module listens for this event and calls `Refresh`.
+{: .warning }
+> **Corrected — the previous version of this page invented an entire Events list** (`Event.MissionUnlock`,
+> `Event.MissionDestroy`, `Event.PlayerAcceptMissions`, `Event.MissionBriefingStart`, `Event.PlayerDeath`,
+> `Event.MissionRefresh`). **None of those exist anywhere in the source** (grep-confirmed: zero
+> `Event.Create` for any of them). `UnlockMission`/`DestroyMission`/`AcceptMissions`/`Refresh` are plain
+> functions called directly by other modules, not event handlers.
+
+The only real `Event.*` usage in this file:
+
+- **Two `Event.CreatePersistent(Event.ScriptEvent, {"mpPlayerJoin", ...})` handles**, created inside
+  `SetGrappleEnabled` and `SetVehicleDisguiseEnabled` (stored in `_evSetGrapple` / `_evSetVehicleDisguise`,
+  deleted and recreated on each call). Their purpose is to re-send the current grapple / vehicle-disguise
+  setting to any player who joins mid-session. The predicate `Net.IsServer() and not Player.IsLocal(tData[1])`
+  means only the server acts, and only for a remote (non-local) joiner.
+
+- **Custom network events** are dispatched through `NetEventCallback(nEventId, tArgs)` (the engine routes
+  `Net.SendCustomEvent("MrxMissionFlow", ...)` to it — see the
+  [Custom Networked Events deep dive](../deep-dives/networking)). The event IDs are module constants:
+  `NETEVENT_SETGRAPPLE = 0`, `NETEVENT_AUTOSAVE = 1`, `NETEVENT_SETVEHICLEDISGUISE = 2`. `SetGrappleEnabled`
+  / `SetVehicleDisguiseEnabled` broadcast the first/third; `_EndBlockingSequence` broadcasts
+  `NETEVENT_AUTOSAVE` after a server autosave so clients autosave in step.
 
 ## Notes for modders
 
-1. **Call-order requirements**:
-   - Ensure that `EnableFlow(true)` is called before unlocking or destroying missions.
-   - Call `Reset(true)` when resetting mission states to ensure all flags and variables are properly reset.
+1. **`UnlockMission` is the real entry point** — see its section above. A custom mission needs a
+   `WifMissionData.tMissionData` entry (with at least `sFactionId`, `sStarter`, `bContract`) and, for cash
+   rewards, an [`MrxRewardData`](mrxrewarddata) entry; both are picked up automatically. `SetMissionParent`
+   must have been called first (there's an `ASSERT(_oParent)` at the top of `UnlockMission`).
 
-2. **Pitfalls**:
-   - Avoid directly modifying module-level state variables unless necessary, as this can lead to inconsistent behavior.
-   - Be cautious with network events; ensure that custom events sent via `Event.Create` are handled correctly on both client and server sides.
+2. **The load hand-off to [`MrxState`](mrxstate):** the mission config's `fOnAssetsLoaded` (wired to a local
+   `_OnAssetsLoaded`) calls `MrxState.Exit(STATE_WAITFORSTREAMING)` + `MrxState.Exit(STATE_WAITFORGAME)`, and
+   `_OnBriefingComplete` calls `MrxState.Enter(STATE_WAITFORSTREAMING, oMission.Activate, ...)`. These
+   Enter/Exit calls are what emit the world-load markers the `loadprobe` tool keys on — if you intercept the
+   accept/activate flow, keep these paired or the game stays faded/locked (see the
+   [`MrxState`](mrxstate) refcount notes).
 
-3. **Tunables**:
-   - `_bEnable`: Enable or disable the mission flow.
-   - `_bCheckpointSaveMode`: Enable or disable checkpoint save mode.
-   - `_bGrappleEnabled` and `_bVehicleDisguiseEnabled`: Control grapple and vehicle disguise functionalities.
-   - `_bResourceCountersEnabled`: Enable or disable resource counters on the HUD.
+3. **`_tActiveMissions` is keyed by mission name** (not GUID) and populated synchronously by `UnlockMission`.
+   A bare-`MrxTask`-based mission's zero-arg `fOnActivate` reads its own instance back from
+   `WifMissionFlow._tActiveMissions.<sMissionName>.oMission`.
 
-4. **Decompiler artifacts**:
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact and should be ignored.
-   - Duplicate table keys in literals may occur; ensure that only the last key-value pair is considered valid at runtime.
+4. **Tunables** (all module-level, all reset by `Reset(true)`):
+   - `_bEnable`: master mission-flow gate (`EnableFlow`). `Refresh` early-returns if false.
+   - `_bCheckpointSaveMode` (`EnableCheckpointSaveMode`): routes saves through the "retry" checkpoint slot.
+   - `_bGrappleEnabled` / `_bVehicleDisguiseEnabled`: replicated player abilities (see Events above).
+   - `_bResourceCountersEnabled`: cash/fuel HUD counters (`EnableResourceCounters`).
+
+5. **Decompiler artifacts** to ignore: some locals are assigned but never read; a few literals have duplicate
+   keys (only the last wins at runtime); `Reset` sets `_bCurrentlyRefreshing = nil` twice in a row.

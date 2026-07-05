@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Blippable
 tags: [vehicle, blip]
 verified: true
-verified_note: corrected Events section — _HomingLaunched is called directly as HomingMissile._HomingLaunched(...) from antiair.lua's own _HomingLaunched, not registered via Event.Create in this file; rest of page (already unusually detailed) confirmed accurate against source
+verified_note: "deeper pass: re-confirmed all 4 functions and the single Event.CreatePersistent(TimerRelative,0.1) flash timer; surfaced concrete blip constants (tColor {255,0,0}, tFlash {255,255,255}, nSize 1, nSortOrder 1, sTexture nil) as tunables; _HomingLaunched keys off tData.uAmmoGuid via GetFromGuid — confirmed direct call from antiair.lua, not an event"
 ---
 
 # HomingMissile
@@ -21,22 +21,27 @@ The `HomingMissile` module represents a homing missile in the game world. It inh
 - Imports: `none`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `bActive`: Indicates whether the missile is active.
-- `tColor`: The default color of the radar blip.
-- `tFlash`: The flash color of the radar blip.
-- `sTexture`: Texture used for the radar blip (not set in this module).
-- `nSize`: Size of the radar blip.
-- `nSortOrder`: Sort order of the radar blip.
-- `bFlash`: Indicates whether the blip is currently flashing.
-- `TimerEvent`: Handle to the timer event that controls the flash interval.
+This is the [Blippable](blippable) rich-instance pattern (keyed by `uGuid`): `OnActivate` calls
+`getfenv():Create(uGuid, uRuntimeOwner)` to mint a per-object instance whose prototype is this module. The
+module-level blip fields become the prototype defaults every instance inherits:
+- `tColor` = `{255, 0, 0}` (red) — default radar blip color.
+- `tFlash` = `{255, 255, 255}` (white) — the color it flashes to.
+- `nSize` = `1`, `nSortOrder` = `1`, `sTexture` = `nil` (no custom texture — uses the Blippable default).
+
+Per-instance runtime fields set on `oSelf`:
+- `bActive`: set `true` by `_HomingLaunched` once the missile is live.
+- `bFlash`: toggled every tick by the flash timer; passed to `AddObjective` to alternate the blip color.
+- `TimerEvent`: handle to the persistent flash timer (see Events); guarded so it's only created once.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
 Called when the missile instance is activated. It creates a new per-instance table for the object using the module's prototype.
 
 ### `SetBlipped(oSelf)`
-Adds a radar blip and marker for the missile. Sets up a timer to flash the blip every 0.1 seconds if not already set up.
+Calls `Blippable.SetBlipped(oSelf)` (the inherited base), then — if `oSelf.TimerEvent` isn't already set —
+registers a persistent `Event.TimerRelative` at `0.1` s that flips `oSelf.bFlash` and calls
+`oSelf:AddObjective(oSelf.bFlash)` each tick, producing the flashing blip. The handle is stored in
+`oSelf.TimerEvent`.
 
 ### `ClearBlipped(oSelf)`
 Removes the radar blip and marker for the missile. Deletes the timer event if it exists.
@@ -60,12 +65,18 @@ event/widget-callback target registered with the engine — that registration is
 this file's. `homingmissile.lua` itself contains zero `Event.*` references of any kind.
 
 ## Events
-**None.** `homingmissile.lua` contains no `Event.Create`, `Event.CreatePersistent`, or any other
-`Event.*` reference. The previous version of this page described `_HomingLaunched` as something this
-file "listens for" as a custom event — it isn't; it's a plain function called directly by `AntiAir`, not
-an event registration.
+- `Event.TimerRelative` — one `Event.CreatePersistent(Event.TimerRelative, {0.1}, ...)` in `SetBlipped`,
+  driving the 0.1 s blip flash. Deleted in `ClearBlipped`. This is the only `Event.*` reference in the file.
+- `_HomingLaunched` is **not** an event. It's a plain function called directly by [AntiAir](antiair)
+  (`src/resident/antiair.lua:399` → `HomingMissile._HomingLaunched(oWidget, tData)`), not an
+  `Event.Create` registration. Any engine event/widget wiring lives in `AntiAir`, not here.
 
 ## Notes for modders
-- Ensure that `OnActivate` and `ClearBlipped` are called appropriately to manage the missile's blip lifecycle.
-- Customize blip properties by setting fields like `tColor`, `tFlash`, and `nSize`.
-- Be aware that the flash interval is set to 0.1 seconds, which may affect visual feedback in multiplayer scenarios.
+- **Blip appearance:** change the module-level `tColor` (`{255,0,0}`), `tFlash` (`{255,255,255}`), `nSize`
+  (`1`), and `sTexture` (`nil`) to restyle the radar blip — these are inherited by every instance from
+  [Blippable](blippable). Set `sTexture` to a texture name to give it a custom icon.
+- **Flash rate:** the `0.1` in `SetBlipped`'s `Event.TimerRelative` is the flash period; raise it to slow
+  the blink.
+- **What this module does *not* do:** it does not spawn or fly the missile — it only blips one that already
+  exists. The launch is driven by [AntiAir](antiair) / native code, which calls `_HomingLaunched` with
+  `tData.uAmmoGuid` identifying the live projectile.

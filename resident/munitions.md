@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Blippable
 tags: [munition, pickup, support]
 verified: true
-verified_note: fixed fabricated Events section (real events are ObjectHibernation/ObjectProximity/ContextAction/ObjectInSeat/TimerRelative, not PlayerNear/PlayerFar/ObjectDeath/PlayerJoined); corrected Instance-pattern field names against Blippable source; documented confirmed bug in GetMunitionsCount (line 635, reads global nTagged instead of _nTagged)
+verified_note: 'deeper pass: added the full tMunitions table (21 stock entries incl. fuel 50/500/5000 and cash 100000 pickup values), the exact blip/marker textures + sizes per stock type, _kDistance/_nBlippedVOCoolDownTime constants, VO cue strings and the NETEVENT_* codes; re-confirmed all functions + the GetMunitionsCount bug; cross-linked Blippable/MrxPmc/MrxSupportData/namespaces.'
 ---
 
 # Munitions
@@ -17,8 +17,14 @@ verified_note: fixed fabricated Events section (real events are ObjectHibernatio
 The `Munitions` module manages the behavior and interactions of munition objects in the game world. It handles various aspects such as blipping, tagging, picking up, and network synchronization for different types of munitions (support, fuel, cash). The module also manages tutorial messages and voice-over (VO) cues related to these interactions.
 
 ## Inheritance
-- Inherits from: `Blippable`
-- Imports: `MrxGui`, `MrxPlayState`, `MrxPmc`, `MrxSupportData`, `MrxTutorialManager`, `MrxUtil`, `MrxVoSequence`, and `MrxMunitionsPickup`
+- Inherits from: [`Blippable`](blippable) (→ [`Inheritable`](inheritable))
+- Imports: [`MrxGui`](mrxgui), [`MrxPlayState`](mrxplaystate), [`MrxPmc`](mrxpmc),
+  [`MrxSupportData`](mrxsupportdata), [`MrxTutorialManager`](mrxtutorialmanager), [`MrxUtil`](mrxutil),
+  [`MrxVoSequence`](mrxvosequence), [`MrxMunitionsPickup`](mrxmunitionspickup)
+
+Blipping/marker/objective behavior (`self:SetBlipped()`, `self:AddObjective()`,
+`self:RemoveObjective()`, `Delete`→`Blippable.Delete`) is inherited from [`Blippable`](blippable);
+this module only sets the blip *appearance* fields and drives the tag/pickup logic.
 
 ## Instance pattern
 This is a genuine per-instance object module (keyed by `uGuid`) — confirmed via `OnActivate`/`Awake`/`tInstance` and `oPrototype:Create(uGuid, nStock)` (line 49), inherited from `Blippable`/`Inheritable`. Per-instance fields set directly on `oInstance`/`self`:
@@ -209,19 +215,61 @@ The following `Event.*` constants are the ones actually referenced in this file 
 - **Event.ObjectInSeat**: Used in `AddContextAction` (vehicle exit, one-shot) and as a persistent vehicle-enter listener (`self.VehicleEnterEvent`) calling `HumanControlled`.
 - **Event.TimerRelative**: Used for the blipped-VO cooldown (`PlayBlippedVO`/`SetAllowBlippedVO`) and for hiding tutorial messages after a delay (`HideTutorialMessage`, via `_tHideEvents`).
 
+## Module constants & tunables
+
+The `nStock` field is a 1-based index into the module-level `tMunitions` table, which is the single
+source of truth for what each pickup contains:
+
+- **Indices 1–17 (support)** — string names: `"artillery"`, `"bombingrun"`, `"bunkerbuster"`,
+  `"carpetbomb"`, `"clusterbomb"`, `"combatairpatrol"`, `"cruisemissile"`, `"daisycutter"`,
+  `"fuelairbomb"`, `"harm"`, `"laserguidedbomb"`, `"moab"`, `"rocketartillery"`, `"smartbomb"`,
+  `"strategicmissile"`, `"surgicalstrike"`, `"tankbuster"`. Each grants 1 of that support (via
+  `MrxPmc.AddSupportQty`), capped at `MrxSupportData.tSupportData[name].nMaxStock`.
+- **Indices 18–20 (fuel)** — `{nFuel = 50}`, `{nFuel = 500}`, `{nFuel = 5000}`. Adds fuel via
+  `MrxPmc.AddFuelQty`; refused when fuel is already at capacity.
+- **Index 21 (cash)** — `{nCash = 100000}`. Adds cash via `MrxPmc.AddCashQty(..., "[Generic.Pickups]")`.
+
+Change these values to retune pickup rewards. `IsSupport`/`IsFuel`/`IsCash` classify a stock by the
+shape of its `tMunitions` entry (string vs. `nFuel` table vs. `nCash` table).
+
+**Blip & marker appearance** (set in `Awake`, per stock type):
+
+| Stock   | Radar texture (`sTexture`) | Marker texture (`tMarker.sTexture`) |
+|---------|----------------------------|-------------------------------------|
+| Support | `radar_Munition`           | `pickup_munitions`                  |
+| Fuel    | `radar_Oil`                | `pickup_fuel_2`                     |
+| Cash    | `radar_Money`              | `pickup_cash_2`                     |
+
+All three share radar `tColor = {51,102,51}`, `tFlash = {255,255,255}`, radar `nSize = 8`, and marker
+`tColor = {153,255,153}`, marker `nSize = 40`, `nNearDist = 5`, `nFarDist = 100`. On tag, the color
+flips to green `{0,255,0}` and the marker pulses (`Marker.Pulse(uGuid, 0, 255, 0)`).
+
+**Other tunables**
+- `_kDistance = 175` — radar near/far proximity threshold (`Event.ObjectProximity` distance for
+  `Near`/`Far`).
+- `_nBlippedVOCoolDownTime = 30` — cooldown (seconds) between "blipped" hint VO lines. There is also a
+  hard-coded 10s initial gate before the first blipped VO is allowed.
+- **VO cues** (see `PlayBlippedVO`/`ActionTarget`/`PickupMunitions`): hint lines like
+  `"Fiona.Misc.Cash01/02"`, `"Fiona.Misc.Fuel01/02"`, `"Fiona.Misc.Munition01/02"`; tag lines
+  `"Fiona.Support.Munitions02/03"` plus character variants; first-fuel-pickup line
+  `"Fiona-In-Mission-Freeplay-None-25"`. All play at `MrxVoSequence.knPriorityFreeplay`.
+- **Net event codes**: `NETEVENT_SETTAGGABLE=0`, `NETEVENT_CLIENTSTOCKPILEQUERY=1`,
+  `NETEVENT_CLIENTSTOCKPILEACK=2`, `NETEVENT_PICKUP=3`, `NETEVENT_MARKERPULSE=4`,
+  `NETEVENT_ISMUNITIONTAGGED=5` — all sent over the `"Munitions"` custom-event channel.
+
 ## Notes for modders
-
-1. **Call-order requirements**:
-   - Ensure that `OnActivate` is called before any other lifecycle functions like `Awake`, `Near`, or `Far`.
-   - `Delete` should be called when tearing down an instance to properly unregister events and update states.
-
-2. **Pitfalls**:
-   - Modifying module-level variables directly can have unintended side effects on all instances.
-   - Ensure that network events are handled correctly to maintain consistency across clients.
-
-3. **Tunables**:
-   - `_kDistance`: Adjust this value to change the distance threshold for blip near/far.
-   - `_nBlippedVOCoolDownTime`: Modify this value to adjust the cooldown time for blipped VO messages.
-
-4. **Decompiler artifacts**:
-   - Some local variables may appear unused or are assigned but never read, which is a decompiler artifact and should be ignored.
+- **Retune reward amounts** by editing `tMunitions` (fuel 50/500/5000, cash 100000). To add a new
+  support type to pickups, add its `MrxSupportData` name string to the list.
+- **Swap blip/pickup icons** via the texture strings above — the `pickup_*` markers and `radar_*`
+  radar icons are the visual knobs.
+- `GetMunitionsCount` is **broken** (see above): the "count" branch returns `nil`. If you rely on it,
+  read `_nTagged` directly instead.
+- Munitions inside a vehicle are handled specially: the tag context action is deferred until the
+  vehicle is exited (`AddContextAction`/`HumanControlled` via `Event.ObjectInSeat`), and the instance
+  is torn down and re-activated across enter/exit. Don't assume a munition's instance persists while
+  it's being driven around.
+- `SetMunitionsTaggable(false)` greys out the tag prompt (prefixes the context action with `[neut]`)
+  and is server-authoritative — it re-broadcasts via `NETEVENT_SETTAGGABLE`. This is the intended
+  lever for gating munitions behind "get a pilot first".
+- Pickup progress is server-authoritative; clients are queried via `CanActionTarget` →
+  `NETEVENT_CLIENTSTOCKPILEQUERY`/`ACK` before a tag is confirmed. See [`Net`](../namespaces/net).

@@ -6,7 +6,9 @@ nav_order: 1
 inherits: none
 tags: [manager, outpost]
 verified: true
-verified_note: confirmed no Event.* calls in source (Events section corrected from vague "custom event" wording); all 4 functions and no-inherit/stateless claims verified accurate.
+verified_note: 'deeper pass: re-confirmed all 4 functions, the knStatusCaptured=1/knStatusDestroyed=2
+  constants, and the no-Event.* claim; ran a corpus grep to identify the external callers of
+  OutpostStatusChange (Outpost + MrxTaskObjectiveCaptureOutpost) and cross-linked them.'
 ---
 
 # MrxOutpostManager
@@ -38,7 +40,12 @@ Registers a callback function for a specific outpost. Ensures the outpost is reg
 Handles a status change for an outpost by executing all registered callbacks associated with that outpost. Logs a debug message for each callback execution. After executing the callbacks, it unregisters the outpost.
 
 ## Events
-None. This file contains no `Event.*` calls at all — it registers no listeners itself. `OutpostStatusChange(uOutpost, nStatus)` is a plain function; something external (another module, e.g. a specific outpost's world-object script) must call it directly when a capture/destroy happens. There's no event wiring visible in this file to confirm what calls it.
+None. This file contains no `Event.*` calls at all — it registers no listeners itself.
+`OutpostStatusChange(uOutpost, nStatus)` is a plain function called directly by the outpost's own scripts:
+corpus grep confirms the callers are [`Outpost`](outpost) and
+[`MrxTaskObjectiveCaptureOutpost`](mrxtaskobjectivecaptureoutpost), which invoke it with
+`knStatusCaptured`/`knStatusDestroyed` when an outpost is taken or leveled. This module is a pure
+callback registry between those and any interested listener (e.g. a mission tracking outpost state).
 
 ## Notes for modders
 - Use `RegisterOutpostEvent` to add callbacks that should be executed when an outpost's status changes.

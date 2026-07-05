@@ -12,7 +12,7 @@ inherits: none
 tags: [gui, hud]
 
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: rewrote the Events section — the old list (Event.ObjectiveAdded/ObjectiveUpdated/MessageAdded/CinematicStarted/…) is entirely absent from source and was removed; the ONLY real Event.* calls are two Event.Create(Event.TimerRelative) widget-not-ready retries, Event.CreatePersistent(Event.ScriptEvent,{"mpPlayerJoin",…}) co-op resync, and Event.Create(Event.ObjectHibernation) awaiting P2. Added the tObjectiveMessageConfigs color/sound-cue catalog and boundary alpha=160 constant. Instance pattern (singleton) and the sub-namespace coverage re-confirmed'
 
 ---
 
@@ -1297,62 +1297,81 @@ Hides a faction meter on the client side. It logs the action and hides the meter
 
 ## Events
 
+This module is **called into** (its sub-namespace methods are invoked directly by mission/task/HUD code and by
+`NetClient*` net handlers); it does **not** subscribe to a bank of gameplay events. The complete list of real
+`Event.*` calls in the file is small:
 
+- **`Event.Create(Event.TimerRelative, {1}, DisplayObjectiveMessage, {…})`** — `DisplayObjectiveMessage`
+  reschedules *itself* after 1 second when the GUI isn't loaded yet (`MrxBootstrap.IsGuiLoaded() ~= true`).
+- **`Event.Create(Event.TimerRelative, {2}, NetClientSetObjectiveTraySlot, {…})`** — same idea: retry after 2
+  seconds if the `"Objective Tray"` widget doesn't exist yet on a client.
+- **`Event.CreatePersistent(Event.ScriptEvent, {"mpPlayerJoin", <filter>}, …)`** — server-only. Used twice, to
+  re-broadcast an objective message and the objective-tray slot text to a co-op client when it joins mid-game.
+  The filter `function(tData) return Net.IsServer() and not Player.IsLocal(tData[1]) end` restricts it to the
+  server firing for a *remote* joiner.
+- **`Event.Create(Event.ObjectHibernation, {Player.GetSecondaryCharacter(), "awake"}, …)`** (`SendSlotText`) —
+  waits for player 2's character to wake before pushing slot text to them.
 
-- **Event.ObjectiveAdded**: Triggered when an objective is added to the radar. Listens for this event to call `HudInterface.Radar:AddObjective`.
+{: .note }
+> The previous version of this page listed `Event.ObjectiveAdded`, `Event.ObjectiveUpdated`,
+> `Event.ObjectiveRemoved`, `Event.MessageAdded`, `Event.MessageModified`, `Event.MessageRemoved`,
+> `Event.MapLabelAdded`, `Event.AnnouncementShown`, `Event.FanfareCompleted`, `Event.CinematicStarted`, and
+> `Event.CinematicStopped` as subscriptions. **None of these exist in `mrxguiinterface.lua`** — the sub-namespace
+> methods (`Radar:AddObjective`, `MessageBox:AddMessage`, `Cinematic:Show`, …) are plain calls, not event
+> handlers. They have been removed.
 
-- **Event.ObjectiveUpdated**: Triggered when an existing objective on the radar is updated. Listens for this event to call `HudInterface.Radar:UpdateObjective`.
+## Objective-message catalog (`tObjectiveMessageConfigs`)
 
-- **Event.ObjectiveRemoved**: Triggered when an objective is removed from the radar. Listens for this event to call `HudInterface.Radar:RemoveObjective`.
+`DisplayObjectiveMessage(bDisplay, sInlineIcon, sMsgType, …)` looks `sMsgType` up in this module-level table.
+The keys are the message types, each with a color tag, a hex color (used in the PDA log), a prefix word, a
+status word, a priority, and (for non-cancel types) a HUD sound cue. This is the exact set — swap a `sSoundCue`
+or `sHexColor` here to restyle every objective toast of that kind:
 
-- **Event.MessageAdded**: Triggered when a message is added to the message box. Listens for this event to call `HudInterface.MessageBox:AddMessage`.
+| `sMsgType`                                   | prefix    | status      | color tag / hex   | priority | sound cue                     |
+|----------------------------------------------|-----------|-------------|-------------------|---------:|-------------------------------|
+| `add` / `upd` / `cpl` / `ccl`                | Objective | added/updated/completed/cancelled | `[objt]`/`[red]` `FFC800`/`FF0000` | 1 | `ui_HUD_Objective_New`/`_Update`/`_Complete` (none for cancel) |
+| `bonus_add` / `bonus_upd` / `bonus_cpl` / `bonus_ccl` | Bonus | (same set) | `[2ndobjt]`/`[red]` `33CC99`/`FF0000` | 2 | (same set) |
+| `bty_add` / `bty_upd` / `bty_cpl` / `bty_ccl`| Bounty    | (same set)  | `[2ndobjt]`/`[red]` `33CC99`/`FF0000` | 3 | (same set) |
+| `collectible_upd`                            | Collectible | updated   | `[2ndobjt]` `33CC99` | 4 | `ui_HUD_Objective_Update`     |
 
-- **Event.MessageModified**: Triggered when an existing pending message in the message box is modified. Listens for this event to call `HudInterface.MessageBox:ModifyPendingMessage`.
+- Cancel types (`*_ccl`) have **no sound cue** and use red `FF0000`.
+- Objective toasts default to a `nDuration` of `5` seconds and `bClearBuffer = true` in `DisplayObjectiveMessage`.
 
-- **Event.MessageRemoved**: Triggered when a pending message is removed from the message box. Listens for this event to call `HudInterface.MessageBox:RemovePendingMessage`.
+## Module constants & tunables
 
-- **Event.MapLabelAdded**: Triggered when a map label is added. Listens for this event to call `HudInterface.MapLabel:Show`.
-
-- **Event.AnnouncementShown**: Triggered when an announcement message is shown. Listens for this event to call `HudInterface.Announcement:Show`.
-
-- **Event.FanfareCompleted**: Triggered when a fanfare completes. Listens for this event to call `_tFanfareQueue:FinishItem`.
-
-- **Event.CinematicStarted**: Triggered when a cinematic movie starts. Listens for this event to call `HudInterface.Cinematic:Show`.
-
-- **Event.CinematicStopped**: Triggered when a cinematic movie stops. Listens for this event to call `HudInterface.Cinematic:Hide`.
-
-
+- **Boundary line-region color: black, alpha `160`** — `NetClientAddBoundary` renders mission-boundary lines as
+  `(0,0,0)` at alpha `160` on both the radar and PDA map.
+- **Radar objective net-sync defaults** (`Radar:AddObjective`, server path): position `(0,2,0)`, color
+  `(255,255,0)` (yellow), size `3×3`, sort order `5`, when the corresponding `tArgs` field is omitted.
+- **Sonar/size/alpha animation defaults** (`Radar:AnimateObjectiveSonar`/`Size`/`Alpha`): sonar `4` total blips /
+  `1` visible, grow speed `5`; size `2→6` over `2`s; alpha `0→1` over `1`s at speed `0.5`. These are the fallback
+  values when you call the animate methods with a bare `sName`.
+- **PDA blip default faction: `"PMC"`** and default sort order `5` (`Map:AddBlip`).
+- **ClassyText defaults:** vertical position `240`, duration `3`s (always horizontally recentered — see
+  `Hud.ClassyText:ShowText` above).
 
 ## Notes for modders
 
 
 
-1. **Call-order requirements**:
-
-   - Ensure that `Init()` is called during the module initialization phase to set up global functions like `TestFlash` and `EndFlashTest`.
-
-   - Functions such as `AddObjectiveToLocalPlayer`, `AddPdaBlipToLocalPlayer`, and `DeletePdaBlipForLocalPlayer` should be called after the player's PDA widget has been initialized.
-
-
-
-2. **Pitfalls**:
-
-   - Be cautious with network synchronization functions like `NetClientSetObjectiveTraySlot` and `NetClientFactionSetValue`. Ensure that these are only called on the server to avoid duplication or inconsistencies.
-
-   - When modifying or adding items in the PDA interface, ensure that the widget is properly initialized before making changes.
-
-
-
-3. **Tunables**:
-
-   - The duration of fanfare messages can be adjusted by modifying parameters like `nSlowdownDuration` and `nDisplayTime`.
-
-   - Adjusting the fade-in and fade-out times for cinematic movies can enhance visual effects.
-
-
-
-4. **Decompiler artifacts**:
-
-   - Some local variables in functions like `NetClientSetObjectiveTraySlot` and `NetClientFactionSetValue` may appear unused or assigned but never read, which is a decompiler artifact.
-
-   - The function `_GetWidgetsForPlayers` has duplicate table keys in some cases, with the last one winning at runtime. This should not affect functionality but should be noted for clarity.
+- **`_G.Hud` and `_G.Pda` are this module.** `import("MrxGuiInterface")` isn't the usual access path — the file
+  publishes itself as the globals `Hud` and `Pda` (also `oPda`), so mission/HUD code just writes
+  `Hud.MessageBox:AddMessage{...}` or `Pda.Database:AddLogEntry{...}` directly. Note these are the *resident-module*
+  `Hud`/`Pda` tables, distinct from the engine `Hud` namespace used for `Hud.EventFanfare:Commence` in the
+  [snippets](../snippets) — that engine `EventFanfare` path is served by
+  [`MrxGuiHudMessage`](mrxguihudmessage), which this module also wraps.
+- **Almost every method takes one `tArgs` table**, not positional arguments, and is `vPlayer`-aware: pass a single
+  player guid, a table of guids, or omit `vPlayer` to target every player who currently owns a widget of that name
+  (`_GetWidgetsForPlayers`). Omitting `vPlayer` on a client is the norm for local HUD updates.
+- **Server/client split:** methods that mutate shared state (`Radar:AddObjective`, `ObjectiveTray:SetSlotTo*`,
+  `FactionDisplay:SetValue`/`StartPursuit`/`HideMeter`, `Map:AddBlip`) net-sync from the server unless you pass
+  `bDontNetSync = true`. `FactionDisplay:SetValue`/`StartPursuit`/`HideMeter` are additionally *ignored on a client*
+  unless `bForceOnClient = true`. The `NetClient*` functions are the receiving side — don't call them yourself.
+- **`RemoveMeter`/`RemoveAllMeters` are empty stubs** (`FactionDisplay:RemoveMeter`/`RemoveAllMeters` have no body);
+  use `HideMeter` to take a faction gauge off screen.
+- **`_GetWidgetsForPlayers` is the choke point** for every method here — if a HUD update silently does nothing,
+  the widget of that exact name (`"Minimap"`, `"MessageBox"`, `"Objective Tray"`, `"PDA"`, `"Faction Display"`,
+  `"money"`/`"fuel"`, `"ClassyText"`, …) probably isn't loaded/owned yet for that player.
+- **Decompiler artifacts:** a few `NetClient*` helpers have locals that are assigned but never read, and some
+  handlers reference a bare `vPlayer`/`tPlayer` that doesn't match the `tArgs.vPlayer` parameter (e.g.
+  `Announcement:Show`, `Tutorial:ShowTutorial*`) — these are decompilation glitches, not intended behavior.

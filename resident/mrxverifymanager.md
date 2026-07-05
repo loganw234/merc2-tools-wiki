@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [achievement, target]
 verified: true
-verified_note: fixed fabricated Events section (no Event.* in source); added nCount to Instance pattern; noted tChangedCallback is populated by AddCallback but never read/invoked anywhere in this file
+verified_note: "deeper pass: re-confirmed all functions + no-Event finding + the dead tChangedCallback; documented the real achievement string (ACHIEVEMENT_JUSTICE_FOR_ALL) and that CheckTechnoVikingAchievement never grants (returns bool only), the SetKilledIfNotSet naming trap (sets 'captured', not 'killed'), the '' default status, and the four hardcoded-0 faction getters; cross-linked MrxAchievements and the Player/Pg namespaces"
 ---
 
 # MrxVerifyManager
@@ -18,12 +18,19 @@ The `MrxVerifyManager` module is responsible for managing and tracking the statu
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `MrxAchievements`
+- Imports: [`MrxAchievements`](mrxachievements) — the only import; used to actually grant the achievement.
+  GUID↔name lookups go through the engine [`Pg`](../namespaces/pg) namespace (`Pg.GetGuidByName`) and the
+  achievement is granted to [`Player`](../namespaces/player)`.GetPrimaryPlayer()`.
 
 ## Instance pattern
 This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid`/`tInstance` pattern — `Activated()` here is just a plain function, not the `OnActivate`/`Awake` world-object lifecycle). It tracks the following key fields:
-- `tTargetListStatus`: A nested table that stores the status of each target, categorized by faction (`All`, `Chi`, `Civ`, `Gur`, `Oil`, `Pir`, `Pmc`, `Vza`).
-- `sSolanoStatus`: The status of the Solano target ("alive", "killed", or "captured").
+- `tTargetListStatus`: A nested table that stores the status of each target, categorized by faction (`All`,
+  `Chi`, `Civ`, `Gur`, `Oil`, `Pir`, `Pmc`, `Vza`). **Pre-populated at load** with dozens of named HVT/job
+  targets (e.g. `All.AllCon003_HVT`, `Gur.Mendez`, `Pmc.Solano`, `Pmc["PmcCon002 Blanco"]`, and the
+  `*Job0NN_Target_NN` sets), each with an initial status of **`""` (empty string), not `"alive"`** — so
+  `GetStatus` returns `""` for an untouched target, and the "resolved?" checks throughout compare against
+  `"killed"`/`"captured"` specifically. `Civ` and `Vza` are declared but left empty.
+- `sSolanoStatus`: The status of the Solano target ("alive", "killed", or "captured"). Starts `"alive"`.
 - `tChangedCallback`: A list of callbacks registered via `AddCallback`. Populated but never read or invoked anywhere in this file — no call site iterates it, so it appears to be dead code in this module (or consumed by code outside the decompiled corpus).
 - `tTargetGuidList`: A mapping of GUIDs to target names for quick lookup.
 - `nKilled` and `nCaptured`: Counters for the number of killed and captured targets, recomputed by `UpdateStats()`.
@@ -46,19 +53,34 @@ Adds a new target with the specified name and status. If no status is provided, 
 Updates the status of an existing target. If the target's GUID is provided instead of its name, it converts it to the target name. It updates the target list status and calls functions to update statistics and check achievements.
 
 ### `_CheckJusticeAchievement()`
-Checks if the "Justice for All" achievement should be granted based on the current status of targets. If the conditions are met, it grants the achievement and logs a debug message.
+Grants the achievement `"ACHIEVEMENT_JUSTICE_FOR_ALL"` (via `MrxAchievements.NetGrantAchievement(..., Player.GetPrimaryPlayer())`)
+when `GetCompletedTotal() == GetTotal() - 1` **and** the `AllCon003_HVT` or `ChiCon003_HVT` target is
+`"killed"` or `"captured"`. The `- 1` is because the final HVT is the last target and completing it is the
+trigger. Called automatically from every status-mutating function (`AddTarget`, `UpdateTarget`,
+`SetKilledIfNotSet`, `SetSolanoVerified`).
 
 ### `CheckTechnoVikingAchievement()`
-Checks if the Techno Viking achievement conditions are met. It returns true if the conditions are met, otherwise false.
+Returns `true` when `GetCaptured() == GetTotal() - 1` and the `AllCon003_HVT`/`ChiCon003_HVT` target is
+`"captured"` (i.e. everything captured, nothing killed), else `false`. **It only returns a bool — unlike
+`_CheckJusticeAchievement`, it never actually grants an achievement.** Something external must call this and
+grant the reward itself; no `MrxAchievements.*` call exists in this function.
 
 ### `_FindFactionFromName(sName)`
 Finds the faction abbreviation associated with a target name by searching through the target list status.
 
 ### `BuildGuidList()`
-Builds a mapping of GUIDs to target names for quick lookup. It logs the old and new count of targets in the list.
+Populates `tTargetGuidList` as a `uGuid → sTargetName` map by resolving every target name through
+`Pg.GetGuidByName`. **Gotcha:** it computes `oldCount`/`newCount` with the `#` length operator on
+`tTargetGuidList`, but that table is keyed by GUID (an arbitrary/opaque handle, not a 1..N array), so `#`
+returns `0` regardless of contents. Those two locals are therefore meaningless — see `FindTargetFromGuid`,
+which relies on them.
 
 ### `FindTargetFromGuid(uGuid)`
-Finds the target name associated with a GUID. If the target is not found, it rebuilds the GUID list and tries again.
+Returns the target name for a GUID, rebuilding the list once and retrying if not found. **Because it
+compares `#tTargetGuidList` before/after `BuildGuidList` (both effectively `0`, per the gotcha above),
+`oldCount ~= newCount` is never true — so the retry-recursion branch is dead**; a genuinely-unknown GUID
+falls straight through to `return nil` rather than retrying. Not fatal (the direct-lookup path still works
+once the map is built), but the intended "rebuild and try again" self-heal doesn't actually fire.
 
 ### `AddCallback(sTargetName, fCallback, tArgs)`
 Adds a callback function to be executed when a target's status changes. It converts the target's GUID to its name if necessary and inserts the callback into the `tChangedCallback` table.
@@ -81,59 +103,25 @@ Counts the number of completed (killed or captured) targets in a given list of t
 ### `GetCompletedTotal()`
 Returns the total number of completed (killed or captured) targets by updating statistics first.
 
-### `GetTotalFactionVZA()`
-Returns the total number of targets for the VZA faction. Currently returns 0.
+### Per-faction total/completed getters
+Sixteen near-identical accessors, two per faction (`GetTotalFaction<F>` / `GetCompleted<F>` for
+`F` ∈ `ALL, CHI, CIV, GUR, OIL, PIR, PMC, VZA`). The "total" variant counts entries in
+`tTargetListStatus.<Faction>`; the "completed" variant delegates to `CountCompleted(tTargetListStatus.<Faction>)`.
 
-### `GetCompletedVZA()`
-Returns the number of completed targets for the VZA faction as a string. Currently returns "0".
-
-### `GetTotalFactionPMC()`
-Returns the total number of targets for the PMC faction by counting entries in the target list status.
-
-### `GetCompletedPMC()`
-Returns the number of completed targets for the PMC faction by calling `CountCompleted`.
-
-### `GetTotalFactionPIR()`
-Returns the total number of targets for the PIR faction by counting entries in the target list status.
-
-### `GetCompletedPIR()`
-Returns the number of completed targets for the PIR faction by calling `CountCompleted`.
-
-### `GetTotalFactionOIL()`
-Returns the total number of targets for the OIL faction by counting entries in the target list status.
-
-### `GetCompletedOIL()`
-Returns the number of completed targets for the OIL faction by calling `CountCompleted`.
-
-### `GetTotalFactionGUR()`
-Returns the total number of targets for the GUR faction by counting entries in the target list status.
-
-### `GetCompletedGUR()`
-Returns the number of completed targets for the GUR faction by calling `CountCompleted`.
-
-### `GetTotalFactionCIV()`
-Returns the total number of targets for the CIV faction. Currently returns 0.
-
-### `GetCompletedCIV()`
-Returns the number of completed targets for the CIV faction as a string. Currently returns "0".
-
-### `GetTotalFactionCHI()`
-Returns the total number of targets for the CHI faction by counting entries in the target list status.
-
-### `GetCompletedCHI()`
-Returns the number of completed targets for the CHI faction by calling `CountCompleted`.
-
-### `GetTotalFactionALL()`
-Returns the total number of targets for the ALL faction by counting entries in the target list status.
-
-### `GetCompletedALL()`
-Returns the number of completed targets for the ALL faction by calling `CountCompleted`.
+{: .warning }
+> **Two of these are hardcoded stubs, not live counts.** `GetTotalFactionVZA`/`GetTotalFactionCIV` always
+> `return 0`, and `GetCompletedVZA`/`GetCompletedCIV` always `return "0"` — **a string, not a number.** The
+> other twelve return real integers. So the return *type* is inconsistent across the family (number for the
+> live ones, `"0"` string for the two stubbed factions), which will bite anything doing arithmetic on the
+> result. This matches the empty `Civ`/`Vza` buckets in `tTargetListStatus`.
 
 ### `GetTotal()`
 Returns the total number of targets across all factions. It caches the count to avoid recalculating it repeatedly.
 
 ### `SetKilledIfNotSet(sTargetName)`
-Sets the status of a target to "captured" if its current status is not set or is "alive". It updates statistics and checks achievements.
+Despite the name, this sets the status to **`"captured"`** (not `"killed"`) when the target's current
+status is unset, `""`, or `"alive"`. Then updates stats and checks the Justice achievement. Treat the name
+as misleading — read it as "mark this target resolved (as captured) if it isn't already."
 
 ### `SetSolanoVerified()`
 Updates the status of the Solano target based on whether any targets have been killed. It sets the Solano status accordingly, updates the target list status, and checks achievements.
@@ -142,7 +130,14 @@ Updates the status of the Solano target based on whether any targets have been k
 No `Event.*` calls appear anywhere in this file. `Activated()` (line 90) is presumably invoked by native/engine code (name suggests an activation hook) but has no visible `Event.Create` wiring in this module. All other lifecycle here (target status updates, achievement checks) is driven by direct function calls, not engine events.
 
 ## Notes for modders
-- Use `AddTarget` and `UpdateTarget` to manage target statuses.
-- Customize target properties by updating fields in `tTargetListStatus`.
-- Be aware that achievements are automatically checked and granted based on target status changes.
-- Ensure that callbacks are added correctly using `AddCallback` to handle custom logic when targets change.
+- Statuses are the strings `"killed"`, `"captured"`, `"alive"`, or `""` (the load-time default). Every
+  "is this resolved?" check compares against `"killed"`/`"captured"` — set exactly those, not e.g. `"dead"`.
+- `AddTarget`/`UpdateTarget` accept either a name (string) or a GUID (userdata) as the first argument; a
+  GUID is resolved to a name via `FindTargetFromGuid`. `UpdateTarget` silently returns if `sStatus` is nil.
+- Only the "Justice for All" achievement is granted here (string `"ACHIEVEMENT_JUSTICE_FOR_ALL"`). The
+  "Techno Viking" path (`CheckTechnoVikingAchievement`) only *reports* eligibility — whatever grants that
+  reward lives elsewhere.
+- `AddCallback` is effectively inert in this module: it appends to `tChangedCallback`, but nothing here
+  ever iterates or fires that table. Don't rely on registered callbacks being invoked by this file.
+- `GetCompletedVZA`/`GetCompletedCIV` return the **string** `"0"`; the other faction getters return
+  numbers — don't feed these into arithmetic without normalizing.

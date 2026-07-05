@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [weapon, event]
 verified: true
-verified_note: all functions and the single Event.WeaponEvent call confirmed against 17-line source; tEvents table added to Instance pattern description; page was already largely accurate
+verified_note: "deeper pass: re-confirmed both lifecycle hooks and the single Event.WeaponEvent(\"Human\",\"Drop\",uGuid)->Object.Remove wiring against the 16-line source; replaced vacuous Notes bullet with an actionable one; page was already largely accurate"
 ---
 
 # Heavymg
@@ -43,7 +43,11 @@ table entry afterward (leaves a stale/deleted event handle in `tEvents[uGuid]` r
   fires `Object.Remove(uGuid)` directly as the callback (no intermediate handler function in this file).
 
 ## Notes for modders
-- Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the lifecycle of the event listener.
-- This module does not have any public API functions other than the two engine lifecycle hooks.
+- **Behavior lever:** the entire module is one rule — "when a **human** drops this HMG, delete it." To keep
+  a dropped HMG in the world, remove or replace the `Object.Remove` callback in `OnActivate`. The filter
+  triple `{"Human", "Drop", uGuid}` is what scopes it to human-drop events on this object (see the
+  [weapon](../namespaces/weapon) namespace for `Event.WeaponEvent` semantics).
+- This module has no public API beyond the two engine lifecycle hooks; `import("MrxUtil")` is present but
+  unused here.
 - `OnDeactivate` does not null out `tEvents[uGuid]` after deleting the event — harmless in practice since
   `OnActivate` always overwrites it on the next activation, but worth knowing if you're auditing for leaks.

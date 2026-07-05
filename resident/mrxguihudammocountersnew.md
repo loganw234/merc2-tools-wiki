@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud, ammo]
 verified: true
-verified_note: corrects the Instance pattern section (singleton, not per-uGuid -- no OnActivate/Create/tInstance anywhere in source)
+verified_note: 'deeper pass: rewrote the Events section — the Handle*Event functions are widget event-handler callbacks (wired via SetEventHandler / the layout), NOT Event.Create(Event.*) subscriptions; the only real Event.* calls are Event.Post("Ammo low"/"Ammo not low") and Event.Create(Event.TimerRelative, ...). Surfaced the native HUD field names read (PrimaryCurrentAmmo/PrimaryClipSize/PrimaryStoredAmmo/ExplosivesCurrentAmmo/ExplosivesStoredAmmo), the low-ammo threshold (clip/3), and the red-pulse RGB (216,16,16). All functions re-confirmed.'
 ---
 
 # MrxGuiHudAmmoCountersNew
@@ -14,26 +14,24 @@ verified_note: corrects the Instance pattern section (singleton, not per-uGuid -
 *Module: mrxguihudammocountersnew.lua*
 
 ## Overview
-The `MrxGuiHudAmmoCountersNew` module is responsible for managing the display and animation of ammo counters in the HUD. It handles various events related to weapon and explosive ammo updates, manages color animations, and controls widget visibility and rotation animations.
+The `MrxGuiHudAmmoCountersNew` module drives the HUD ammo counters — the numeric clip/stored-ammo readouts, the low-ammo red pulse, the weapon-name label, and the animated weapon-icon "switch" flip/rotate effect. Every function is a **widget event-handler callback**: it receives an `oWidget` (the counter widget) and a `tEvent` table of native HUD ammo fields, updates the widget's text/color/animation, and returns. The module is stateless at module level; all per-counter state lives in `oWidget.CustomData`.
+
+The `tEvent` tables carry native HUD fields the engine fills in: `PrimaryCurrentAmmo`, `PrimaryClipSize`, `PrimaryStoredAmmo` (guns) and `ExplosivesCurrentAmmo`, `ExplosivesStoredAmmo` (grenades/explosives). A value of `-1` means "not applicable" and blanks the readout.
 
 ## Inheritance
 - Inherits from: none — base/utility module
-- Imports: `MrxGuiBase`
+- Imports: `MrxGuiBase` (via [`import("MrxGuiBase")`](../glossary#importname)) — used for `MrxGuiBase.PushWidgetToFront`, `MrxGuiBase.RemoveWidgetWithChildren`, `MrxGuiBase.AddWidgetWithChildren`. See [MrxGuiBase](mrxguibase).
 
 ## Instance pattern
-**Not per-`uGuid` — a singleton module.** Confirmed: no `OnActivate`/`Create`/`tInstance` registry anywhere
-in source. This is one shared HUD element, not something spawned per world object — the fields below are
-plain module-level state. Key fields:
-- `_knPulseTime`: 0.4 seconds, used for color pulse animations.
-- `_knRotateTime`: 0.5 seconds, used for rotation animations.
-- `_knRotateDelay`: 0.05 seconds, delay before starting rotation animations.
-- `bSuppressAnimation`: Boolean flag to suppress animations.
-- `tEventHandlers`: Table to store event handlers.
-- `nLastGunSwitchTime`: Timestamp of the last gun switch event.
-- `nLastExplosiveSwitchTime`: Timestamp of the last explosive switch event.
-- `uCurrentGun`: GUID of the currently equipped weapon.
-- `uNewWeapon`: GUID of the new weapon being switched to.
-- `bWaitingForSupport`: Boolean flag indicating if waiting for support before switching weapons.
+**Stateless module + per-widget `CustomData`.** There is no `OnActivate`/`Create`/`tInstance` registry and no `setmetatable` instance pattern. The module defines only three module-level constants (below); all mutable state is stored on the individual counter widgets in `oWidget.CustomData`. The functions never touch module globals for state — they read/write `oWidget.CustomData.*` and `oWidget:GetChildren()`. Per-widget state you'll see in the code includes `.bAnimating`, `.nRedPoint`/`.nNeutralPoint` (color animation points), `.nCachedClipAmmo`/`.nCachedClipSize`/`.nCachedStoredAmmo`, `.nVisibilityTime`/`.nRemainingVisibleTime`, `.bHaveWeapon`, `.bWaitingForSupport`, and `.bSuppress`.
+
+Module-level constants (the only three top-level names, and the real tunables):
+- `_knPulseTime = 0.4` — seconds for the low-ammo red-pulse color animation.
+- `_knRotateTime = 0.5` — seconds for each bullet/background rotation step in the weapon-switch animation.
+- `_knRotateDelay = 0.05` — delay between successive rotation steps (scheduled via `Event.Create(Event.TimerRelative, ...)`).
+
+{: .note }
+> The earlier draft listed module-level fields like `bSuppressAnimation`, `tEventHandlers`, `nLastGunSwitchTime`, `uCurrentGun`, `uNewWeapon`, `bWaitingForSupport`. **None of those exist in the source** — the analogous flags live in `oWidget.CustomData` (e.g. `.bSuppress`, `.bWaitingForSupport`, `.uNewWeapon`). Removed.
 
 ## Functions
 
@@ -162,40 +160,27 @@ Checks if a given point has been passed between two values, considering both inc
 
 ## Events
 
-- **`Event.CurrentGunAmmoUpdate`**: Triggered when the current ammo count for the primary weapon changes. The module updates the HUD widget's ammo display and handles low-ammo threshold logic.
-  
-- **`Event.CurrentGunClipSizeUpdate`**: Triggered when the clip size for the primary weapon changes. The module updates the HUD widget's clip size display.
+{: .warning }
+> The `Handle*Event` functions in this file are **widget event-handler callbacks, not `Event.Create(Event.*)` subscriptions.** There is no `Event.Create` for any ammo update in this source. The engine/layout drives these by calling the widget's registered handler for a named widget event (see `oWidget:SetEventHandler("GuiUpdate", ...)` in the code) — the handler *names* (e.g. `HandleCurrentGunAmmoUpdateEvent`) are wired to widget events in the HUD layout file, not here. Do not expect a global `Event.CurrentGunAmmoUpdate` engine constant to exist.
 
-- **`Event.StoredGunAmmoUpdate`**: Triggered when the stored ammo count for the primary weapon changes. The module updates the HUD widget's stored ammo display.
+The **only real `Event.*` engine calls** in the file are:
+- `Event.Post("Ammo low", {uPlayer = oWidget:GetOwner()})` and `Event.Post("Ammo not low", {...})` — posted from `HandleCurrentGunAmmoUpdateEvent` when the primary clip crosses the low-ammo threshold (`PrimaryClipSize / 3`). Other modules can subscribe to these two string events. See [Event](../namespaces/event).
+- `Event.Create(Event.TimerRelative, {_knRotateDelay}, _AnimateNext, {...})` — schedules the staggered bullet-rotation steps of the weapon-switch animation.
 
-- **`Event.UnreloadableGunAmmoUpdate`**: Triggered when the ammo count for a weapon that cannot be reloaded changes. The module handles the display of this ammo.
-
-- **`Event.ExplosivesAmmoUpdate`**: Triggered when the total explosives ammo count changes. The module updates the HUD widget's explosives ammo display and handles low-ammo threshold logic.
-
-- **`Event.TopLevelUpdate`**: Triggered periodically with delta time. The module handles the visibility timing for the top-level HUD widget.
-
-- **`Event.TopLevelGunAmmoUpdate`**: Triggered when cached ammo values for the primary weapon need to be updated in the custom data of the widget.
-
-- **`Event.TopLevelExplosiveAmmoUpdate`**: Triggered when cached ammo values for explosives need to be updated in the custom data of the widget.
-
-- **`Event.TopLevelInitialization`**: Triggered during the initialization of the top-level HUD widget. The module sets up child widgets and their behaviors.
-
-- **`Event.GunShow`**: Triggered when the primary weapon ammo needs to be displayed based on event data.
-
-- **`Event.ExplosiveShow`**: Triggered when explosives ammo needs to be displayed based on event data.
-
-- **`Event.GunSwitch`**: Triggered when a new gun is selected. The module handles the switch event for the primary weapon in the HUD widget.
-
-- **`Event.ExplosiveSwitch`**: Triggered when a new explosive is selected. The module handles the switch event for explosives in the HUD widget.
-
-- **`Event.E3HudMode`**: Triggered to handle the E3 HUD mode event by toggling the visibility of certain widgets.
+The widget-event handler callbacks (invoked with `(oWidget, tEvent)` or `(oWidget, nDeltaTime)`) and the native HUD fields they read:
+- **Current-gun ammo / clip / stored** (`HandleCurrentGunAmmoUpdateEvent`, `HandleCurrentGunClipSizeUpdateEvent`, `HandleStoredGunAmmoUpdateEvent`) — read `tEvent.PrimaryCurrentAmmo`, `tEvent.PrimaryClipSize`, `tEvent.PrimaryStoredAmmo`. Blank (`" "`) when the value is `-1` (or clip size `0`).
+- **Unreloadable gun** (`HandleUnreloadableGunAmmoUpdateEvent`) — shows `PrimaryCurrentAmmo` when `PrimaryClipSize` is `-1`/`0` (weapons with no clip).
+- **Explosives total** (`HandleExplosivesAmmoUpdateEvent`) — shows `ExplosivesCurrentAmmo + ExplosivesStoredAmmo`; red-pulses when the total is `<= 0`.
+- **Top-level cache/visibility** (`HandleTopLevelGunAmmoUpdateEvent`, `HandleTopLevelExplosiveAmmoUpdateEvent`, `HandleTopLevelUpdateEvent`, `HandleTopLevelInitialization`) — cache ammo into `CustomData`, drive the 3-second auto-hide fade, and build the child widgets.
+- **Show / switch** (`HandleGunShowEvent`, `HandleExplosiveShowEvent`, `HandleGunSwitchEvent`, `HandleExplosiveSwitchEvent`, `HandleGunSwitchForAnimation`, `HandleExplosiveSwitchForAnimation`) — show for a duration and play the weapon-icon flip animation. `HandleGunSwitchEvent` reads `tEvent.uNewCurrentGun`/`tEvent.uNewCurrentGunGuid` and pulls the display name via `Object.GetLocalizedName`.
+- **E3 demo mode** (`HandleE3HudModeEvent`) — reads `tEvent.bOn`; strips/restores the first two child widgets for the E3 press-build HUD.
 
 ## Notes for modders
 
-- **Call-order requirements**: Ensure that `HandleTopLevelInitialization` is called before any other initialization functions to properly set up child widgets and their behaviors.
-  
-- **Pitfalls**: Be cautious with modifying animation speeds or durations, as they can affect the overall user experience. Avoid directly manipulating widget properties outside of designated functions to maintain consistency.
-
-- **Tunables**: The constants `_knPulseTime`, `_knRotateTime`, and `_knRotateDelay` control various animation timings. Modifying these values can change the behavior of color animations and rotations.
-
-- **Decompiler artifacts**: There are no known decompiler artifacts in this module that require special attention. All functions and variables appear to be correctly defined and used within the context of the module.
+- **Low-ammo threshold** (the key tunable): the counter pulses red when `PrimaryCurrentAmmo < PrimaryClipSize / 3` (guns) or when the explosives total is `<= 0`. That same `/3` threshold also forces the counter to stay visible indefinitely (`nDuration = -1` in `_ShowForDuration`). Change the divisor to re-tune when "low ammo" triggers.
+- **Red-pulse color**: the pulse animates to RGB `(216, 16, 16)` (`RedLevel`/`GreenLevel`/`BlueLevel` in the `nRedPoint` animation point) and back to the widget's original color. `_GreenFade` (used elsewhere) flashes `(0, 216, 0)`.
+- **Auto-hide timing**: `CustomData.nVisibilityTime` is set to `3` (seconds) in `_SetUpFadeBehavior` — how long the counter stays up after a change before fading. Passing `nDuration = -1` (or a low clip) keeps it up permanently; `0` hides immediately.
+- **"Ammo low" / "Ammo not low" events**: subscribe to these string events (via [Event](../namespaces/event)) to react to the player's primary weapon running low — they carry `uPlayer`. Only the primary gun posts them; explosives do not.
+- **Animation timing constants**: `_knPulseTime` (0.4s), `_knRotateTime` (0.5s), `_knRotateDelay` (0.05s) — see Instance pattern. Lowering `_knRotateDelay` tightens the bullet-rotation cascade in the switch animation.
+- **`FindEquippedSupportTexture(uPlayer)` is a stub** — it unconditionally `return nil`. Nothing in this file uses a support texture; treat it as dead/placeholder.
+- **E3 HUD mode** (`HandleE3HudModeEvent`) is a demo-only path that removes the counter's first two children — irrelevant to normal play.

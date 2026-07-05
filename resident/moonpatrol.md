@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [vehicle, ai]
 verified: true
-verified_note: confirmed the already-documented Deactivated/Activated undefined-callback bug is accurate; added two Event.* references missing from the Events section (Event.Button, Event.ObjectProximity); clarified OnDeactivate's dual table/non-table tEvents handling and NetEventCallback.
+verified_note: deeper pass — re-confirmed the Deactivated/Activated undefined-callback bug, all Event.* references, and the dual table/non-table tEvents handling; added a tunables block surfacing the turbo particle template, exhaust attach points, jump impulse, 1.5s timer, and 10-unit reactivation radius, plus namespace cross-links.
 ---
 
 # MoonPatrol
@@ -99,7 +99,28 @@ event with a `nil` callback instead of actually reactivating the vehicle when it
   `NETEVENT_STOPEMITTERS = 1`) to mirror emitter start/stop across the network — this is the engine's
   custom-net-event mechanism, not an `Event.*` constant.
 
+## Module constants & tunables
+This module names only two constants (`NETEVENT_STARTEMITTERS = 0`, `NETEVENT_STOPEMITTERS = 1`), but the
+interesting knobs are the hard-coded values in the function bodies — the "make it jump higher / change the
+exhaust" levers:
+
+| What | Value / string | Where |
+|---|---|---|
+| Turbo/exhaust particle template | `"global_particle_monstertruck_turbo"` | `StartEmitters`/`StopEmitters` |
+| Exhaust emitter attach points | `"hp_fx_exhaust_a"`, `"hp_fx_exhaust_b"` | `StartEmitters`/`StopEmitters` |
+| Jump impulse | `Object.ApplyPointImpulse(uGuid, 0, 10*mass, 0.1*mass, 0, 0, 0.15, true)` | `OnJump` — vertical `10*mass`, slight forward `0.1*mass` |
+| Airborne wait before landing check | `1.5`s | `OnJump` → `WaitForLanding` (`Event.TimerRelative`) |
+| Jump trigger button | `"rtrigger"` `"press"` | `ResetJump` (`Event.Button`) |
+| Reactivation proximity radius | `10` units | `Deactivated` (`Event.ObjectProximity`, `"<"`) |
+
+All template/attach-point names are passed through `String.GetHash(...)` before use; the emitter calls go
+through the `ObjectState` namespace (`ObjectState.StartEmitter`/`StopEmitter`), and the impulse/mass lookups
+use the [`Object`](../namespaces/object) namespace (`Object.ApplyPointImpulse`/`Object.GetMass`).
+
 ## Notes for modders
 - Ensure that `OnActivate`, `OnDeactivate`, and related functions are called appropriately to manage the vehicle's lifecycle.
-- Customize jump mechanics by modifying the impulse values or emitter effects in `StartEmitters` and `StopEmitters`.
-- Be aware of network synchronization (`Net.SendCustomEvent`) when extending this module for multiplayer support.
+- Customize jump mechanics by modifying the impulse values in `OnJump` or the particle template/attach points
+  in `StartEmitters`/`StopEmitters` (table above).
+- Be aware of network synchronization ([`Net.SendCustomEvent`](../namespaces/net)) when extending this module
+  for multiplayer support — emitter start/stop is mirrored to other clients via the module-level
+  `NetEventCallback` dispatcher, so a client-only tweak to `StartEmitters` won't automatically replicate.

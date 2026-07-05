@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [utility]
 verified: true
-verified_note: 2-line file, single stub Use function confirmed, no events/inheritance in source; page was already accurate
+verified_note: 'deeper pass: re-confirmed the 1-line source; clarified Use is an intentionally-empty engine hook (not an Event.* subscription), cross-linked sibling stub props, and trimmed generic Notes'
 ---
 
 # FoodCart
@@ -14,7 +14,9 @@ verified_note: 2-line file, single stub Use function confirmed, no events/inheri
 *Module: foodcart.lua*
 
 ## Overview
-The `FoodCart` module is a utility script designed to handle interactions with food carts in the game. It currently defines a single function, `Use`, which is intended to manage player interactions with food carts.
+The entire `foodcart.lua` is a single empty `Use(aiguid, floatval)` hook. The engine calls it when the food
+cart is used, but this file scripts no behaviour — it exists so the prop has a valid `Use` entry point (the
+same minimal-prop shape as [Binoculars](binoculars) and [Dropoff](dropoff)'s sibling stubs).
 
 ## Inheritance
 - Inherits from: none — base/utility module
@@ -25,11 +27,12 @@ This is a stateless manager/utility module. It does not track any per-instance s
 
 ## Functions
 ### `Use(aiguid, floatval)`
-A placeholder function that currently does nothing (empty body). It takes two arguments, `aiguid` and `floatval`, but no implementation is provided. This is the only function defined in the file.
+The engine-invoked "use" hook. Arguments `aiguid` and `floatval` are declared but unused, and the body is
+empty, so doing nothing on use is the intended behaviour. This is the only function in the file.
 
 ## Events
-- none
+- Subscribes to: none. `Use` is an engine callback, not an `Event.Create` listener.
 
 ## Notes for modders
-- This module is currently a stub with no functionality. Any custom behavior related to food cart interactions should be implemented within the `Use` function.
-- Be cautious when extending this module, as it does not follow the standard per-instance pattern used by other modules in the corpus.
+- There is no existing behaviour to preserve — the hook is empty by design. Fill in `Use` if you want the
+  food cart to do something when used.

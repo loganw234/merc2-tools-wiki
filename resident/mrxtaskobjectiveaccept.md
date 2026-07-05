@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjectiveAction
 tags: [task, objective]
 verified: true
-verified_note: corrects the Instance pattern (class-factory via the MrxTask family, not per-uGuid) -- see [MrxTaskObjectiveAction](mrxtaskobjectiveaction) for the general mechanism.
+verified_note: deeper pass — clarified this subclass ONLY overrides _TargetActioned (to insert a Yes/No dialog before accepting) and stubs _PrintObjectiveMessage to a no-op; corrected the Events section (the dialog callback is a MrxGui dialog callback, NOT an Event subscription); default dialog text "[Generic.Accept]?"
 ---
 
 # MrxTaskObjectiveAccept
@@ -14,7 +14,11 @@ verified_note: corrects the Instance pattern (class-factory via the MrxTask fami
 *Module: mrxtaskobjectiveaccept.lua*
 
 ## Overview
-The `MrxTaskObjectiveAccept` module is a task objective action that handles the acceptance of a task by a player. It displays a confirmation dialog to the player and processes their response.
+`MrxTaskObjectiveAccept` is a thin subclass of [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction) that
+inserts a Yes/No confirmation dialog between the player pressing the interact button and the objective
+actually completing. Its whole reason to exist is those two overrides: `_TargetActioned` (pop the dialog
+first) and `_PrintObjectiveMessage` (silenced). Everything else — the context-action setup, the target/death
+events, the icons — is inherited unchanged from `MrxTaskObjectiveAction`.
 
 ## Inheritance
 - Inherits from: `MrxTaskObjectiveAction`
@@ -27,19 +31,31 @@ general mechanism), identified by name/lineage rather than a world-object GUID. 
 - `_bConfPromptDisplayed`: A boolean indicating whether the confirmation prompt has been displayed.
 
 ## Functions
-### `_TargetActioned(self, uActionerGuid, uActioneeGuid)`
-Called when an action target is acted upon. If the confirmation prompt has not been displayed yet, it sets `_bConfPromptDisplayed` to true and shows a dialog box to the player asking for confirmation.
+### `_TargetActioned(self, uActionerGuid, uActioneeGuid)` *(override)*
+**Overrides** [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction)'s version. Instead of immediately
+completing the part, it shows a Yes/No dialog via `MrxGui.DisplayDialogBox` (guarded by
+`_bConfPromptDisplayed` so it can't stack) with buttons `"[Generic.Yes]"` / `"[Generic.No]"` and text from
+config `sDialogText`, defaulting to `"[Generic.Accept]?"`. The player's answer is delivered to
+`_ConfPromptDismissed`.
 
 ### `_ConfPromptDismissed(self, uActionerGuid, uActioneeGuid, nSelectedIndex)`
-Called when the player dismisses the confirmation dialog. It resets `_bConfPromptDisplayed` to false and checks if the player selected "Yes". If so, it calls the base class's `_TargetActioned` method.
+Dialog callback (a plain overridable function, not an event handler). Clears `_bConfPromptDisplayed`; if the
+player picked index `1` ("Yes"), it calls the base `MrxTaskObjectiveAction._TargetActioned` to actually
+complete the part. Picking "No" leaves the objective open so the player can be re-prompted.
 
-### `_PrintObjectiveMessage(self, sMsgType)`
-A placeholder function that does nothing. This is likely a stub for future functionality related to printing objective messages.
+### `_PrintObjectiveMessage(self, sMsgType)` *(override)*
+**Overrides** the base to an empty no-op, suppressing this objective's HUD add/update/complete messages —
+the dialog is the whole interaction, so the standard objective banners would be noise.
 
 ## Events
-- Listens for an internal event (not explicitly defined in this file) to call `_ConfPromptDismissed` when the player dismisses the confirmation dialog.
+This subclass **subscribes to no events of its own** — it inherits `MrxTaskObjectiveAction`'s
+`Event.ContextAction` / `Event.ObjectDeath` subscriptions. The confirmation flow runs through a
+`MrxGui.DisplayDialogBox` **callback**, not an `Event.*` subscription.
 
 ## Notes for modders
-- Ensure that `_TargetActioned` is called appropriately when an action target is acted upon.
-- Customize the dialog text by setting the `sDialogText` field in the configuration.
-- Be aware that this module relies on the `MrxGui` and `MrxPlayer` modules for displaying dialogs and player-related operations.
+- **Change the prompt text** with config `sDialogText` (default `"[Generic.Accept]?"`). Buttons are hardcoded
+  to `"[Generic.Yes]"` / `"[Generic.No]"`.
+- Use this instead of plain [`MrxTaskObjectiveAction`](mrxtaskobjectiveaction) whenever accepting should be a
+  deliberate confirm rather than a single button press (e.g. picking up a job).
+- Depends on [`MrxGui`](mrxgui) for the dialog and `MrxPlayer` for resolving the actioner to a player
+  character; the dialog is shown to `Player.GetCharacter(uActionerGuid)`.

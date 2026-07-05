@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [mine, proximity]
 verified: true
-verified_note: noted uVehicleFilter is created/configured in Init but never actually used (only uHumanFilter is referenced in the proximity event); corrected OnActivate/OnDeath/Explode details and events section against source.
+verified_note: "deeper pass: re-confirmed all 5 functions; consolidated the high-value constants (proximity radius 1, delays 0.75s/0.25s, animation global_weapon_c4land_60thsec, sound wpn_bomb_timer_01_finalstage, and the three Explosion (...) spawn prefabs) into a tunables block; re-confirmed uVehicleFilter is dead in this file"
 ---
 
 # Mine
@@ -21,7 +21,11 @@ The `Mine` module represents a mine object in the game. It handles the activatio
 - Imports: `none`
 
 ## Instance pattern
-This module does not follow the per-instance object pattern (keyed by `uGuid`). It manages global state for mine objects, such as event handlers and filters.
+Not the `Inheritable` rich-instance pattern — no `Create`/`setmetatable`/`tInstance` registry. State lives
+in module-level globals:
+- `uEvent`: `uGuid -> proximity-event handle` (only populated for `nArg == 2` mines).
+- `uHumanFilter`, `uVehicleFilter`: shared `ObjectFilter` handles built once in `Init` (the vehicle one is
+  dead — see Functions).
 
 ## Functions
 ### `Init()`
@@ -66,12 +70,25 @@ Stops the `"wpn_bomb_timer_01_finalstage"` sound and spawns an explosion prefab 
   `Object.Kill` directly when a human-filtered object gets within 1 unit.
 - Listens for `Event.TimerRelative` (registered in `OnDeath`) to call `Explode` after a 0.75s or 0.25s delay.
 
+## Module constants & tunables
+| Value | Where | Role |
+| --- | --- | --- |
+| `"global_weapon_c4land_60thsec"` | `OnActivate`/`OnDeactivate` | looping material animation (the blinking C4) |
+| `1` | `OnActivate` proximity filter | trigger radius (distance `<` 1) for `nArg == 2` mines |
+| `"wpn_bomb_timer_01_finalstage"` | `OnDeath`/`Explode` | pre-detonation "beep" sound cue |
+| `0.75` / `0.25` s | `OnDeath` | fuse delay — 0.75 s for `HumanMine`-labelled, else 0.25 s |
+| `"Explosion (Grenade)"` | `Explode` (`"human"`) | spawned via `Pg.Spawn` at the mine's position |
+| `"Explosion (AT Mine)"` | `Explode` (`"veh"`) | spawned for non-`HumanMine` mines |
+| `"Explosion (Water Mine)"` | `Explode` (else) | third branch — **no call site in this file** |
+
 ## Notes for modders
-- Ensure that `Init` and `Deinit` are called appropriately to manage global state.
-- Use `OnActivate`, `OnDeactivate`, and `OnDeath` to control the lifecycle of mine objects.
-- The proximity-kill behavior (`nArg == 2`) only applies to human targets via `uHumanFilter`; there is no
-  vehicle-proximity equivalent wired up in this file despite `uVehicleFilter` existing.
-- Customize the proximity trigger radius (currently `1`) and explosion delays (`0.75`/`0.25`) by
-  modifying the corresponding literals in `OnActivate`/`OnDeath`.
-- No network synchronization calls (`Net.*`) appear anywhere in this file — multiplayer behavior for
-  mines, if any, is handled elsewhere (e.g. engine-level object replication).
+- **The two mine flavors** are chosen at activation by `nArg` (== 2 → human proximity-kill) and at death by
+  the `"HumanMine"` object label (grenade blast + 0.75 s vs. AT-mine blast + 0.25 s). Change those to
+  re-tune behavior.
+- **`nArg` matters:** only `nArg == 2` arms a proximity trigger. Any other value leaves the mine inert to
+  proximity — it must be detonated some other way (damage/`OnDeath` from elsewhere).
+- The proximity-kill path only filters `uHumanFilter`; `uVehicleFilter` is built in `Init` but never
+  referenced here, so there is no vehicle-proximity trigger in this module.
+- Swap the `Pg.Spawn("Explosion (...)")` prefab names to change the blast effect. The `"Explosion (Water
+  Mine)"` branch is unreachable from this file's own code path.
+- No `Net.*` calls appear here — multiplayer replication of mines, if any, is engine-level, not scripted.

@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [cinematic, slideshow]
 verified: true
-verified_note: spot-checked against source (2 functions, zero Event.* references, no inherit/tInstance) — page already accurate, no changes needed
+verified_note: "deeper pass: surfaced the temp_placeholder default texture and the forced-zero fade times, documented the slide-chaining behavior of PlaceholderSequence, noted the MrxUtil import is unused; both functions and zero-Event.* re-confirmed"
 ---
 
 # MrxCinematic
@@ -18,7 +18,8 @@ The `MrxCinematic` module is a placeholder slideshow system used for displaying 
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxUtil`
+- Imports: [`MrxUtil`](mrxutil) (imported but no `MrxUtil.*` call appears in the two functions — the import
+  looks vestigial)
 
 ## Instance pattern
 This is a stateless manager/utility module (no per-instance tables). It does not track any persistent state.
@@ -34,6 +35,12 @@ Displays a single slide using the HUD's cinematic placeholder system. Defaults t
 - Listens for no specific engine events (internal chaining mechanism).
 
 ## Notes for modders
-- Ensure that `PlaceholderSequence` is called with valid slide data to display the slideshow.
-- Customize slides by providing a table of slide data, including textures and callbacks.
-- Be aware that fade times are set to zero, which may affect the visual transition between slides.
+- **This is exactly what the name says — a placeholder.** Every fade time is forced to `0` and any slide
+  without an `sTexture` falls back to the debug texture `"temp_placeholder"`. It renders through
+  `Hud.CinematicPlaceholder:Show(tSlideData)`. Treat it as stand-in cinematic scaffolding, not a finished
+  slideshow system.
+- **Slide table shape**: pass `PlaceholderSequence(tSlides, fCallback, tCallbackArgs)` where `tSlides` is an
+  array of slide-data tables (each may carry `sTexture`, plus whatever `Hud.CinematicPlaceholder:Show`
+  consumes). `PlaceholderSequence` rewrites the `fCallback`/`tCallbackData`/`nFadeInTime`/`nFadeOutTime`
+  fields to chain the slides, so don't set those yourself — the final callback you pass fires after the last
+  slide.

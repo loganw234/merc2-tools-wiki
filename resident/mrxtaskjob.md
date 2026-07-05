@@ -6,7 +6,11 @@ nav_order: 1
 inherits: MrxTaskMission
 tags: [mission, task]
 verified: true
-verified_note: read directly from source -- corrects Instance pattern (class-factory via MrxTask/MrxTaskMission, not per-uGuid); rest of this page was already largely accurate
+verified_note: 'deeper pass: re-confirmed all functions; documented _TargetComplete''s reward mechanics
+  (grants <MissionId>_PerTarget key + tMilestones key matching, checkpoints/autosaves via
+  WifMissionFlow/MrxPlayState), the weighted-random VO hat in _PlayRandomVoSequenceFromTable
+  (knPriorityBounties), and the mpPlayerJoin secondary-nearby event; flagged the _GetTargetList operator-
+  precedence quirk; cross-linked MrxLayerManager/MrxVoSequence/MrxRewardData/WifMissionFlow.'
 ---
 
 # MrxTaskJob
@@ -51,13 +55,27 @@ Sets the milestone key for a specific target.
 Retrieves data for a given target, which can be specified by name or GUID.
 
 ### `_GetTargetList(self)`
-Returns a list of incomplete targets.
+Returns a list of incomplete target names. (Source quirk: the filter is written
+`if not tTargetData.bComplete == true` — which Lua parses as `(not tTargetData.bComplete) == true`, i.e.
+"include when `bComplete` is falsy." Behaves correctly, just reads oddly; a decompiler-preserved precedence
+artifact.)
 
 ### `_GetPartsCompletedList(self)`
 Returns a list of completed targets.
 
 ### `_TargetComplete(self, uGuid)`
-Handles the completion of a target. It increments the count of completed targets, awards relevant milestone keys, and triggers autosave if configured. It also plays nearby VO sequences if applicable.
+The shared per-target completion path all job subclasses funnel their `fOnPartComplete` into. Increments
+`_nTargetsComplete`, then:
+- Grants the reward key `<MissionId>_PerTarget` via [`MrxRewardData.GrantRewardKey`](mrxrewarddata) (a
+  per-kill/collect reward hook keyed off the mission ID).
+- Marks the target's data `bComplete`, removes its `sTargetLayer` ([`MrxLayerManager`](mrxlayermanager)), and
+  if it has an `sMilestoneKey`, awards it via [`WifMissionFlow.AwardKey`](mrxmissionflow).
+- Matches `tConfig.tMilestones` by count: any milestone whose `nMilestone == _nTargetsComplete` awards its
+  `sKey`.
+- Runs a local `_Presentation()` that checkpoints (`MrxPlayState.GetCurrentMission():_Checkpoint`) and either
+  refreshes the flow (if keys were awarded but the objective quota isn't yet met) or autosaves — gated by
+  `_GetAutosaveMode()` and whether keys were awarded. If a `_tTargetCompleteVo` is set, the presentation runs
+  *after* the completion VO finishes; otherwise immediately.
 
 ### `_ExcludeCompletedTargets(self)`
 Excludes completed targets from further processing (currently a no-op).
@@ -132,7 +150,12 @@ Handles exits from the near radius, updating proximity filters and playing faraw
 Handles objects moving beyond the far radius (currently a no-op).
 
 ### `_PlayRandomVoSequenceFromTable(tVo, nRangeFilter, fCallback, tCallbackArgs)`
-Plays a random VO sequence from a table based on range filters and weights. It also handles callbacks after playback.
+Weighted-random "hat" VO picker. Each `tVo` entry may carry a `tRange` (an interval spec — supports 1, 2, or
+4-element forms with `"["`/`"]"` inclusivity markers) filtered against `nRangeFilter` (e.g. the current
+completed-target count), and an `nWeight` (default 1) controlling how many times it's entered into the draw.
+A winner is chosen via [`MrxUtil.GetRandomTableElement`](mrxutil); if `fCallback` is given it's appended to
+the sequence, and the whole thing is played via [`MrxVoSequence.Start`](mrxvosequence) at
+`MrxVoSequence.knPriorityBounties`. This is a **module-level function** (no `self`), called bare.
 
 ### `_NearVoComplete(self)`
 Marks the end of a nearby VO sequence.

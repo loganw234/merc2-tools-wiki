@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [support, economy]
 verified: true
-verified_note: Instance pattern and Events sections corrected against source -- this is a class-style factory object (Create(self, uPlayerGuid) via setmetatable/__index), not the per-uGuid Inheritable pattern, and several previously-listed events (Event.NetAction, PlayerJoined/PlayerLeft) don't actually appear anywhere in this file
+verified_note: 'deeper pass: re-confirmed the class-factory pattern, the o-global decompiler artifact, and the corrected Events list; added a module constants/tunables block (default vehicle/bomb templates, 60%-health damage-abort, 60s Copter cooldown, GetSpawnHeight 250/50, per-faction GoHome landing zones) and cross-linked the subclasses'
 ---
 
 # MrxSupport
@@ -343,11 +343,26 @@ on the [networking deep dive](../deep-dives/networking)), not registered engine 
    configures it via `Configure(tOptions)` or the individual `Set*` functions before calling
    `Commence`/`BeginSupportSequence`.
 2. **Pitfalls**:
-   - Be cautious with resource management functions like `RefundCosts` and `Abort` to avoid unintended consequences, such as over-refunding or excessive penalties.
-   - Ensure that event listeners set up per-support-sequence (aircraft hibernation/death, pilot death) are properly cleaned up — they're tied to a specific helicopter GUID, not automatically released.
-3. **Tunables**:
-   - The fuel cost (`SetFuelCost`), cash cost (`SetCashCost`), and other resource costs can be adjusted to balance the game economy.
-   - Voice-over cues (`SetVOCues`, `PlayRandomVOCue`) can be customized to enhance immersion or localization.
+   - `RefundCosts` refunds exactly what `BeginSupportSequence` recorded consuming (`nFuelConsumed`/
+     `sStockpileConsumed`/`sFreebieConsumed`) and nils each after — it's idempotent, but only refunds if
+     those fields are still set, so call it before anything else clears them.
+   - Per-support-sequence event listeners (aircraft hibernation/death in `BlipAircraft`, pilot death in
+     `SetupPilotKilledEvent`, the 60%-health abort in `SetupDamageEvent`) are keyed to a specific heli GUID
+     and are **not** auto-released — clean them up (or let `GoHome`/`Abort` do it) or they leak.
+3. **Tunables & constants** (file scope unless noted):
+   - Default templates: `sDeliveryVehicle = "Support Vehicle (Mig27)"`, `sBomb = "Dumb Bomb Projectile"`,
+     `sRecruit = "Arachnid Guy"` — subclasses override these via `Set*`.
+   - **Damage-abort threshold**: `SetupDamageEvent` aborts the support if the heli's health drops below
+     **60%** (`Object.GetHealth(uHeli) * 0.6`).
+   - **Copter cooldown**: `BeginSupportSequence` starts a **60**-second cooldown on the `"Copter"` recruit
+     after use (`MrxSupportManager.StartRecruitCooldown("Copter", 60)`).
+   - **Spawn height**: `GetSpawnHeight()` returns **250** if a co-op secondary character is present, else
+     **50** — this is the vertical offset most subclasses use when spawning the delivery aircraft.
+   - **Return landing zones**: `GoHome` sends the heli to a per-faction HQ LZ (`tLocs`: PMC→
+     `01_pmc_hq_lz_playerone`, Allied→`07_all…`, China→`12_chi…`, Guerilla→`05_gur…`, OC→`02_oil…`,
+     Pirate→`08_pir…`), falling back to a random camera-relative point if the LZ isn't found.
+   - Costs (`SetFuelCost`/`SetCashCost`) and VO cues (`SetVOCues`/`PlayRandomVOCue`) are the economy/immersion
+     levers.
 4. **Decompiler artifact worth knowing about**: `Create(self, uPlayerGuid)` references a bare global `o`
    (`local oNewSupport = o or {}`) that's never defined anywhere in this file — almost certainly a lost
    local-variable name from decompilation. Harmless in practice (`o` is always `nil`/falsy at runtime, so

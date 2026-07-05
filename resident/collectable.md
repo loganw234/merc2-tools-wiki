@@ -6,7 +6,7 @@ nav_order: 1
 inherits: Inheritable
 tags: [collectible, toolbox]
 verified: true
-verified_note: confirmed real per-uGuid pattern via Inheritable.Create/tInstance; noted OnDeactivate is inherited (not defined in this file) and resolves to this file's Delete; flagged MrxGui/MrxPmc imports as unused in this file; corrected OnActivate (guards on Object.IsAlive before creating instance, returns early otherwise).
+verified_note: 'deeper pass: re-confirmed every function/event against source (no behavioural changes needed); added cross-links (Inheritable, Crate, Pg, MrxGui/MrxPmc), surfaced the "[ContextAction.Toolbox]" string + 1.0E-6 hibernation distance, and noted pickup is a bare Object.Kill with no reward payout in this file'
 ---
 
 # Collectable
@@ -17,8 +17,9 @@ verified_note: confirmed real per-uGuid pattern via Inheritable.Create/tInstance
 The `Collectable` module represents collectible objects in the game world. These objects can be interacted with using the toolbox context action and are automatically killed if they have the "CollectableInvalidated" label or when collected.
 
 ## Inheritance
-- Inherits from: `Inheritable`
-- Imports: `MrxGui`, `MrxPmc` — neither is actually referenced anywhere else in this file; likely dead imports.
+- Inherits from: [`Inheritable`](inheritable)
+- Imports: [`MrxGui`](mrxgui), [`MrxPmc`](mrxpmc) — neither is actually referenced anywhere else in this
+  file; likely dead imports.
 
 ## Instance pattern
 Real per-`uGuid` instance pattern. `Create(oPrototype, uGuid, uRuntimeOwner)` calls `Inheritable.Create` directly
@@ -27,9 +28,11 @@ instance field:
 - `uEvent`: Handle for the persistent `Event.ContextAction` listener (only set if the object survives the
   alive/invalidated checks in `Create`).
 
-`OnDeactivate` is not defined in `collectable.lua` itself — it's inherited from `Inheritable.OnDeactivate`,
-which looks up the instance in `tInstance` and calls `oInstance:Delete()`, resolving (via metatable fallback)
-to this file's own `Delete` below.
+`OnDeactivate` is not defined in `collectable.lua` itself — it's inherited from
+[`Inheritable`](inheritable)`.OnDeactivate`, which looks up the instance in `tInstance` and calls
+`oInstance:Delete()`, resolving (via metatable fallback) to this file's own `Delete` below. This is the
+canonical example of the rich per-`uGuid` [`Inheritable`](inheritable) pattern in the World Objects
+category — contrast it with the bare `tGuids[uGuid]={}` bookkeeping style used by [Crate](crate).
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
@@ -57,7 +60,16 @@ Called when the toolbox context action is triggered on the collectible object. I
 - Listens for `Event.ContextAction` (via `Event.CreatePersistent`) to call `OnContextAction` when the toolbox context action is triggered.
 
 ## Notes for modders
-- `OnDeactivate` is never called explicitly in this file — it comes from `Inheritable` and triggers `Delete` automatically. No need to wire it up yourself.
-- The "CollectableInvalidated" label short-circuits `Create` and kills the object immediately, before any context action or event is registered.
-- Use the toolbox context action to interact with collectible objects.
-- `MrxGui` and `MrxPmc` are imported but unused in the current source — likely leftover from a previous version.
+- `OnDeactivate` is never called explicitly in this file — it comes from [`Inheritable`](inheritable) and
+  triggers `Delete` automatically. No need to wire it up yourself.
+- The `"CollectableInvalidated"` label short-circuits `Create` and kills the object immediately (after
+  setting a near-zero `Object.SetHibernationDistance` of `1.0E-6`), before any context action or event is
+  registered.
+- Context action string is `"[ContextAction.Toolbox]"`, added via
+  [`Pg`](../namespaces/pg)`.AddContextAction(uGuid, "[ContextAction.Toolbox]", 2, 0, 0, 0, 0)`. The trailing
+  numbers are the action's slot/flags; swap the localization key to change the on-screen prompt.
+- Collection is destructive: `OnContextAction` simply calls `Object.Kill(oSelf.uGuid)` — there is no reward
+  payout in this file, so any cash/fuel/munitions granted on pickup must come from elsewhere (the object's
+  own definition or a separate script), not from `collectable.lua`.
+- `MrxGui` and `MrxPmc` are imported but unused in the current source — likely leftover from a previous
+  version.

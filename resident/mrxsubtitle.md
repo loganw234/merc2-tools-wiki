@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, subtitle]
 verified: true
-verified_note: corrected Events section (no Event.* calls in source, module is called directly) and noted table.getn as legacy Lua 5.0 API
+verified_note: "deeper pass: re-confirmed both functions + no-Event finding + the last-message-only callback behavior; surfaced the two tunables (_knDisplayDuration=5s, _knFadeDuration=0.5s) and the exact tConfig shape passed to Hud.SubtitleBuffer:AddMessage; cross-linked the Hud namespace"
 ---
 
 # MrxSubtitle
@@ -21,10 +21,14 @@ The `MrxSubtitle` module manages the queueing and display of subtitles in the ga
 - Imports: `none`
 
 ## Instance pattern
-This is a stateless manager/utility module (no per-instance tables). It tracks the following key fields:
-- `_tMsgIds`: A table to store message IDs of queued subtitles.
-- `_knDisplayDuration`: The default display duration for each subtitle message.
-- `_knFadeDuration`: The default fade duration for each subtitle message.
+This is a stateless manager/utility module (no per-instance tables). The actual display goes through the
+engine's [`Hud`](../namespaces/hud) `SubtitleBuffer` object. Key fields:
+- `_tMsgIds`: A table to store message IDs of queued subtitles (so `ClearPending` can remove them later).
+- `_knDisplayDuration` = `5`: default on-screen seconds per subtitle message.
+- `_knFadeDuration` = `0.5`: default fade seconds per subtitle message.
+
+Both durations are module globals with no setter — a mod changes subtitle timing by reassigning
+`MrxSubtitle._knDisplayDuration` / `_knFadeDuration` before calling `Add`.
 
 ## Functions
 ### `Add(vMsgs, fCallback, tCallbackArgs)`

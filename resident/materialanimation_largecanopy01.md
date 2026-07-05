@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [material animation, canopy]
 verified: true
-verified_note: spot-checked against source, no changes needed — Events section already correctly lists only Event.ObjectIsReady (no fabricated Event.ObjectStateChange, unlike the largecanopy02/treeplaza02 sibling pages).
+verified_note: "deeper pass: re-confirmed the 9-line source — checks Slice00 node + CollapseFireState, plays jungle_env_largecanopy01_material_anim once via Object.PlayMaterialAnimation; only Event.* is ObjectIsReady; cross-linked the two sibling drivers and made the trigger a clear tunable"
 ---
 
 # MaterialAnimation_LargeCanopy01
@@ -42,7 +42,17 @@ animation played is `"jungle_env_largecanopy01_material_anim"`, with the loop fl
 - `OnStateChange` itself is not registered via `Event.Create` in this file — it's called directly by the
   engine using the `OnStateChange` name convention (same as the sibling `materialanimation_*` modules).
 
+## Module constants & tunables
+- **Trigger:** node `"Slice00"` **and** state `"CollapseFireState"` (both hashed via `String.GetHash`).
+  This is the only sibling driver that also gates on the node name.
+- **Animation:** `"jungle_env_largecanopy01_material_anim"`, played one-shot (loop flag `false`) via
+  `Object.PlayMaterialAnimation`.
+
 ## Notes for modders
-- Ensure that the object has the correct node and state names ("Slice00" and "CollapseFireState") for the animation to trigger.
-- The material animation name "jungle_env_largecanopy01_material_anim" must be correctly specified in the game's asset files.
-- This module does not require any additional setup or configuration beyond ensuring the object is in the correct state.
+- To retarget this to a different collapse, change the `"Slice00"`/`"CollapseFireState"` trigger and/or the
+  animation name — those two strings are the entire knob set.
+- **Sibling drivers** (same shape, different trigger/animation):
+  [MaterialAnimation_LargeCanopy02](materialanimation_largecanopy02) (no node check; fires on
+  `CollapseFireState`/`CollapseState`; reuses this file's `...largecanopy01...` animation name) and
+  [MaterialAnimation_TreePlaza02](materialanimation_treeplaza02) (fires on `FireDebrisState`/
+  `FireDestroyedState`; plays `global_env_treeplaza02_anim`).

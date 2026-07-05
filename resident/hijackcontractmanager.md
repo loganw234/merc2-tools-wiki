@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [contract, hijack]
 verified: true
-verified_note: confirmed all 3 functions against 15-line source; traced external call sites in src/vz/pmccon004.lua for SetActiveContract/CancelActiveContract (CompleteActiveContract has no confirmed caller in the corpus); no events in this file
+verified_note: "deeper pass: re-confirmed all 3 functions against the 15-line source; stateless singleton with one _oContract global, zero Event.* references; caller notes for pmccon004.lua retained, no changes needed"
 ---
 
 # HijackContractManager

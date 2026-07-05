@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxSupport
 tags: [support, combat]
 verified: true
-verified_note: corrects the Instance pattern section (class-factory, not per-uGuid)
+verified_note: 'deeper pass: rewrote Events section (DesignationCallback/Strike are framework hook + Airstrike.Flyby callback, not "custom events") and surfaced the real tunables -- AA "basic" gate, Pilot recruit, red designator, "Airstrike AA Missile" template, 200m flying-target radius, PMC-friendly-fire skip, 0.2s missile stagger; all functions re-confirmed'
 ---
 
 # MrxCombatAirPatrol
@@ -14,11 +14,15 @@ verified_note: corrects the Instance pattern section (class-factory, not per-uGu
 *Module: mrxcombatairpatrol.lua*
 
 ## Overview
-The `MrxCombatAirPatrol` module is a support system for aerial combat. It provides functionality to deploy an aircraft with missiles and target enemy vehicles within a specified range. This module inherits from `MrxSupport` and uses the `MrxSupportDesignatorSmoke` module for designating targets.
+The `MrxCombatAirPatrol` module is the "combat air patrol" (CAP) airstrike support type: it flies a jet
+past the designated point ([`Airstrike.Flyby`](../namespaces/airstrike)), then fires an AA missile at every
+enemy aircraft near the player. Unlike the delivery types it drops nothing and lands nothing — the jet is a
+one-pass flyby. It inherits from [`MrxSupport`](mrxsupport) and uses
+[`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke) (red smoke) to mark the target.
 
 ## Inheritance
-- Inherits from: `MrxSupport`
-- Imports: `MrxSupportDesignatorSmoke`
+- Inherits from: [`MrxSupport`](mrxsupport)
+- Imports: [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke)
 
 ## Instance pattern
 **Same class-factory pattern as `MrxSupport`, not per-`uGuid`** — `Create(self, uPlayerGuid)` builds a new
@@ -27,8 +31,15 @@ registry. It tracks the following key fields:
 - `uOwner`: The GUID of the player who owns this support system.
 - `sDeliveryVehicle`: The name of the delivery vehicle used for deploying the aircraft.
 - `uDeliveryVehicle`: The GUID of the delivery vehicle.
-- `uJet`: The GUID of the deployed aircraft.
-- `oDesignator`: An instance of `MrxSupportDesignatorSmoke` used for designating targets.
+- `uJet`: The GUID of the deployed aircraft (set in `DesignationCallback`, read in `LaunchMissile`).
+- `oDesignator`: a [`MrxSupportDesignatorSmoke`](mrxsupportdesignatorsmoke) set in `Create` to **red** smoke,
+  AA test level `"basic"` (this strike is denied over even light AA), and a `nil` validation function.
+
+`Create` also sets the recruit type to `"Pilot"` (so it's gated on having recruited the jet pilot — see
+[`MrxSupportData`](mrxsupportdata)) and copies `sDeliveryVehicle`/`uDeliveryVehicle` from the prototype.
+Note this module defines **no** module-level `sDeliveryVehicle` default of its own — the vehicle comes from
+whatever the catalog entry set (`[MrxSupportData](mrxsupportdata)` uses `MrxSupport`'s default
+`"Support Vehicle (Mig27)"` for `combatairpatrol`, and overrides it to the OV10 for `upcombatairpatrol`).
 
 ## Functions
 ### `Create(self, uPlayerGuid)`
@@ -38,16 +49,30 @@ Creates a new per-instance table for the support system. Initializes the designa
 Called when the target designation is complete. Finds spawn and target points relative to the camera, deploys an aircraft using `Airstrike.Flyby`, and schedules a voice-over announcement for the airstrike.
 
 ### `Strike(self)`
-Executes the strike by finding all flying targets within a specified range. For each valid target (not controlled by PMC), it schedules a missile launch with a delay based on the number of targets.
+Passed as the flyby callback (fires when the jet reaches the target). Collects all flying objects within
+`200`m of the *owning player character* (`Pg.FastCollectFlying`), and for each one whose driver isn't
+labeled `"pmc"`, schedules a `LaunchMissile` staggered by `0.2 * nCount` seconds. Friendly PMC aircraft are
+skipped, so it won't shoot down your own recruits.
 
 ### `LaunchMissile(self, uTarget)`
-Launches a missile at the specified target. Calculates the direction vector from the aircraft to the target, normalizes it, and spawns the ordnance using `Airstrike.SpawnTargettedOrdnance`. It also blips the aircraft on the radar with a red color.
+Fires one homing missile at `uTarget`: computes and normalizes the jet→target vector, spawns
+`"Airstrike AA Missile"` ordnance via [`Airstrike.SpawnTargettedOrdnance`](../namespaces/airstrike) with
+`"impact"` fuse and the support's owner, then radar-blips the *missile* red (`{255,0,0}`) via the inherited
+`MrxSupport.BlipAircraft`.
 
 ## Events
-- Listens for custom event (not explicitly defined in this script) to trigger `DesignationCallback` when the target designation is complete.
-- Listens for custom event (not explicitly defined in this script) to trigger `Strike` when the strike should be executed.
+Confirmed from source — this module registers **no** persistent `Event.*` subscriptions.
+
+- `DesignationCallback` is the framework hook called by [`MrxSupport`](mrxsupport) once a target is
+  designated — not an event this module subscribes to.
+- `Strike` is passed to `Airstrike.Flyby(...)` as its completion callback; `LaunchMissile` is scheduled by
+  `Strike` via one-shot `Event.TimerRelative` timers (the `0.2 * nCount` stagger). The only other timer is a
+  `3`s `Event.TimerRelative` in `DesignationCallback` that plays Misha's incoming-airstrike VO.
 
 ## Notes for modders
-- Ensure that the owner's GUID (`uPlayerGuid`) is correctly passed to `Create` to properly manage ownership and control of the support system.
-- Customize the designator properties by modifying fields like `tColor`, `nWidth`, and `sTexture` in the `MrxSupportDesignatorSmoke` instance.
-- Be aware that network synchronization may affect multiplayer behavior, especially when deploying aircraft and launching missiles.
+- **Retargeting knobs** (all in `Strike`/`LaunchMissile`): the `200`m flying-target radius, the
+  `not Object.HasLabel(..., "pmc")` friendly-fire skip, the `0.2`s per-missile stagger, and the
+  `"Airstrike AA Missile"` ordnance template are the levers for changing what CAP shoots and how fast.
+- **AA gate**: the `"basic"` AA test level means CAP is denied near any anti-air, including basic — loosen
+  it to `"none"` on the designator if you want it usable under fire.
+- The blip is applied to the *missile*, colored red — change the `{255,0,0}` in `LaunchMissile` to recolor.

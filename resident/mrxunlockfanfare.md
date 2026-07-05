@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [hud, fanfare]
 verified: true
-verified_note: fixed fabricated Events section (no Event.* in source, only outbound Net.SendEvent_* calls); added tClientMessages/_ClientBatchType to Instance pattern
+verified_note: "deeper pass: re-confirmed Imports/functions/Events against source; documented the _BuildMessage sType catalog (contact/support/stockpile/landingzone/bounty/outfit) and the ClientHVTFanfare type ids (1=hvtcapture, 2=hvtkill), noted outfit items skip network replication, replaced boilerplate modder notes"
 ---
 
 # MrxUnlockFanfare
@@ -33,7 +33,21 @@ Adds an individual unlocked item and displays the corresponding HUD fanfare. If 
 Handles batched unlock items of a specific type. It formats messages for each item, sends network events for server replication, and displays the fanfares on the HUD.
 
 ### `_BuildMessage(sType, tItemData)`
-A helper function that constructs the message text for the HUD fanfare based on the item type (`sType`) and item data (`tItemData`). It includes faction icons, names, quantities, and other relevant details.
+Constructs the fanfare text from `tItemData`, branching on `sType`. The recognized types (and what each pulls
+from `tItemData`) are:
+
+| `sType` | Message shape |
+|---|---|
+| `"contact"` | faction icon + starter name (`WifStarterData.GetPlayerVisibleName`) |
+| `"support"` | faction icon + support name, or equipment name if it's equipment |
+| `"stockpile"` | support name + `" (x <nQty>)"` |
+| `"landingzone"` | faction icon (if any) + `tItemData.sName` |
+| `"bounty"` | faction icon + faction visible name |
+| `"outfit"` | `tItemData.sName` only |
+
+Any other `sType` returns `nil` (no fanfare). Invalid support/equipment ids fall back to the raw id with a
+`"(INVALID SUPPORT ID?)"` / `"(INVALID EQUIPMENT ID?)"` marker — handy when debugging a mod that passes a bad
+id. Faction visuals come from [`MrxFactionManager.GetInlineIcon`/`GetPlayerVisibleName`](mrxfactionmanager).
 
 ### `SetClientFanfareData(sType, sName, sFactionId, nStarterId, sSupportId, nQty)`
 Sets client-side fanfare data for a single unlocked item. It converts support IDs to string indices and calls `AddUnlockedItem` to display the fanfare.
@@ -42,13 +56,21 @@ Sets client-side fanfare data for a single unlocked item. It converts support ID
 Manages batched client-side fanfare data. It clears previous messages if `bClear` is true, appends new messages, and displays them on completion.
 
 ### `ClientHVTFanfare(iFanfareType, sFactionId, sDesc, iInlineIcon, nCompleted, nQuota)`
-Handles HVT (High Value Target) capture/kill fanfares. It formats the message with faction icons, descriptions, and progress information, then displays it on the HUD.
+Client-only (early-returns unless `Net.IsClient()`). Displays an HVT (High Value Target) fanfare. `iFanfareType`
+`1` → `sType = "hvtcapture"`, `2` → `"hvtkill"`. The text is `<faction icon> <objective inline icon> <sDesc>
+(nCompleted/nQuota)`, using [`MrxUtil.GetInlineIconNameByIndex`](mrxutil) for the objective icon.
 
 ## Events
 No `Event.*` calls appear anywhere in this file. Network replication uses `Net.SendEvent_UnlockFanfare` and `Net.SendEvent_BatchUnlockFanfare` (outbound, server → client) directly, not the `Event` system; the client-side receive path (`SetClientFanfareData`, `SetClientBatchFanfareData`, `ClientHVTFanfare`) is presumably invoked by native/engine networking code, not visible in this file. `Hud.EventFanfare:Commence` is called to display fanfares on the HUD.
 
 ## Notes for modders
-- Ensure that `AddUnlockedItem` and `AddUnlockedItems` are called appropriately to trigger fanfares.
-- Customize fanfare messages by modifying the `_BuildMessage` function or extending it with new item types.
-- Be aware of network synchronization, as some items (like "outfit") are excluded from replication.
-- Use `ClientHVTFanfare` for handling HVT-related fanfares in a client-server environment.
+- **Show a banner**: call `AddUnlockedItem({sType=..., ...})` for one item or `AddUnlockedItems(sType, tItems)`
+  for a batch. Both no-op if [`MrxCheatBootstrap.IsSkipModeEnabled()`](mrxcheatbootstrap) — so if your fanfares
+  silently don't appear, skip mode is the first thing to check.
+- **Add a new fanfare category** by adding a `sType` branch in `_BuildMessage`; an unhandled `sType` yields no
+  message and nothing displays.
+- **`"outfit"` fanfares are local-only** — `AddUnlockedItem` returns before the `Net.SendEvent_UnlockFanfare`
+  call for that type, so costume unlocks never replicate to co-op partners (by design).
+- On the server, replication goes out via `Net.SendEvent_UnlockFanfare` (single) /
+  `Net.SendEvent_BatchUnlockFanfare` (batch); the matching client entry points are `SetClientFanfareData` /
+  `SetClientBatchFanfareData`, invoked by native networking. All display goes through `Hud.EventFanfare:Commence`.
