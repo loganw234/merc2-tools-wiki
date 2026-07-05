@@ -109,6 +109,19 @@ local x, y, z = Object.GetPosition(Player.GetLocalCharacter())
 Loader.Printf(string.format("[mymod] pos = %.1f, %.1f, %.1f", x, y, z))
 ```
 
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+`Object.GetPosition` returns **three separate values at once**, not one table/object bundling them
+together — that's why the call site is `local x, y, z = Object.GetPosition(...)` instead of something
+like `local pos = Object.GetPosition(...); pos.x`. This is completely ordinary in Lua (functions can
+return as many values as they want, comma-separated) and you'll see it constantly throughout this wiki —
+`Object.GetYaw`, `Vehicle.GetSeatParams`, `pcall` (see below) all do the same thing. If you only care
+about the first value or two, it's fine to only capture that many: `local x, y = Object.GetPosition(...)`
+silently drops `z` rather than erroring.
+
+</details>
+
 **Confirmed working by live testing** — returns real, sane coordinates matching the player's actual
 in-world position.
 
@@ -181,6 +194,52 @@ is actually live), see the `OnActivate` / `Awake` explanation on the
 
 </details>
 
+## Protect a risky call with pcall
+
+<details class="script-entry" markdown="1">
+<summary>Catch a runtime error instead of letting it silently stop the rest of your script.</summary>
+
+You'll see almost every game-API call in this wiki's sample scripts (`DestroyerTool.lua`,
+`MasterCheatMenu.lua`, `CommonSpawnMenu.lua`, and more) wrapped in `pcall`, especially anything touching a
+`uGuid` that might not actually exist anymore (a despawned vehicle, a character who's since left):
+
+```lua
+local bSuccess, result = pcall(Object.SetInvincible, Player.GetLocalCharacter(), true, "mymod")
+if not bSuccess then
+  Loader.Printf("[mymod] SetInvincible failed: " .. tostring(result))
+end
+```
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Normally, a runtime error (calling a function with the wrong arguments, indexing something that turned
+out to be `nil`, etc.) stops the *entire* script right where it happened — nothing after that line in the
+same run gets a chance to execute. `pcall(f, arg1, arg2, ...)` calls `f(arg1, arg2, ...)` for you, but
+catches any error instead of letting it propagate, and always returns at least one value: a boolean,
+`true` if the call finished without error. If that boolean is `true`, every other value `pcall` returns
+after it is whatever `f` itself returned (following the [multiple-return-values](#get-your-current-position)
+idea above). If it's `false`, there's exactly one more return value — the error message — and nothing
+past that point inside `f` ran. That's why the pattern is always `local bOk, result = pcall(...)`, never
+just `pcall(...)` on its own with the result thrown away: `bOk` is what tells you which case you're in.
+
+This matters most in `OnKey`/`OnLoad` scripts specifically because one error can end that entire script's
+run early — wrapping the risky part in `pcall` means a stale `uGuid` failing one call doesn't also skip
+every *other* thing the rest of the script was about to do.
+
+</details>
+
+**A narrower, argument-free version — `pcall(f)`** — is also common when you don't need to pass anything
+through, just guard against `f` itself not existing or throwing:
+
+```lua
+pcall(function()
+  SomeOptionalThing.MightNotExist()
+end)
+```
+
+</details>
+
 ## Dump any table's contents to the log
 
 <details class="script-entry" markdown="1">
@@ -228,6 +287,29 @@ function DumpTable(t, sName, nMaxDepth, nDepth, tSeen)
   Loader.Printf(sIndent .. "}")
 end
 ```
+
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+This snippet uses both of Lua's two table-iteration loops on purpose, back to back, which is a good place
+to see the difference between them:
+
+- **`for k in pairs(t) do ... end`** (line with `table.insert(tKeys, k)`) visits **every** key in the
+  table, in no particular/guaranteed order — string keys, number keys, whatever's actually there. That's
+  exactly what you want here, since a data table like `MrxSupportData.tSupportData` is keyed by name
+  (`"nuke"`, `"moab"`, ...), not by position.
+- **`for _, k in ipairs(tKeys) do ... end`** only works on a plain numbered array (keys `1, 2, 3, ...`
+  with no gaps) and visits them **in that exact order**, stopping at the first missing number. `tKeys` is
+  built as exactly that kind of array (via `table.insert`), so `ipairs` is what gives this snippet
+  alphabetically-sorted, repeatable output — using `pairs` a second time here would print the same
+  entries, but in whatever arbitrary order the table happens to store them in internally, differently
+  from one run to the next.
+
+Mixing these up is one of the most common early Lua mistakes: `ipairs` over a table that isn't a plain
+sequential array silently stops after the first gap instead of erroring, which can look like "half my
+data disappeared" when really it never was a plain array to begin with.
+
+</details>
 
 Then, from the console:
 

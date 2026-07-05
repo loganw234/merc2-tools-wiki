@@ -56,6 +56,24 @@ Grapple Hook · Hijack Auto-Success (toggle) · Back
 Infinite Ammo and Invincibility are real on/off toggles (the menu label shows the current state) — earlier
 versions of similarly-styled scripts on this wiki only ever had a one-way "turn it on" button.
 
+<details class="lua101" markdown="1">
+<summary>New to Lua? Click to expand</summary>
+
+Every toggle label on this page (`"Infinite Ammo: " .. (State.bInfiniteAmmo and "ON" or "OFF")`, and every
+other `"...: " .. (flag and "ON" or "OFF")` in the source below) is Lua's stand-in for a ternary operator —
+most languages have a dedicated `condition ? a : b` syntax, Lua doesn't, so `condition and a or b` fills
+that role instead. It works by chaining two of Lua's short-circuiting operators: `X and Y` only evaluates
+(and returns) `Y` if `X` is truthy, otherwise it returns `X` itself without touching `Y` at all; `X or Y`
+returns `X` if it's truthy, otherwise evaluates and returns `Y`. Put together, `condition and a or b`
+means "if `condition`, evaluate to `a` — unless `a` itself is falsy, in which case fall through to `b`
+anyway." **That last clause is the one real gotcha**: this idiom quietly breaks if `a` can ever be `false`
+or `nil`, because then `condition and a` itself becomes falsy and the whole expression falls through to
+`b` even though `condition` was true. It's safe everywhere it's used on this page specifically because
+`a` is always a non-empty string (`"ON"`) — never `false`/`nil` — but it's worth knowing before reaching
+for this pattern with a boolean or possibly-nil result as the "then" branch.
+
+</details>
+
 **Hijack Auto-Success** needs a companion file to actually do anything: drop
 [HijackAutoSuccess.lua](sample-scripts-onload) into `scripts/OnLoad/` too. Once
 that's installed, this toggle controls it — off just falls back to the real, unmodified hijack minigame.
