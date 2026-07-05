@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, artillery]
+verified: true
+verified_note: re-verified previously-documented smoke-shell quirk against source, still accurate; no other gaps found
 ---
 
 # MrxArtilleryAttack

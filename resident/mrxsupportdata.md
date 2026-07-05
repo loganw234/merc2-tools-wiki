@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, supply, delivery, data-reference]
+verified: true
+verified_note: corrected Events section (zero Event.* references in 2487-line source; real cross-network sync is Net.SendCustomEvent/NetEventCallback and Net.SendEvent_RecruitsUnlocked, not the Event system) and added AddSupportData's g_bIsDlc gate; spot-checked catalog rows (aa, ah1z, al, moab, tankbike, nuke) against source, all exact matches
 ---
 
 # MrxSupportData
@@ -308,8 +310,13 @@ Per-faction unlock/new/viewed status tracking for catalog items.
 Serialize/restore this module's state to/from a save table.
 
 ### `AddSupportData(tSupportDataToAdd, sKey)`
-Adds a new entry to `tSupportData`. Returns `true` on success, `nil` otherwise. This is what the ~130
-individual catalog entries are built with internally.
+Adds a new entry to `tSupportData[sKey] = tSupportDataToAdd`. Returns `true` on success, `nil` otherwise.
+**Gated by `g_bIsDlc`** — if that global is falsy, the function prints a warning
+(`"@@@@@@@@@ MrxSupportData: AddSupportData returned nil!!! "`) and returns `nil` without adding anything;
+it also returns `nil` (no warning) if `tSupportDataToAdd` is `nil`. Despite the name, this is **not** what
+the ~130 built-in catalog entries are built with — those are all direct `tSupportData.<key> = {...}`
+table assignments inside `Init()`. This function looks intended for DLC/expansion content to register
+additional support items without touching the base file.
 
 ### `GetMaxQuantity()`
 Returns the max stock quantity for freebies.
@@ -319,9 +326,25 @@ Resolve a support/freebie ID to its player-visible name.
 
 ## Events
 
-- **`Event.PlayerJoined(uGuid)`** / **`Event.PlayerLeft(uGuid)`** — update recruitment status as players
-  join/leave the session.
-- **`Event.NetworkRecruitSync(tRecruits)`** — synchronizes recruit status across players.
+**Zero `Event.*` references anywhere in this 2487-line file** — this module does not use the engine's
+`Event.Create`/`Event.ObjectHibernation` system at all (no per-instance activation, consistent with it
+being a stateless data/manager module). The previous version of this section claimed
+`Event.PlayerJoined`/`Event.PlayerLeft`/`Event.NetworkRecruitSync` calls that do not exist in source —
+corrected below to what's actually here, which is a different, older-style networking mechanism:
+
+- **`Net.SendCustomEvent("MrxSupportData", nEventId, tArgs)`** — sent by `AddFreebie`/`RemoveFreebie` when
+  the change needs to reach remote players (`bRemote and Net.IsServer()`), using two module-level constants
+  as the event ID: `NETEVENT_ADDFREEBIE = 0`, `NETEVENT_REMOVEFREEBIE = 1`.
+- **`NetEventCallback(nEventId, tArgs)`** — the receiving side for the above. Dispatches on `nEventId` to
+  `_AddFreebie`/`_RemoveFreebie` locally. (No call site for `NetEventCallback` itself found in this file —
+  it's presumably wired up by the engine's net-event dispatch by module name, the same way
+  `Net.SendCustomEvent("MrxSupportData", ...)` addresses this module; no further confirmation possible from
+  static reading alone.)
+- **`Net.SendEvent_RecruitsUnlocked(tRequirementsObtained)`** — sent by `SetHeliPilotRecruited`,
+  `SetMechanicRecruited`, `SetJetPilotRecruited`, `SetRequirement`, and `SynchNetRecruits` whenever
+  `Net.IsServer()` is true, to broadcast the updated recruit-requirement table. `SynchNetRecruits` is also
+  the client-side receiver: when *not* the server and `tRecruits` is provided, it applies each field
+  (`Fiona`, `Copter`, `Mechanic`, `Pilot`) via the corresponding setter.
 
 ## Notes for modders
 

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, mission]
+verified: true
+verified_note: re-verified previously-documented DropCallback bug and class-factory pattern against source, both still accurate; no other gaps found
 ---
 
 # MrxApcDrop

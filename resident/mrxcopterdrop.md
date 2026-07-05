@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, delivery]
+verified: true
+verified_note: added tCopterData faction table + module-level globals (nAltitude live, others dead) to Instance pattern; flagged self={} global leak in DeliveryComplete; confirmed Events list against source
 ---
 
 # MrxCopterDrop
@@ -19,7 +21,18 @@ The `MrxCopterDrop` module is responsible for managing the delivery of cargo usi
 - Imports: `MrxSupport`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track any per-instance state but provides functions to manage helicopter-based deliveries.
+This is a stateless manager/utility module — no `OnActivate`/`Awake`/`tInstance`/`setmetatable` anywhere
+in the file. It does carry a handful of module-level globals rather than a per-`uGuid` table:
+- `nAltitude` = `25` **is** read inside `Create`, as the default height offset passed to
+  `Pg.FindPointFromCamera(nSpawnDistance, nAltitude, 10)` and in the `nTargetY < nDesY + nAltitude`
+  comparison, both only when the caller doesn't supply `nTargetX` explicitly.
+- `sDeliveryVehicle` = `"UH1 Transport (PMC) (Driver)"`, `sCargoToDeliver` = `"box"`, and `uCargoToDeliver`
+  (resolved once at load time via `Pg.GetGuidByName(sCargoToDeliver)`) are **not** referenced by any
+  function body in this file — `Create` takes its own `sCargo`/`sFaction` arguments instead, so these
+  three look like unused leftover defaults/dead config.
+- `Create` builds a local `tCopterData` table mapping faction codes (`AL`, `CH`, `GR`, `OC`, `PR`, `VZ`,
+  `VZH`, `VZHF`, `VZF`) to helicopter template names, falling back to `"Ka29b (Driver)"` if the faction
+  isn't found.
 
 ## Functions
 ### `Create(sFaction, sCargo, nDesX, nDesY, nDesZ, bCareless, nTargetX, nTargetY, nTargetZ)`
@@ -34,6 +47,13 @@ Called after the cargo becomes active. It aligns the cargo's yaw with the helico
 ### `DeliveryComplete(uHeli)`
 Called when the delivery is complete. It detaches the cargo from the winch and calls a function from `MrxSupport` to return the helicopter home.
 
+**Confirmed in source:** this function does `self = {}` with no `local` keyword, which assigns to the
+*global* `self` rather than creating a function-local table. It then passes that table to
+`MrxSupport.GoHome(self, uHeli)`. Functionally this still works (an empty table is a valid throwaway
+first argument for `GoHome`), but it pollutes the global namespace with a `self` that any other file's
+top-level code could read or clobber — likely a copy-paste artifact from a method body (where `self`
+would normally arrive as an implicit parameter) rather than deliberate design.
+
 ## Events
 - Listens for `Event.ObjectHibernation` to deploy the winch when the helicopter becomes active.
 - Listens for `Event.TimerRelative` to wait for the cargo to become active before proceeding with further delivery steps.
@@ -41,6 +61,6 @@ Called when the delivery is complete. It detaches the cargo from the winch and c
 
 ## Notes for modders
 - Ensure that the server is handling the creation of helicopter and cargo objects to maintain consistency across multiplayer sessions.
-- Customize the faction and cargo types by modifying the `tCopterData` table and the `sCargoToDeliver` variable.
-- Be aware that network synchronization (`Net.IsClient()`) may affect the behavior in multiplayer environments.
+- Customize the faction and cargo types by modifying the local `tCopterData` table inside `Create`. The module-level `sDeliveryVehicle`/`sCargoToDeliver`/`uCargoToDeliver` globals are dead — not read by any function in this file — so editing them has no effect. `nAltitude` (25), by contrast, is live: it's the default vertical offset `Create` uses via `Pg.FindPointFromCamera` when the caller omits `nTargetX`, so changing it does change drop-point selection.
+- Be aware that network synchronization (`Net.IsClient()`) may affect the behavior in multiplayer environments — `Create` returns immediately with no value on the client.
 - The `_DeployWinch` and `_WaitCallback` functions are internal helpers and should not be called directly by modders.

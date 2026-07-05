@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [airstrike, atmosphere]
+verified: true
+verified_note: spot-checked against source, no changes needed — OnActivate/_GraphicsAto, no imports, and Events section all confirmed accurate
 ---
 
 # AirstrikeAtomsphereClusterbomb
