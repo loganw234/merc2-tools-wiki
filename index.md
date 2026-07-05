@@ -21,6 +21,8 @@ files.
 - **Looking for a specific game object/system?** Browse [Resident Modules](resident/) — one reference
   page per engine module (`crate`, `airplane`, `mrxbriefing`, ...), covering what it does, what it
   inherits from, its functions, and the events it listens for.
+- **Working with an AI assistant?** Paste it the [AI Primer](ai-primer) — a single compressed block that
+  gets it oriented on this game's modding surface without reading the whole site.
 
 ## A note on accuracy
 

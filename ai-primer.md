@@ -1,0 +1,156 @@
+---
+title: AI Primer
+nav_order: 12
+---
+
+# AI Primer
+
+A single, dense block meant to be pasted into another LLM's context (a chat, a system prompt, a project
+memory) to quickly ground it in this game's modding surface — what exists, how the pieces fit, concrete
+code shapes to reuse, and where to send you back to this wiki for anything more specific than "surface
+level." It is deliberately compressed; it is not a replacement for the rest of this site.
+
+```text
+MERCENARIES 2 MODDING PRIMER — for AI assistants. Full wiki: https://wiki.mercs2.tools (this is a
+compressed map of it, not a replacement — when a task needs more than this covers, ask the user to paste
+the specific page named below rather than guessing).
+
+RULES — READ FIRST
+- ALWAYS use Loader.Printf(sMsg) for your own debug output. NEVER Debug.Printf for this purpose — that's
+  the engine's own internal log, called thousands of times a second by stock game scripts; anything you
+  print through it is buried in unreadable noise. Loader.Printf writes only to lua_loader_printf.log,
+  next to the game exe — nothing else lands there, so it's actually readable.
+- Wrap any engine call that could plausibly fail (stale uGuid, despawned object) in pcall — see below.
+- import("ModuleName") is FILE-SCOPED. It does not leak to other files, other scripts, or console chunks
+  — every file that calls into a resident module needs its own import() line, or you get
+  `attempt to index global 'X' (a nil value)`.
+- Engine namespaces (Object, Event, Player, Vehicle, ...) are always global — never import() these.
+
+WHAT THIS IS
+Mercenaries 2: World in Flames (PC). A statically-linked Lua 5.1 VM drives world objects, missions, GUI,
+AI — no official modding API ever existed. lua-bridge (an ASI plugin loaded via the pmc_bb.dll Fan Build
+loader) injects a live console + script loader into that VM. Everything below is reverse-engineered from
+decompiled source + live testing, not official documentation — treat "confirmed"/"verified" language as
+meaningful (someone actually checked), its absence as "probably right, not yet double-checked."
+
+RUNNING CODE (3 ways) — full detail: /getting-started, /first-mod, /first-menu
+- Console (fastest iteration): tools/lua_console.py, TCP 127.0.0.1:27050, send a chunk then `<<<RUN>>>`.
+- scripts/OnBoot/*.lua — runs once, earliest possible (bridge captures Lua state).
+- scripts/OnLoad/*.lua — runs once per level load (GlobalExit-Complete milestone).
+- scripts/OnKey/*.lua — runs once per keypress, edge-triggered, re-read from disk every press. Bind via
+  `local KEYVAL = "keyname"` in the first 10 lines, or lua_loader.ini's [OnKey] section. v0.2.1+: a
+  per-script 250ms reentrancy cooldown throttles rapid double-presses (loader_onkey_cooldown_ms in ini).
+
+Minimal OnKey skeleton:
+    local KEYVAL = "insert"  -- must be in the first 10 lines
+    Loader.Printf("hello from OnKey")
+
+MODULE SYSTEM — no `require`. Full detail: /resident/, /namespaces/, /glossary
+- Every src/resident/*.lua file is one global module table, named after its filename (crate.lua -> Crate).
+- `inherit("Name")` = prototype-inherit via setmetatable __index chain (self falls back to parent table).
+- `import("Name")` = pull a resident module in as a callable namespace (file-scoped — see RULES above).
+- Engine namespaces (Object, Event, Player, Vehicle, Ai, Marker, Sound, Human, Camera, Airstrike, Weapon,
+  Sys, Net, Gui, Hud, Controller, Junk, Pg, Graphics) are ALWAYS global, need no import, have no `.lua`
+  file behind them (can't read their source, only observed behavior).
+- Per-instance pattern: `Inheritable.Create(oPrototype, uGuid, ...)` -> setmetatable + a tInstance[uGuid]
+  registry. NOT universal — many resident modules are stateless singletons using bare module-level
+  globals instead. Check for OnActivate/Awake/Create/tInstance/setmetatable before assuming either way.
+- `uGuid` = opaque runtime object handle (a spawned vehicle, a character, ...), not stable across game
+  sessions, the first argument to most Object.*/Vehicle.* calls.
+- 228 resident-module reference pages, categorized: Vehicles, Support & Airstrikes, Missions & Tasks,
+  GUI & HUD, World Objects & Props, Audio & Music, Core Engine & Utilities, Cheats & Dev Tools.
+- 19 engine namespace pages: Ai, Airstrike, Camera, Controller, Event, Graphics, Gui, Hud, Human, Junk,
+  Marker, Net, Object, Pg, Player, Sound, Sys, Vehicle, Weapon.
+
+QUICK FUNCTION REFERENCE — the ones nearly every script touches; full signatures/confirmation status on
+each namespace's own page under /namespaces/<name> or /resident/<module>
+    Object.GetPosition(uGuid) -> x, y, z
+    Object.SetPosition(uGuid, x, y, z)
+    Object.GetYaw(uGuid) -> n            Object.SetYaw(uGuid, n)
+    Object.IsAlive(uGuid) -> bool
+    Object.HasLabel(uGuid, sLabel) -> bool
+    Object.SetInvincible(uGuid, bOn, sReasonTag)
+    Object.SetInfiniteAmmo(uGuid, bOn)
+    Object.GetMass(uGuid) -> n            Object.ApplyImpulse(uGuid, x, y, z, bLocalSpace)
+    Object.Remove(uGuid)
+    Player.GetLocalCharacter() -> uGuid                      (your own character, single-player-safe)
+    Player.GetPrimaryCharacter() / GetSecondaryCharacter() -> uGuid   (co-op player 1 / player 2)
+    Player.GetLocalPlayer() -> uPlayerGuid                    (player-SLOT guid, distinct from character)
+    Pg.Spawn(sTemplateName, x, y, z, ...) -> uGuid            (see /hash-lookup for real template names)
+    Pg.GetGuidByName(sObjectName) -> uGuid                    (look up a placed/named object)
+    Vehicle.GetFromRider(uCharGuid) -> uVehicleGuid           Vehicle.GetDriver(uVehicleGuid) -> uGuid
+    Event.Create(EventType, tArgs, fCallback, tCallbackArgs) -> handle    Event.Delete(handle)
+    import("MrxPmc"); MrxPmc.AddCashQty(n) / AddFuelQty(n)    (HUD-updating economy calls — plain
+        Player.SetCash/AddCash change the value but skip the HUD refresh)
+    Loader.Printf(sMsg)                                       Loader.IsKeyDown(vk) -> bool
+
+LUA-BRIDGE ADDITIONS (not part of the game itself — version-gated). Full detail: /lua-bridge-api/loader,
+/lua-bridge-api/stdlib
+- Loader.Printf(msg) — see RULES above.
+- Loader.IsKeyDown(vk) / GetKeyboardState() / PopKeyEvents() / ClearKeyEvents() / IsGameFocused() — v0.1.6+,
+  the only general-purpose keyboard input (the game's own Lua surface has none). IsKeyDown/
+  GetKeyboardState for continuous/movement input; PopKeyEvents (edge-triggered ring buffer, focus-gated)
+  for typed text — NOT interchangeable, PopKeyEvents has no "still held" signal.
+- Tcp.Send(host, port, msg) — fire-and-forget, localhost-only by design.
+- math.sin/cos (v0.1.6+); full trig, hyperbolic, sqrt, log, log10, fmod, ldexp, modf, frexp, random,
+  randomseed, pi, huge, and assert(v, msg) (v0.2.0+) — stdlib polyfills, additive, don't assume present
+  without confirming version. Pre-v0.1.6 scripts on this wiki hand-roll a Taylor-series sin/cos — no
+  longer necessary on an updated build, harmless if left as-is.
+- v0.2.1 also fixed: assert's error now points at the caller (not the polyfill itself); the polyfill's
+  own success/failure log is now honest instead of always claiming success.
+- lua_Number is float, not double — precision-sensitive math can surprise you.
+
+CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
+
+State that survives OnKey/OnLoad re-execution (_G is the only thing that persists between separate runs
+of the same script within a session — plain `local`s don't):
+    _G.MyState = _G.MyState or {bOn = false}
+    local State = _G.MyState
+    State.bOn = not State.bOn
+
+Safe engine call (never lets one bad uGuid kill the rest of the script):
+    local bOk, result = pcall(Object.SetInvincible, Player.GetLocalCharacter(), true, "mymod")
+    if not bOk then
+      Loader.Printf("SetInvincible failed: " .. tostring(result))
+    end
+
+A menu (auto-paginates past ~8 options):
+    import("MrxMultiPageMenu")
+    MrxMultiPageMenu.Reset()
+    MrxMultiPageMenu.AddOption("Say hello", function() Loader.Printf("hi!") end)
+    MrxMultiPageMenu.AddOption("Close this menu", nil, nil, true, true)  -- nil callback ONLY safe here,
+                                                                          -- bound to the cancel button
+    MrxMultiPageMenu.Display("Test Menu:")
+
+Overriding existing game logic (resolves at CALL time, not definition time — this changes behavior for
+every future call from anywhere, including from inside the original module's own other functions):
+    import("SomeModule")
+    SomeModule.SomeFunction = function(...)
+      -- your replacement body
+    end
+
+COMMON GOTCHAS
+- `X and A or B` is Lua's ternary-operator substitute — short-circuits to B if A itself is falsy, which
+  is the one real gotcha (only safe when A can never be false/nil).
+- `pairs(t)` visits every key, any order; `ipairs(t)` only a plain 1..n array, in order, stopping at the
+  first gap — mixing them up silently drops data instead of erroring.
+- Functions can return multiple values at once: `local a, b, c = f()`.
+- No native free-text input widget exists — hand-roll it via Loader.PopKeyEvents() + a VK-code-to-
+  character table (see /snippets, /sample-scripts-onkey's CommonSpawnMenu.lua).
+
+KNOWN HARD LIMITS — flag uncertainty rather than proposing confident workarounds for these
+- No confirmed Lua touchpoint for firing a turret, or for a vehicle's camera while driving/gunning —
+  extensively tested (multiple recipe matrices, hardpoint probing, camera-lock recipes), all native-only.
+  See /namespaces/vehicle, /deep-dives/destroyer-vehicle.
+- Object.ApplyImpulse/ApplyPointImpulse confirmed to affect vehicles/physics props; confirmed to NOT
+  affect a standing player character (tested live, no effect).
+- Multi-player teleport helpers can crash the game if used while inside an interior cell — outdoor-only.
+- Physics on some set-dressing "vehicle" templates can't be fixed from Lua alone — needs external
+  WAD-level editing tools that don't exist yet for this game.
+
+IF YOU NEED MORE THAN THIS
+This primer is intentionally shallow. For a specific module's full function list, exact call signatures,
+event names, or a deep dive's full investigation, ask the user to paste the relevant page from
+https://wiki.mercs2.tools/<path> rather than guessing from here. Good default ask: "what does
+wiki.mercs2.tools say about <ModuleName/Namespace>?"
+```
