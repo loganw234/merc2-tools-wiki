@@ -534,6 +534,29 @@ A few things worth understanding about the timing here, since it's easy to get w
 
 </details>
 
+## Trigger the "Dance" easter egg animation
+
+<details class="script-entry" markdown="1">
+<summary>Play the "technoviking" dance animation used by the (apparently disabled) Dance radio prop.</summary>
+
+`resident/danceradio.lua` defines a "Dance" radio prop meant to let a nearby character bust out a dance
+move on use — but its real `OnActivate` is a no-op stub in the shipped game; only an old, unused
+`OnActivateOld` actually wires up the context action and loads the asset. Looks like disabled/cut content.
+The animation itself is still directly reachable, though:
+
+```lua
+local uChar = Player.GetLocalCharacter()
+Pg.LoadAsset("player_mattias_bare_technoviking", "animation")
+Human.PlayRawAnimation(uChar, "player_mattias_bare_technoviking", false, false, 0, false)
+```
+
+**Confirmed working by live testing**, bound to a `local KEYVAL = "pageup"` `OnKey` script. The animation
+name is hardcoded to Mattias in the original source regardless of who plays it — the base game's own
+(disabled) code calls it the same unconditional way — so it's untested whether it looks right played on
+Chris or Jennifer specifically.
+
+</details>
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)

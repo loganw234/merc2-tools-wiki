@@ -1,6 +1,6 @@
 ---
 title: Your First Mod
-nav_order: 3
+nav_order: 4
 layout: verified_page
 verified: true
 verified_note: all 3 steps live-tested (console hello-world, OnLoad, OnKey + MrxPmc.AddCashQty fix)

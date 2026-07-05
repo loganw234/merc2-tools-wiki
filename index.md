@@ -16,6 +16,8 @@ files.
 
 - **New here?** Read [Getting Started](getting-started) first — it covers `lua-bridge`, currently the
   only way to inject and run your own Lua against the live game.
+- **Just want a working cheat menu?** Grab [All-In-One Cheat Menu](cheat-menu) — one script, one hotkey,
+  no reading required.
 - **Looking for a specific game object/system?** Browse [Resident Modules](resident/) — one reference
   page per engine module (`crate`, `airplane`, `mrxbriefing`, ...), covering what it does, what it
   inherits from, its functions, and the events it listens for.
