@@ -144,6 +144,11 @@ script can also declare its own default by putting `local KEYVAL = "keyname"` so
 `OnKey` scripts are re-read from disk on every keypress (via a dedicated background thread polling at
 30Hz, so it doesn't stall the game's main thread) — edit-and-repress works without restarting.
 
+As of lua-bridge v0.2.1, rapid double-presses of the same hotkey (within 250ms by default) are
+automatically throttled to one run instead of queuing two back-to-back — see
+[Loader: OnKey dispatch behavior](lua-bridge-api/loader#onkey-dispatch-behavior) for the full mechanics
+and how to disable it.
+
 ### `Loader.Printf` — debug output that doesn't get lost
 
 Don't reach for the engine's own `Debug.Printf` to print your own debug messages. It's the game's

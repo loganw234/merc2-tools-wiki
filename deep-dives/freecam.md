@@ -217,6 +217,9 @@ local function normalizeAngle(x)
 end
 
 -- math.sin/math.cos don't exist in this Lua build -- Taylor-series fallbacks.
+-- UPDATE: as of lua-bridge v0.1.6, math.sin/math.cos are natively available -- see Stdlib Additions on
+-- the wiki. This workaround is no longer necessary on an updated build; kept here since this deep dive
+-- documents the investigation as it actually happened, not revised after the fact.
 local function customSin(x)
   x = normalizeAngle(x)
   local x2 = x * x

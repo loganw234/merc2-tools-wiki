@@ -43,6 +43,36 @@ function wouldn't have provided on its own.
 | `ClearKeyEvents` | `Loader.ClearKeyEvents()` | Drops every buffered event without returning them. Meant as an explicit reset point — e.g. call this the instant a chat input box opens, so whatever the player was pressing right before opening it doesn't leak in as the first characters typed. |
 | `IsGameFocused` | `b = Loader.IsGameFocused()` | Returns whether the foreground window belongs to the game's own process, via process-ID match rather than window-handle/style checks — so it stays correct regardless of borderless/fullscreen/multi-window setups. This is the same check gating `PopKeyEvents` internally, exposed directly in case a script wants to branch on focus state itself (e.g. pause a typing UI rather than silently losing keystrokes). |
 
+## OnKey dispatch behavior
+
+Separate from the `Loader` table's own functions above, this section covers `LoaderKeyThread` — the
+background thread that actually detects a hotkey press and runs the matching `scripts/OnKey/*.lua` file.
+Two safety features were added here across v0.2.0/v0.2.1, both worth knowing since they change what
+happens around a keypress rather than anything a script calls directly.
+
+- **Per-script reentrancy cooldown (v0.2.1).** Rapid double-presses of the same hotkey used to queue two
+  back-to-back runs of a script — sequential, not concurrent, but many OnKey scripts on this wiki aren't
+  written to be reentrant, and a second run executing on state the first run left behind (a half-open
+  menu, a partially-typed console buffer) could destabilize the engine. `LoaderKeyThread` now tracks
+  `last_fired_tick` per script and skips re-firing if the last fire was within
+  `loader_onkey_cooldown_ms` (default **250 ms**) of the current one. The *first* time this throttles a
+  given script in a session, it logs `[!] lua_bridge: OnKey '<key>' throttled (...)` so you notice the
+  cooldown engaging instead of silently wondering why a press didn't register; subsequent throttles for
+  that same script are silent, to avoid log spam. Set `loader_onkey_cooldown_ms = 0` in
+  `lua_bridge_DEV.ini` to disable it entirely. Implemented with unsigned subtraction, so it's correct
+  across `GetTickCount` wraparound (~49.7-day uptime cycle) rather than glitching once every 49 days.
+- **Missing-file guard (v0.2.0).** Pressing a hotkey whose backing `.lua` file had been deleted after the
+  game booted (e.g. mid-session cleanup, a renamed script) could destabilize the game. `GetFileAttributesA`
+  now runs before every `fopen`; a missing file logs a clear
+  `[!] lua_bridge: OnKey '<key>' bound to missing file: <name> (skipped)` warning and is safely skipped
+  instead.
+
+**Practical effect for scripts on this wiki:** none of the persistent, `_G`-guarded OnKey tools documented
+here (the [destroyer tool](../deep-dives/destroyer-vehicle), [master cheat menu](../cheat-menu), etc.) are
+designed to fire faster than 250ms apart under normal use — deliberate menu navigation is well outside
+that window. The cooldown mainly guards against a stuck/bouncing physical key or a scripted rapid-fire
+input source, not normal play.
+
 ## Notes for modders
 
 - **`PopKeyEvents` is the right tool for "the player typed something"**; `GetKeyboardState`/`IsKeyDown` are

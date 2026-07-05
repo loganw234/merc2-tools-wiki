@@ -292,6 +292,9 @@ local nBoatMass = 50000
 -- customSin/customCos -- copied from Freecam.lua/Fireworks.lua/SpawnDestroyer.lua. math.sin/math.cos
 -- don't exist in this Lua build; this Taylor-series approximation is the established workaround used
 -- elsewhere on this wiki.
+-- UPDATE: math.sin/math.cos are natively available as of lua-bridge v0.1.6 -- see Stdlib Additions.
+-- This workaround is no longer necessary on an updated build; left as-is here since it was accurate at
+-- the time this deep dive was written.
 local function normalizeAngle(nDegrees)
   while nDegrees > 180 do
     nDegrees = nDegrees - 360

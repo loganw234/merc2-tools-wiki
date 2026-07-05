@@ -168,6 +168,8 @@ local function normalizeAngle(x)
 end
 
 -- math.sin/math.cos don't exist in this Lua build -- Taylor-series fallbacks.
+-- UPDATE: natively available as of lua-bridge v0.1.6 -- see Stdlib Additions. No longer necessary on an
+-- updated build; kept as-is here since it was accurate when written and still works either way.
 local function customSin(x)
   x = normalizeAngle(x)
   local x2 = x * x
@@ -701,7 +703,8 @@ local nYawCorrectionDegrees = 22  -- tweak me: reported firing ~15-30 deg right 
                                    -- value (try -22) rather than adjusting the magnitude further.
 
 -- customCos/customSin: math.sin/math.cos don't exist in this Lua build (same constraint documented in
--- Freecam.lua). Reuses that script's confirmed-working yaw -> world-direction convention
+-- Freecam.lua) -- UPDATE: natively available as of lua-bridge v0.1.6, see Stdlib Additions; no longer
+-- necessary on an updated build. Reuses that script's confirmed-working yaw -> world-direction convention
 -- (forward = (cos(yaw), sin(yaw)) in (X, Z)), just applied to a character's Object.GetYaw() instead of
 -- camera yaw -- both are plain yaw angles in the same world coordinate space, but this specific
 -- direction hasn't been independently live-tested the way the camera case was, so if shells come out
@@ -860,6 +863,8 @@ local nMaxEnterAttempts = 10     -- tweak me: give up after this many retries (5
 local nBoatMass = 50000          -- tweak me: see the physics note above -- confirmed not sufficient alone
 
 -- math.sin/math.cos don't exist in this Lua build -- Taylor-series fallbacks, same as Freecam.lua/Fireworks.lua.
+-- UPDATE: natively available as of lua-bridge v0.1.6 -- see Stdlib Additions. No longer necessary on an
+-- updated build.
 local function normalizeAngle(nDegrees)
   while nDegrees > 180 do
     nDegrees = nDegrees - 360

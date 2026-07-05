@@ -290,6 +290,8 @@ local State = _G.MasterCheatMenuState
 -- math.sin/math.cos don't exist in this Lua build -- same Taylor-series fallback as Freecam.lua/
 -- Fireworks.lua/DestroyerTool.lua. Needed for the launch-forward direction and the random bombardment
 -- offset points below.
+-- UPDATE: natively available as of lua-bridge v0.1.6 -- see Stdlib Additions. No longer necessary on an
+-- updated build; kept as-is here since it was accurate when written and still works either way.
 local function NormalizeAngle(nDegrees)
   while nDegrees > 180 do
     nDegrees = nDegrees - 360
