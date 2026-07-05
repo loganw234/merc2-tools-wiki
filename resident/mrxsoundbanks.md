@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [audio, sound]
 verified: true
-verified_note: confirmed all 16 functions and "Events: None"; corrected pending-request structure from queue to LIFO stack (submits _nLastAddedIndex, not oldest)
+verified_note: 'confirmed all 16 functions and "Events: None"; corrected pending-request structure from queue to LIFO stack (submits _nLastAddedIndex, not oldest)'
 ---
 
 # MrxSoundBanks
