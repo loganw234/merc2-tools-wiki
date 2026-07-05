@@ -162,7 +162,7 @@ Every script instead has access to a global:
 Loader.Printf(message)
 ```
 
-Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_print.log`, next
+Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_printf.log`, next
 to the game exe — instead of the shared, noisy engine log. Everything in that file is something a script
 explicitly asked to log; nothing from the base game leaks in. Use this for anything you actually want to
 find again later.

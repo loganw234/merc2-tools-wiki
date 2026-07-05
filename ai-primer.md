@@ -25,6 +25,9 @@ RULES — READ FIRST
   — every file that calls into a resident module needs its own import() line, or you get
   `attempt to index global 'X' (a nil value)`.
 - Engine namespaces (Object, Event, Player, Vehicle, ...) are always global — never import() these.
+- Match the casing already used throughout this primer for engine/module calls: PascalCase.PascalCase
+  (Object.GetPosition, MrxPmc.AddCashQty) — never lowercase these (object.getPosition is wrong and will
+  fail). Locals use Hungarian-ish prefixes: bOn, nCount, sName, tArgs, uGuid.
 
 WHAT THIS IS
 Mercenaries 2: World in Flames (PC). A statically-linked Lua 5.1 VM drives world objects, missions, GUI,
@@ -33,7 +36,8 @@ loader) injects a live console + script loader into that VM. Everything below is
 decompiled source + live testing, not official documentation — treat "confirmed"/"verified" language as
 meaningful (someone actually checked), its absence as "probably right, not yet double-checked."
 
-RUNNING CODE (3 ways) — full detail: /getting-started, /first-mod, /first-menu
+RUNNING CODE — Console (interactive) plus 3 script-file hooks. Full detail: /getting-started, /first-mod,
+/first-menu
 - RECOMMENDED for rapid testing: scripts/OnKey/*.lua — runs once per keypress, edge-triggered, and is
   RE-READ FROM DISK ON EVERY PRESS: edit the file, save, press the key again in-game, see the result
   immediately — no restart, no separate reload step, nothing to run except a text editor and the game
@@ -73,6 +77,7 @@ each namespace's own page under /namespaces/<name> or /resident/<module>
     Object.GetPosition(uGuid) -> x, y, z
     Object.SetPosition(uGuid, x, y, z)
     Object.GetYaw(uGuid) -> n            Object.SetYaw(uGuid, n)
+        (unit/axis convention unconfirmed — some scripts assume degrees, not verified against source)
     Object.IsAlive(uGuid) -> bool
     Object.HasLabel(uGuid, sLabel) -> bool
     Object.SetInvincible(uGuid, bOn, sReasonTag)
@@ -82,7 +87,8 @@ each namespace's own page under /namespaces/<name> or /resident/<module>
     Player.GetLocalCharacter() -> uGuid                      (your own character, single-player-safe)
     Player.GetPrimaryCharacter() / GetSecondaryCharacter() -> uGuid   (co-op player 1 / player 2)
     Player.GetLocalPlayer() -> uPlayerGuid                    (player-SLOT guid, distinct from character)
-    Pg.Spawn(sTemplateName, x, y, z, ...) -> uGuid            (see /hash-lookup for real template names)
+    Pg.Spawn(sTemplateName, x, y, z, ...) -> uGuid   e.g. Pg.Spawn("Veyron", x, y, z) — confirmed working;
+        see /hash-lookup for the full real-template-name list
     Pg.GetGuidByName(sObjectName) -> uGuid                    (look up a placed/named object)
     Vehicle.GetFromRider(uCharGuid) -> uVehicleGuid           Vehicle.GetDriver(uVehicleGuid) -> uGuid
     Event.Create(EventType, tArgs, fCallback, tCallbackArgs) -> handle    Event.Delete(handle)
@@ -96,7 +102,9 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
 - Loader.IsKeyDown(vk) / GetKeyboardState() / PopKeyEvents() / ClearKeyEvents() / IsGameFocused() — the
   only general-purpose keyboard input (the game's own Lua surface has none). IsKeyDown/GetKeyboardState
   for continuous/movement input; PopKeyEvents (edge-triggered ring buffer, focus-gated) for typed text —
-  NOT interchangeable, PopKeyEvents has no "still held" signal.
+  NOT interchangeable, PopKeyEvents has no "still held" signal. All three take a numeric Windows VK code
+  — a DIFFERENT scheme from OnKey's `KEYVAL = "keyname"` string binding above; a keyname and a VK code are
+  not interchangeable with each other either.
 - Tcp.Send(host, port, msg) — fire-and-forget, localhost-only by design.
 - Full math.* stdlib (sin, cos, tan, asin/acos/atan/atan2, sinh/cosh/tanh, sqrt, log, log10, fmod, ldexp,
   modf, frexp, random, randomseed, pi, huge) plus assert(v, msg) — polyfills, additive on top of the
@@ -104,6 +112,9 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
   internal polyfill code. Older scripts on this wiki hand-roll a Taylor-series sin/cos fallback from
   before these existed — no longer necessary, harmless if left as-is.
 - lua_Number is float, not double — precision-sensitive math can surprise you.
+- Only math/assert were probed for completeness — os/io/coroutine/debug tables' presence isn't
+  individually confirmed either way on this wiki. Check `type(os) == "table"` (etc.) before relying on
+  something that "should" be there; don't assume stock-Lua-5.1 completeness beyond what's listed here.
 
 CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
 
@@ -136,12 +147,19 @@ every future call from anywhere, including from inside the original module's own
 
 COMMON GOTCHAS
 - `X and A or B` is Lua's ternary-operator substitute — short-circuits to B if A itself is falsy, which
-  is the one real gotcha (only safe when A can never be false/nil).
+  is the one real gotcha (only safe when A can never be false/nil). Same underlying "or returns the first
+  truthy value" behavior is what makes `_G.MyState = _G.MyState or {defaults}` work in CODE SAMPLES below.
 - `pairs(t)` visits every key, any order; `ipairs(t)` only a plain 1..n array, in order, stopping at the
   first gap — mixing them up silently drops data instead of erroring.
 - Functions can return multiple values at once: `local a, b, c = f()`.
 - No native free-text input widget exists — hand-roll it via Loader.PopKeyEvents() + a VK-code-to-
   character table (see /snippets, /sample-scripts-onkey's CommonSpawnMenu.lua).
+- This is Lua 5.1 specifically — no `+=`/`-=` compound assignment (no Lua version has ever had these), no
+  `//` floor division or bitwise operators (`&`, `|`, `<<`, ...) — both added in Lua 5.3, well after this
+  engine's runtime. Use `x = x + 1`, `math.floor(a / b)`, and don't reach for bit ops at all.
+- An uncaught error in an OnKey/OnLoad/OnBoot script silently ends that run early — nothing gets printed
+  anywhere, unlike Console's automatic `[runtime]` report. Wrapping risky calls in `pcall` and
+  `Loader.Printf`-ing the error yourself (see CODE SAMPLES) is currently the only way to see what failed.
 
 KNOWN HARD LIMITS — flag uncertainty rather than proposing confident workarounds for these
 - No confirmed Lua touchpoint for firing a turret, or for a vehicle's camera while driving/gunning —
@@ -155,7 +173,7 @@ KNOWN HARD LIMITS — flag uncertainty rather than proposing confident workaroun
 
 IF YOU NEED MORE THAN THIS
 This primer is intentionally shallow. For a specific module's full function list, exact call signatures,
-event names, or a deep dive's full investigation, ask the user to paste the relevant page from
-https://wiki.mercs2.tools/<path> rather than guessing from here. Good default ask: "what does
-wiki.mercs2.tools say about <ModuleName/Namespace>?"
+event names, or a deep dive's full investigation, ask the user to paste the relevant page rather than
+guessing — do NOT invent a URL path yourself; name the module/namespace/topic and let them find the page.
+Good default ask: "what does wiki.mercs2.tools say about <ModuleName/Namespace>?"
 ```
