@@ -542,13 +542,28 @@ Handles the completion of an action hijack that did not fail. It re-enables invi
 
 
 
-- **Event.ObjectHibernation**: Listens for this event to wake up and initialize the hijack action when the object leaves hibernation.
+**Correction:** a previous version of this section named `Event.ObjectHibernation`, `Event.MinigameStatus`,
+`Event.AnimationComplete`, and `Event.DriverSimulatedButtonPress` — none of these are real event constants
+referenced anywhere in `mrxactionhijack.lua` (confirmed by grepping every `Event.*` reference in the file).
+The real events are:
 
-- **Event.MinigameStatus**: Handles updates to the status of a minigame (`success`, `failed`, `update`, `timeout`).
+- **`Event.Minigame`**: The actual native input-tracking event. Created fresh in `OnMinigameStart` for
+  whichever action type (`press`/`hold`/`tap`/`alternate`) the current section configures, with
+  `OnMinigameStatus` as its callback — that's what actually receives `"success"`/`"failed"`/`"update"`/
+  `"timeout"`.
 
-- **Event.AnimationComplete**: Triggers when an animation during the hijack process completes, handling success or failure animations and cleanup tasks.
+- **`Event.HumanActionComplete`**: Fires when a character's current animation state finishes playing.
+  Used repeatedly for different characters/purposes: `self._hijacker`'s animation completing routes to
+  `OnAnimationComplete`/`OnAnimationCompleteRemote` (which is what actually decides success vs. failure,
+  by reading `bSuccess`), `self._hijackee`/`self._ActorOne`/`self._ActorTwo` finishing routes to
+  `OnDriverDone`, and the failure animation finishing separately routes to `OnFailAnimationComplete`.
 
-- **Event.DriverSimulatedButtonPress**: Simulates a button press by the driver in the minigame.
+- **`Event.TimerRelative`**: Used for plain one-shot delays throughout (explosion/rumble/camera-param
+  timers in `Begin`/`_ProcessMultiEventTable`, the ragdoll-minigame wait in `OnFailAnimationComplete`),
+  and — the case that matters most for the minigame itself — as a **self-rescheduling loop, not a
+  distinct event type**, behind `OnDriverSimulatedButtonPress`: it's a plain named callback that re-arms
+  its own `Event.Create(Event.TimerRelative, ...)` call every time it fires, simulating the driver
+  "pressing a button" against the player on a fixed interval (`miniGame.nDriverDifficulty`).
 
 
 

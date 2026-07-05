@@ -51,6 +51,45 @@ persist through a full game restart, since nothing here touches save data.
 </details>
 
 <details class="script-entry" markdown="1">
+<summary><strong>HijackAutoSuccess.lua</strong> — Makes every hijack QTE succeed automatically, with no button presses needed.</summary>
+
+The hijack minigame (`MrxActionHijack`) is entered through one function, `OnMinigameStart`, which sets up
+the real input-tracking `Event.Minigame` listener and (for tap/alternate steps) a simulated-opponent timer
+that "presses buttons" against the player on its own schedule. Overriding just this one function — same
+technique as [Deep Dive: Overriding a Function](deep-dives/function-override) — skips creating either of
+those, forces success immediately, and lets the hijacker's already-scheduled struggle animation play out
+normally and complete on its own:
+
+```lua
+import("MrxActionHijack")
+import("MrxGuiHudActionHijack")
+
+MrxActionHijack.OnMinigameStart = function(self)
+  local tStep = self[self.nCurrent]
+  tStep._buttonPressed = true
+  tStep.bSuccess = true
+  pcall(MrxGuiHudActionHijack.HideButton, self._hijackerPlayer)
+  pcall(Sound.CueSound, 0, "ui_HUD_Minigame_Press_Button")
+
+  -- Multi-round "reactive loop" steps normally finish from inside HandleTapMinigame's own round-scoring
+  -- logic, which this override never runs -- so those need to be pushed to completion directly instead.
+  if tStep.nReactiveLoop ~= nil and not tStep.bMinigameDone then
+    tStep.bMinigameDone = true
+    MrxActionHijack.DeleteAllEvents(self)
+    MrxActionHijack.DoSuccessAnimation(self)
+  end
+end
+```
+
+**Confirmed working by live testing** — animations play out cleanly with no button presses needed, exactly
+as expected: the ordinary (non-reactive-loop) `press`/`hold`/`tap`/`alternate` steps look completely
+normal, since the character still plays out their usual struggle animation at its usual pace — the only
+difference is that no real input is required (or possible) during it, because `bSuccess` was already
+forced `true` before the QTE prompt would have appeared.
+
+</details>
+
+<details class="script-entry" markdown="1">
 <summary><strong>CoopTetherRange.lua</strong> — Widens (or removes) how far apart co-op players can wander before getting pulled back together. <strong>Unverified — needs a real co-op session to confirm.</strong></summary>
 
 The co-op "stay together" mechanic — the boundary that kicks in when the second player wanders too far
