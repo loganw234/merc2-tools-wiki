@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: OrientedBlippable, MrxFactionManager
 tags: [support, aircraft, radar]
+verified: true
+verified_note: confirmed Create resolves via inherited OrientedBlippable/Blippable/Inheritable chain (not defined locally), icon/color table and event description already matched source, no changes needed beyond clarifying Instance pattern
 ---
 
 # SupportAirplane
@@ -19,9 +21,16 @@ The `SupportAirplane` module is responsible for managing support aircraft in the
 - Imports: none
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `tColor`: The color of the radar blip based on the aircraft's faction.
-- `sTexture`: The texture used for the radar blip icon, determined by the aircraft's label.
+This is a per-instance object module (keyed by `uGuid`), though `supportairplane.lua` itself defines no
+`Create` — `oPrototype:Create(uGuid, uRuntimeOwner)` in `OnActivate` (line 28) resolves through the
+inherited chain `OrientedBlippable` → `Blippable` → `Inheritable`, none of which override `Create` after
+`Inheritable`, so it bottoms out at `Inheritable.Create`: the standard `setmetatable`/`tInstance[uGuid]`
+factory described on [Resident Modules](index). Per-instance fields set directly on `oInstance` in
+`OnActivate`:
+- `tColor`: the color of the radar blip, chosen from `tColorPmc`/`tColorNeutral`/`tColorEnemy`/`tColorAlly`
+  based on faction relation.
+- `sTexture`: the radar blip icon texture, defaulting to `"temp_radar_icon_airplane"` and overridden per
+  the label table below.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: VehicleBlippable
 tags: [vehicle]
+verified: true
+verified_note: clarified Create resolves via inherited VehicleBlippable/Inheritable chain (not defined locally); function/event coverage already matched source, no other changes needed
 ---
 
 # Tank
@@ -19,10 +21,15 @@ The `Tank` module represents a tank vehicle in the game. It inherits from `Vehic
 - Imports: `none`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `tFlash`: The flash color of the radar blip.
-- `sTexture`: The texture used for the radar blip.
-- `nSize`: The size of the radar blip.
+This is a per-instance object module (keyed by `uGuid`), but `tank.lua` itself defines no `Create` —
+`oPrototype:Create(uGuid, uRuntimeOwner)` in `Start` (line 23) resolves through the inherited chain
+`VehicleBlippable` → `OrientedBlippable` → `Blippable` → `Inheritable`, none of which override `Create`
+after `Inheritable`, so it bottoms out at `Inheritable.Create`: the standard
+`setmetatable`/`tInstance[uGuid]` factory described on [Resident Modules](index). Module-level fields
+(shared across all tank instances via prototype fallback, not set per-instance in this file):
+- `tFlash`: the flash color of the radar blip — `{255, 255, 255}`.
+- `sTexture`: the radar blip icon texture — `"temp_radar_icon_tank"`.
+- `nSize`: the radar blip size — `5`.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`

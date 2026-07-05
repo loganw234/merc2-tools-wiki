@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [vehicle, ai]
+verified: true
+verified_note: confirmed the already-documented Deactivated/Activated undefined-callback bug is accurate; added two Event.* references missing from the Events section (Event.Button, Event.ObjectProximity); clarified OnDeactivate's dual table/non-table tEvents handling and NetEventCallback.
 ---
 
 # MoonPatrol
@@ -43,7 +45,10 @@ Called when the vehicle instance is activated. It triggers the `OnExit` function
 Called when the vehicle's underlying object dies. It deactivates the vehicle instance.
 
 ### `OnDeactivate(uGuid, args)`
-Called when the vehicle instance is deactivated. It cleans up all registered events and removes them from the `tEvents` table.
+Called when the vehicle instance is deactivated (also called directly by `OnDeath`). Reads
+`tEvents[uGuid]`: if it's a table, iterates and deletes every handle in it with `pairs`; otherwise (a
+single non-table handle, as `Deactivated` stores) calls `Event.Delete` on it directly. Either way, clears
+`tEvents[uGuid]` afterward.
 
 ### `OnEnter(uDriver, uGuid)`
 Called when a player enters the vehicle's seat. It sets up events to handle player exit and co-op player session changes.
@@ -78,10 +83,21 @@ global in Lua evaluates to `nil` rather than erroring immediately, so this silen
 event with a `nil` callback instead of actually reactivating the vehicle when it fires.
 
 ## Events
-- Listens for `Event.ObjectInSeat` to call `OnEnter` or `OnExit` based on player entry/exit.
-- Listens for `Event.ScriptEvent` with `"mpPlayerLeft"` to handle co-op player session changes and trigger `OnExit`.
-- Listens for `Event.TimerRelative` to wait for landing after a jump.
-- Listens for `Event.ObjectIsGrounded` to reset jump mechanics when the vehicle lands.
+- Listens for `Event.ObjectInSeat` — registered twice: once in `OnEnter` (driver exits, `"d","xo"`) to
+  call `OnExit`, and once in `OnExit` (any character enters, `"d","ei"`) to call `OnEnter` again.
+- Listens for `Event.ScriptEvent` with `"mpPlayerLeft"` (registered in `OnEnter`) to detect the current
+  driver leaving the co-op session and trigger `OnExit`.
+- Listens for `Event.TimerRelative` (registered in `OnJump`) to call `WaitForLanding` 1.5s after a jump.
+- Listens for `Event.ObjectIsGrounded` (registered in `WaitForLanding`) to call `ResetJump` once the
+  vehicle lands.
+- Listens for `Event.Button` (registered in `ResetJump`, local-driver-gated — see below) for an
+  `"rtrigger"` `"press"` to call `OnJump`.
+- Listens for `Event.ObjectProximity` (registered in `Deactivated`) with a **bare `Activated` callback
+  that is never defined anywhere in this file** — see the confirmed bug noted under `Deactivated` above.
+- Also uses `Net.SendCustomEvent("moonpatrol", ...)` (in `OnExit`, `OnJump`, `WaitForLanding`) paired with
+  the module-level `NetEventCallback(eventId, tArgs)` dispatcher (`NETEVENT_STARTEMITTERS = 0`,
+  `NETEVENT_STOPEMITTERS = 1`) to mirror emitter start/stop across the network — this is the engine's
+  custom-net-event mechanism, not an `Event.*` constant.
 
 ## Notes for modders
 - Ensure that `OnActivate`, `OnDeactivate`, and related functions are called appropriately to manage the vehicle's lifecycle.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: VehicleBlippable
 tags: [vehicle, support]
+verified: true
+verified_note: added missing Event.TimerRelative to Events section, clarified Create resolves via inherited VehicleBlippable/Inheritable chain (not defined locally)
 ---
 
 # PursuitCopter
@@ -19,9 +21,14 @@ The `PursuitCopter` module represents a pursuit helicopter that lands near the p
 - Imports: `MrxSupport`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `tCopters`: A table to keep track of active pursuit copters.
-- `tRetries`: A table to count the number of retries for finding a landing zone.
+This is a per-instance object module (keyed by `uGuid`), but `pursuitcopter.lua` itself defines no `Create`
+— it inherits one through the chain `VehicleBlippable` → `OrientedBlippable` → `Blippable` →
+`Inheritable`, none of which override `Create` after `Inheritable`, so `self:Create(uGuid, uRuntimeOwner)`
+(called from `FoundPosition`, line 76) resolves all the way to `Inheritable.Create` — the standard
+`setmetatable`/`tInstance[uGuid]` factory described on [Resident Modules](index). Module-level (not
+per-instance) state:
+- `tCopters`: a table (used as a queue) of GUIDs for copters currently mid-LZ-search.
+- `tRetries`: retry counts, keyed by `uGuid`.
 
 ## Functions
 ### `OnActivate(uGuid, uRuntimeOwner, iArg)`
@@ -46,8 +53,12 @@ Handles the outcome of the landing goal. If successful, it deploys passengers; i
 Attempts to find a suitable landing zone for the pursuit copter using AI functions and sets up a callback to handle the result.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Start` when the object leaves hibernation.
-- Uses custom event callbacks (`FoundPosition`, `AllOut`) to manage the lifecycle of finding a landing zone and deploying passengers.
+- `Event.ObjectHibernation` (in `OnActivate`) — fires `Start` once the object leaves hibernation.
+- `Event.TimerRelative` (in `FindLZ`, on retry) — schedules another `FindLZ` attempt 3 seconds later when
+  `Ai.TestDropZone` fails to find a valid landing zone.
+- `FoundPosition` and `AllOut` are not `Event.*` registrations themselves — they're passed as bare
+  `Callback` fields to `Ai.TestDropZone` and `Ai.Goal`/`Ai.Deploy` respectively, which are native AI
+  functions, not the `Event.Create` mechanism.
 
 ## Notes for modders
 - Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the copter's lifecycle.

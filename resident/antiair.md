@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: EnemyBlippable
 tags: [anti-air, radar, missile]
+verified: true
+verified_note: corrected Instance pattern — _tLockOnUpdates is declared but never read/written anywhere in the file (dead field, not an active tracker); confirmed all 17 functions, event names, and inheritance chain against source
 ---
 
 # AntiAir
@@ -38,11 +40,12 @@ always-present-but-rarely-relevant world object.
 
 ## Instance pattern
 This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `_tPrototype`: Defines the properties of each anti-air tier.
-- `tEvent`: Stores event handles for proximity and distance events.
-- `_tLockOns`: Manages homing lock-on states.
-- `_tLockOnState`: Tracks targeting and targeted states for players.
-- `_tLockOnUpdates`: Handles updates to lock-on states.
+- `_tPrototype`: Defines the properties of each anti-air tier (module-level, shared across instances — set as the `__index` metatable for each tier via `Init`).
+- `tEvent`: Per-`uGuid` table of event handles for proximity/distance events (`oClose`, `oFar`, `oInstance`).
+- `_tLockOns`: Keyed by owner GUID, manages active homing lock-on states.
+- `_tLockOnState`: Keyed by player GUID, tracks targeting/targeted counts for sound-cue bookkeeping.
+- `_tLockOnUpdates`: **Declared (`= {}`) but never read or written anywhere else in this file** — dead
+  field, not an active tracker despite the name suggesting otherwise.
 
 ## Functions
 ### `Init(param)`
@@ -108,11 +111,24 @@ spawn/launch happens through some other, native mechanism this file only reacts 
 candidate.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
-- Listens for proximity events (`Event.ObjectProximity`) to activate and deactivate the anti-air system based on player distance.
+All confirmed by direct grep of this file:
+- `Event.ObjectHibernation` — twice: `OnActivate` waits for it to call `Awake`; `_HomingLockStart` also
+  creates one on the homer object (`"s"` state) to clear the lock if the homer goes to sleep.
+- `Event.ObjectProximity` — `CreateNearnessEvent` (player closer than `nAARange` triggers
+  `ActivateWithEvents`) and `CreateDistanceEvent` (player farther than `nAARange` triggers
+  `DeactivateWithEvents`).
+- `Event.TimerRelative` — `_SetSound` schedules `_CooldownComplete` after `knCueAlertCooldown` (1s).
+- `Event.ObjectDeath` — `_HomingLockStart` watches both the ridden vehicle (`uHomee`) and the
+  homer/owner (`uHomer`) for death, clearing the lock via `_HomingLockClear`.
+- `Event.ObjectInSeat` — `_HomingLockStart` watches the ridden vehicle for the rider exiting (`"d"`,
+  `"x"`), clearing the lock.
+- `Event.Timer` — `_HomingLockUpdate` sets a 1-second one-shot fallback to force-clear a lock if it's
+  "left hanging" (not otherwise updated or cleared).
 
 ## Notes for modders
 - Ensure that `OnActivate` and `OnDeactivate` are called appropriately to manage the lifecycle of the anti-air system.
 - Customize the behavior by modifying `_tPrototype` fields such as `nAARange`, `sTexture`, and `tMarker`.
 - Be aware of the homing lock-on subsystem, which drives targeting tones and visual cues.
-- Network synchronization (`bNetSync`) may affect multiplayer behavior, especially in terms of sound cues and radar blips.
+- `bNetSync` is never referenced directly in `antiair.lua` itself — it's read by `Blippable.AddObjective`/
+  `RemoveObjective` further up the inheritance chain, so network-sync behavior for this module's radar
+  blips is inherited, not something `antiair.lua` sets or checks on its own.
