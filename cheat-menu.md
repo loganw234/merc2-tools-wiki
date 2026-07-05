@@ -11,6 +11,8 @@ developer menu, a quick console-style cheat menu, and a vehicle/prop spawner —
 submenus, all behind a single hotkey, plus a handful of extra features (a working easter-egg dance
 animation, an always-succeed hijack toggle, and some genuinely silly vehicle-physics buttons).
 
+![The root menu in-game — "Cheat Menu:" listing Player, Support & Rewards, Spawner, Fun, Native Dev Menu, and Close this menu, with "Move Selection"/"Confirm" button prompts at the bottom, overlaid on a jungle scene with an armed character in the foreground.](img/mastercheatmenu.png)
+
 ## Install
 
 1. If you don't have `lua-bridge` running yet, start with [Getting Started](getting-started) first.
