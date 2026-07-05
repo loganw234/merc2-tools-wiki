@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud]
+verified: true
+verified_note: function coverage was already accurate and complete; Events section was entirely fabricated (no Event.ObjectHibernation/Awake/HideMarker exist in source) — replaced with the three real MrxGui.SendEvent EventType payloads (E3HudMode, SatelliteStateChange, SatelliteProgressUpdate); added full Instance pattern field list
 ---
 
 # MrxGuiManager
@@ -19,7 +21,17 @@ The `MrxGuiManager` module is responsible for managing the creation, duplication
 - Imports: `MrxGui`, `MrxUtil_Shell`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not follow the per-instance object pattern but manages global state for GUI layouts and player-specific GUI instances.
+Stateless singleton/utility module — plain module-level globals, no `Create`/`OnActivate`/`Awake`/`tInstance`. All state is declared `false` at load time and populated by `Init()`:
+- `_tPlayerGuiList`: keyed by player GUID, each entry a `{oHud, oScope, oSatellite, oPda, nHudState}` table — the actual per-player duplicated layouts. This is the closest thing to "per-instance" state in the file, but it's a plain table keyed by GUID, not a `tInstance`/metatable-based instance.
+- `_oMasterHud` / `_oMasterSatellite` / `_oMasterScope` / `_oMasterPda`: the one-time-loaded master layouts (set by `HudLoaded`/`SatelliteLoaded`/`ScopeLoaded`/`PdaLoaded` via `_SetupMasterLayouts`), each duplicated per player in `CreateGui`. Set back to `false` once all four are loaded and consumed.
+- `_tPendingList`: player GUIDs whose `CreateGui` call arrived before all four master layouts finished loading.
+- `_fLoadingDone` / `_tLoadingDoneData`: a deferred callback + args set by `SetLoadingCompleteCallback` when no GUIs exist yet, fired from `CreateGui`.
+- `_tHudStates`: keyed by player GUID, boolean HUD-visible state (mirrors but is distinct from each player's `nHudState` refcount).
+- `_tPendingHudWidgets`: keyed by player GUID, widgets queued via `AddWidgetToHud`/`RemoveWidgetFromHud` before that player's GUI exists yet.
+- `_bLoadingNow`: guards against re-issuing the four `MrxGui.LoadGuiFile` calls while a load is already in flight.
+- `_bFirstGuiInQueue`: `true` initially; the first `CreateGui` call after all masters load consumes the master layouts directly (via `.AddedWidgetList` reassignment) rather than duplicating them, since nothing else needs the masters once the first real player GUI is built.
+
+`Init()` resets `_tPlayerGuiList`, `_tPendingList`, `_tHudStates`, `_tPendingHudWidgets` to fresh empty tables — no call site for `Init()` found in this file itself (presumably invoked once by an external bootstrap).
 
 ## Functions
 ### `Init()`
@@ -100,12 +112,15 @@ Private function that checks if all required GUI modules have been loaded.
 Private function that removes and deletes all widgets in a given layout.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
-- Listens for custom event `HideMarker` to remove objectives for hidden objects.
+No `Event.*` calls appear anywhere in this file — there is no `OnActivate`/`Awake`/`Event.ObjectHibernation`, and no `HideMarker` event of any kind. All "events" this module deals with are plain Lua tables with an `EventType` string field, dispatched via `MrxGui.SendEvent(tEvent)` — the GUI system's own notification mechanism, unrelated to the engine `Event.*` API. Three real payload shapes appear:
+- `EventType = "E3HudMode"` with `bOn` (boolean) — sent from `CreateGui` when `MrxGui.IsE3HudModeActive()` is true.
+- `EventType = "SatelliteStateChange"` with `uPlayerGuid`, `bActivate`, `bAdvanced`, `bMinigame` — sent from `ToggleSatellite`.
+- `EventType = "SatelliteProgressUpdate"` with `uPlayerGuid`, `nX`, `nY`, `nZ`, `nPercent` — sent from both `ToggleSatellite` (reset to 0%) and `ApplySatelliteUpdateEvent` (the callback registered via `Player.SetPDAMapModeCallback` in `ToggleSatellite`).
 
 ## Notes for modders
 - Ensure that `CreateGui` is called appropriately to create and initialize player GUIs.
-- Use `ToggleHud` to control the visibility of the HUD for players.
-- Customize widget behavior by adding or removing widgets using `AddWidgetToHud` and `RemoveWidgetFromHud`.
-- Manage satellite overlay state with `ToggleSatellite`, setting callbacks and data as needed.
-- Be aware that network synchronization (`bNetSync`) may affect multiplayer behavior.
+- Use `ToggleHud` to control the visibility of the HUD for players — it's refcounted via `nHudState`, so mismatched enable/disable calls will leave the HUD in an unexpected state.
+- Customize widget behavior by adding or removing widgets using `AddWidgetToHud` and `RemoveWidgetFromHud` — both work correctly even before the target player's GUI exists yet, queuing into `_tPendingHudWidgets` and flushing once `CreateGui` runs for that player.
+- Manage satellite overlay state with `ToggleSatellite`, which also drives `Player.SetPDAMapModeCallback` — disabling swaps the callback to the no-op `DoNothing`, it does not clear the callback.
+- The very first player's GUI after all four master layouts finish loading takes over the master layouts' `AddedWidgetList` directly (`_bFirstGuiInQueue`); every subsequent player gets a fresh `MrxGui.DuplicateLayout` copy. This asymmetry is only relevant if you're hooking `CreateGui` itself.
+- `CreateGui` caches several global widget references (`_G.MessageBox`, `_G.Minimap`, `_G.ObjectiveTray`, `_G.SubtitleBuffer`, `_G.MapLabel`) — but only when `uPlayerGuid == Player.GetLocalPlayer()`, so these globals reflect the local player's HUD only.

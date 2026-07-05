@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, loading screen]
+verified: true
+verified_note: confirmed zero Event.* calls (all wiring is widget-level SetEventHandler, 3 confirmed sites); confirmed HandleInit/HandleStateChangeEvent are wired externally from mrxguiloadlayout.lua's LocalWidgetList; all 10 top-level functions covered, no inherit
 ---
 
 # MrxGuiLoadScreen
@@ -56,9 +58,11 @@ Shows the save icon by setting its visibility and starting the animation sequenc
 Hides the save icon by resetting its animation state and hiding it from view.
 
 ## Events
-- Listens for custom event `ShowSaveIcon` to show the save icon.
-- Listens for custom event `HideSaveIcon` to hide the save icon.
-- Listens for `ControllerInput` events to handle player input during the loading screen.
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. All wiring uses widget-level `SetEventHandler` (string keys), three confirmed sites:
+- `"ControllerInput"` → `HandleInput` (registered on the load-screen widget in `HandleInit`) — handles left-analog passthrough to the Flash file and tessellation-toggle bookkeeping via `nAnalogInputHeld`.
+- `"ShowSaveIcon"` → `HandleSaveIconShow` and `"HideSaveIcon"` → `HandleSaveIconHide` (registered on the save-icon container in `InitSaveIcon`).
+
+`HandleInit` and `HandleStateChangeEvent` are not registered by `SetEventHandler` anywhere in this file — they are wired externally via [`mrxguiloadlayout.lua`](mrxguiloadlayout)'s `LocalWidgetList`, which sets the root "Loading Screen" widget's `EventHandlers.GuiInitialization = MrxGuiLoadScreen.HandleInit` and `EventHandlers.LoadStateChange = MrxGuiLoadScreen.HandleStateChangeEvent`.
 
 ## Notes for modders
 - Ensure that the loading screen is properly initialized and activated when needed.

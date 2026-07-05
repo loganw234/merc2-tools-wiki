@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, numeric input]
+verified: true
+verified_note: function coverage was accurate; fixed fabricated Events section (zero Event.* calls exist — real mechanism is oNumericBox:SetEventHandler); found two confirmed bugs — _BuildNumericBox reads an undeclared global uPlayerGuid 16 times instead of a parameter (every child widget gets SetOwner(nil)), and HaltPulse references an undeclared global bImmediate making its "if" branch permanently dead; noted _CompleteAnimation is defined but never called in this file
 ---
 
 # MrxGuiNumericBox
@@ -19,14 +21,16 @@ The `MrxGuiNumericBox` module is responsible for creating and managing a numeric
 - Imports: `MrxGuiBase`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but provides functions to create and manage numeric input boxes for players. The module uses constants to define default styles, colors, and sound cues for the numeric box widget. Key fields include:
+Stateless singleton/utility module — plain module-level constants, no `Create`/`OnActivate`/`Awake`/`tInstance`. Each call to `DisplayNumericBox` builds one widget tree (via `_BuildNumericBox`) whose per-box state lives entirely on the returned widget's own `CustomData` table (`oSelectableList`, `nSelectedIndex`, `nHighlightedIdx`, `oCursor`, `oDigits`, `nMinimumDigit`/`nMaximumDigit`/`nMinimumValue`/`nMaximumValue`, `fAcceptCallback`/`tAcceptCallbackArgs`, `fCancelCallback`/`tCancelCallbackArgs`) — the widget itself is the "instance," this module doesn't track a registry of open boxes. Module-level constants:
 
-- `_ksFontSmall`: Font style for small text.
-- `_ksFont`: Font style for regular text.
-- `_knScale` and `_knScaleBig`: Scaling factors for text size.
-- `_knTextR`, `_knTextG`, `_knTextB`: Default text color (156, 154, 133).
-- `_knTextLitR`, `_knTextLitG`, `_knTextLitB`: Lit text color (210, 210, 190).
-- `_ksAcceptSound`, `_ksCancelSound`, `_ksChangeSound`: Sound cues for accept, cancel, and change actions.
+- `_ksFontSmall` (`"english_18"`) / `_ksFont` (`"english_20"`): fonts for small vs. regular text.
+- `_knScale` / `_knScaleBig`: both `1` — scaling factors for text size (small vs. regular).
+- `_knTextR`, `_knTextG`, `_knTextB`: default (dim) text color (156, 154, 133).
+- `_knTextLitR`, `_knTextLitG`, `_knTextLitB`: lit/highlighted text color (210, 210, 190).
+- `_ksAcceptSound` (`"ui_PDA_Accept"`), `_ksCancelSound` (`"ui_PDA_Cancel"`), `_ksChangeSound` (`"ui_PDA_Scroll"`): sound cues played on accept/cancel/digit-change.
+- `_knCursorHeight` (`70`): height of the selection cursor widget.
+- `_knPulseTime` (`0.5`): duration of one half-cycle of the pulsing background animation (see `Pulse`/`_LoopToHigh`/`_LoopToLow`).
+- `oldIdx`: initialized to `-1`, never read or written anywhere else in this file — appears unused/vestigial.
 
 ## Functions
 
@@ -76,6 +80,8 @@ This function constructs a numeric input box GUI widget. It takes various parame
 
 The function initializes various GUI widgets such as text, images, and buttons to create a user-friendly interface for entering numeric values. It also sets up event handling for interactions like moving the cursor, incrementing/decrementing digits, and accepting/canceling the input.
 
+**Confirmed bug**: `_BuildNumericBox`'s parameter list does not include `uPlayerGuid`, yet its body references `uPlayerGuid` 16 times (`oNumericBox:SetOwner(uPlayerGuid)` and the same call on every text/image child it constructs — message text, prefix, each digit, digit background, cursor, cursor background, up/down callouts, suffix text, postfix message, callouts text, and the accept/cancel option text/boxes). Since `_BuildNumericBox` is a separate top-level function (not a closure nested inside `DisplayNumericBox`), it cannot see `DisplayNumericBox`'s local `uPlayerGuid` parameter — Lua locals don't cross function boundaries that way. Every `uPlayerGuid` reference inside `_BuildNumericBox` is therefore reading an **undeclared global**, which is `nil` unless something else in the loaded environment happens to set a global of that exact name. Net effect: every widget `_BuildNumericBox` creates gets `SetOwner(nil)`. `DisplayNumericBox` does correctly call `oBox:SetOwner(uPlayerGuid)` on the *returned* box afterward (line 38, using its own real local), which fixes the top-level `oNumericBox`'s owner — but none of its ~15 child widgets get a corrective `SetOwner` call anywhere, so they likely retain an incorrect/nil owner unless the engine's widget-ownership model inherits owner from parent automatically (not confirmable from static reading of this file alone).
+
 ### `_BuildStrokes(oWidget, nX1, nY1, nX2, nY2)`
 - **Description**: Constructs and adds four stroke widgets to the given `oWidget` to create a rectangular border.
 - **Parameters**:
@@ -112,6 +118,7 @@ The function initializes various GUI widgets such as text, images, and buttons t
   - `oCursor`: The cursor widget instance.
   - `nX1`, `nY1`, `nX2`, `nY2`: Coordinates defining the destination location for the cursor.
   - `oCurrentDigit`: The currently selected digit.
+- **Note**: no call sites for this function found anywhere in this file — appears to be dead code within `mrxguinumericbox.lua`. A different function of the same name (different signature: `(oCursor, nY1, nY2, oCurrentOption)`) exists in `mrxguidialogbox.lua` and is called from there — that's a separate, unrelated definition, not this one.
 
 ### `_HandleScrollUpdate(oBox, nDeltaTime)`
 - **Description**: Handles scroll updates by highlighting or unselecting items in the numeric box based on user interaction.
@@ -149,6 +156,7 @@ The function initializes various GUI widgets such as text, images, and buttons t
 - **Description**: Stops the pulsing animation for the given widget and sets its translucency to a high value.
 - **Parameters**:
   - `oWidget`: The widget to stop animating.
+- **Confirmed bug**: sets `oWidget.CustomData.bRising = false`, then checks `if bImmediate then ... else ... end`. `bImmediate` is not a parameter of `HaltPulse` (its only parameter is `oWidget`) and is never assigned anywhere in this file — it's an undeclared global, always `nil`/falsy. The `if bImmediate then` branch (which would animate proportionally to current alpha) is therefore permanently dead code; `HaltPulse` always takes the `else` branch (`oWidget:AnimateToPoint(oWidget.CustomData.nPulseHighPoint, 0, true)` — an instant snap to full brightness with no easing), regardless of what the caller might have intended.
 
 ### `_ValidateParameter(Parameter, sType, DefaultValue)`
 - **Description**: Validates that the given parameter is of the specified type; if not, returns a default value.
@@ -159,25 +167,21 @@ The function initializes various GUI widgets such as text, images, and buttons t
 - **Returns**: The validated parameter or the default value.
 
 ## Events
+No `Event.*` calls appear anywhere in this file. Input/interaction handling uses the widget-level `SetEventHandler` API instead, registered once in `_BuildNumericBox`:
+- `oNumericBox:SetEventHandler("OnMouseMove", _HandleScrollUpdate)` — highlights/unselects selectable items as the mouse/highlight cursor moves over them.
+- `oNumericBox:SetEventHandler("ControllerInput", _HandleInputEvent)` — handles D-pad/left-stick up/down (modify digit value), left/right (change selected digit), and two buttons (`BUTTON_PAD2_D`/`BUTTON_PAD2_R`) for accept/cancel.
 
-This module subscribes to and fires several engine events:
-
-- **Subscribes to**:
-  - `Event.Input`: Handles input events for interacting with the numeric box (e.g., button presses).
-  - `Event.TimerRelative`: Used for timing animations and updates within the numeric box.
-  
-- **Fires**:
-  - No specific events are fired by this module.
+This is a different mechanism from the engine `Event.*` system and from the `EventHandlers`/`EventHandlerNames`-table pattern used in layout files (e.g. `mrxguishelllayout.md`) — here the handler is wired imperatively at widget-construction time via a method call on the widget instance itself, not declared in a static table.
 
 ## Notes for modders
 
 1. **Call-order requirements**: Ensure that `DisplayNumericBox` is called before attempting to interact with or close the numeric box. The order of parameters in `DisplayNumericBox` must be strictly followed to ensure proper functionality.
-  
+
 2. **Pitfalls**:
-   - Be cautious with the callback functions (`fAcceptCallback`, `fCancelCallback`). Ensure they are defined and can handle the arguments passed correctly.
+   - Be cautious with the callback functions (`fAcceptCallback`, `fCancelCallback`). Ensure they are defined and can handle the arguments passed correctly — both get the computed numeric value appended to their args table before being called (see `_HandleInputEvent`).
    - Validate all input parameters using `_ValidateParameter` to avoid unexpected behavior or errors.
+   - See the confirmed bugs noted under `_BuildNumericBox` (undeclared global `uPlayerGuid`, affecting widget ownership) and `HaltPulse` (undeclared global `bImmediate`, making one of its two branches permanently unreachable) in the Functions section above.
 
 3. **Tunables**: The module uses several constants for styling and sound effects (e.g., font sizes, colors, sound cues). Modifying these constants will change the appearance and behavior of the numeric box.
 
-4. **Decompiler artifacts**:
-   - There are no known decompiler artifacts in this module that require special attention. All variables and functions appear to be used as intended by the code.
+4. **Decompiler artifacts / dead code**: `_CompleteAnimation` is defined but has no call sites anywhere in this file. `oldIdx` (module-level, initialized to `-1`) is never read or written anywhere else in this file. Both appear to be unused leftovers rather than load-bearing state.

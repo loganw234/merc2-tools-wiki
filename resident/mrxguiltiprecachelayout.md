@@ -1,37 +1,37 @@
 ---
-title: MrxGuilTiprecachelayout
+title: MrxGuiLtiPrecacheLayout
 parent: GUI & HUD
 grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui]
+verified: true
+verified_note: fixed malformed title casing; corrected LocalWidgetList structure/field description; source has zero functions, only a static table
 ---
 
-# MrxGuilTiprecachelayout
+# MrxGuiLtiPrecacheLayout
 
 *Module: mrxguiltiprecachelayout.lua*
 
 ## Overview
-The `MrxGuilTiprecachelayout` module defines a layout for a GUI widget used in the game's interface. This widget is responsible for managing the display and behavior of a specific graphical element, likely related to pre-caching or initializing certain UI components.
+The `mrxguiltiprecachelayout.lua` file defines a static `LocalWidgetList` table describing a single full-screen (0,0)-(640,480) GUI widget named `LTI_precache`, centered both horizontally and vertically, with no children. It is a layout-data file, not a behavior module — it contains no functions of its own. It imports `MrxGuiLTIPrecache` and wires that module's functions in as the widget's event handlers.
 
 ## Inheritance
-- Inherits from: `none — base/utility module`
+- Inherits from: `none — base/utility module` (no `inherit(...)` call in the file)
 - Imports: `MrxGuiLTIPrecache`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not follow the per-instance pattern and instead defines a static layout configuration for a GUI widget.
+Not applicable. This file has no `Create`/`OnActivate`/`Awake`/`tInstance` — it's a single static table (`LocalWidgetList[1]`) built once at load time and never instantiated per-object.
 
 ## Functions
-There are no top-level functions in this module.
+There are no functions defined in this file (top-level `function` or `Name = function`). The two handlers referenced in `LocalWidgetList[1].EventHandlers` — `MrxGuiLTIPrecache.HandleStateChangeEvent` and `MrxGuiLTIPrecache._Initialize` — are looked up from the imported `MrxGuiLTIPrecache` module and are not defined here. (Note: if `import` fails/is unavailable, the file falls back to `MrxGuiLTIPrecache = {}`, an empty table — in that fallback case both `EventHandlers` entries would be `nil`.)
 
 ## Events
-This module does not define any event handlers directly. However, it references two event handlers from the imported `MrxGuiLTIPrecache` module:
-- `HandleStateChangeEvent`
-- `_Initialize`
-
-These handlers are associated with events like `GuiGameStateChange` and `GuiInitialization`.
+No `Event.*` calls appear in this file. The table's `EventHandlers` field maps two GUI-system event names (used by the wider GUI framework that consumes `LocalWidgetList`, not by this file directly) to `MrxGuiLTIPrecache` functions:
+- `GuiGameStateChange` → `MrxGuiLTIPrecache.HandleStateChangeEvent`
+- `GuiInitialization` → `MrxGuiLTIPrecache._Initialize`
 
 ## Notes for modders
-- This module defines a static layout configuration for a GUI widget. Modders should be cautious when modifying this configuration to ensure that the UI behaves as expected.
-- The widget's behavior is managed by event handlers defined in the imported `MrxGuiLTIPrecache` module. Modders should refer to that module for more details on how these events are handled.
-- This module does not have any per-instance state, so there is no need to create or delete instances of it.
+- This is pure layout data (position, anchor, color/translucency levels, event-handler wiring) for one widget — there's no logic to modify here beyond the table fields themselves.
+- Actual behavior lives in `MrxGuiLTIPrecache`, not in this file. To understand what `HandleStateChangeEvent` and `_Initialize` actually do, read `mrxguiltiprecache.lua` (not covered by this page).
+- Widget geometry (`x1,y1,x2,y2` = 0,0,640,480, anchored center/center) suggests this is a full-screen invisible-ish precache widget rather than a rendered HUD element.

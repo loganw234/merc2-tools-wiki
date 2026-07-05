@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, attract]
+verified: true
+verified_note: clarified Events section — GuiGameStateChange/ControllerInput are widget SetEventHandler bindings made in this file's own HandleInit, not Event.* engine constants; rest of page confirmed accurate against source
 ---
 
 # MrxGuiAttractMode
@@ -41,8 +43,13 @@ Opens the attract mode GUI. It checks if the widget is already active, sets it v
 Closes the attract mode GUI. It stops the current movie, hides the widget, removes child widgets, releases control focus, and handles sound state changes.
 
 ## Events
-- Listens for `GuiGameStateChange` to open or close the attract mode based on game state.
-- Listens for `ControllerInput` to handle input events and transition to the shell menu.
+This file has no `Event.*` references (no `Event.Create`, no engine event constants). Both bindings
+below are widget-level `SetEventHandler` calls made directly in this file's own `HandleInit`, not the
+engine `Event.*` system:
+- `oWidget:SetEventHandler("GuiGameStateChange", HandleGameStateChangeEvent)` — opens/closes attract
+  mode when the game state enters/exits `"Attract"`.
+- `oWidget:SetEventHandler("ControllerInput", HandleInput)` — on any controller input while not already
+  closing, requests a transition to the `"Shell"` game state.
 
 ## Notes for modders
 - Ensure that `Init`, `HandleInit`, `_Open`, and `_Close` are called appropriately to manage the lifecycle of the attract mode GUI.

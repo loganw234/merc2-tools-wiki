@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, pda]
+verified: true
+verified_note: spot-checked against source — all top-level functions covered, no inherit, only Event.TimerRelative call confirmed; no changes needed
 ---
 
 # MrxGuiGarage
@@ -65,7 +67,7 @@ Internal callback function triggered when the PDA is closed in the garage screen
 Internal helper function to remove the flash file for the garage screen. Restores the HUD state, removes the flash widget and background image from the UI, and deletes them.
 
 ## Events
-- Listens for `Event.TimerRelative` to call `_RemoveFlashFile` after a delay when ending the garage session.
+- `Event.Create(Event.TimerRelative, {0.1, true}, _RemoveFlashFile, {oFlash})` in `_EndCallback` — schedules `_RemoveFlashFile` 0.1s after the garage session ends. This is the only `Event.*` reference in the file.
 
 ## Notes for modders
 - Ensure that `Create`, `AddItem`, `SetCallback`, and `Commence` are called appropriately to manage the garage screen lifecycle.

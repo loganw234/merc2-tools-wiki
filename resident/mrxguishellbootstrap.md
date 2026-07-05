@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, shell]
+verified: true
+verified_note: fixed fabricated Events section (zero Event.* calls exist — replaced with the real GUI-load-callback pattern); documented module-level fields (nPlayersSelected/bNeedsReloading are set/read externally by mrxguibootstrap.lua/mrxguishell.lua); flagged SetExitSingleplayerCallback's stored callback as having no consumer anywhere in the corpus
 ---
 
 # MrxGuiShellBootstrap
@@ -19,7 +21,12 @@ The `MrxGuiShellBootstrap` module is responsible for managing the loading and di
 - Imports: `MrxGui`, `MrxGuiBase`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but manages global GUI layout loading and widget interactions.
+Stateless singleton/utility module — plain module-level globals, no `Create`/`OnActivate`/`Awake`/`tInstance`. Key fields:
+- `oPrecacheModule` / `oShellModule`: the currently-loaded precache-screen / shell-screen module handles, set by the various `*Loaded` callbacks, cleared by `Reset()`/`ExitShell()`.
+- `nPlayersSelected`: initialized to `1`. Not read or written anywhere in this file — read externally via `MrxGuiShellBootstrap.nPlayersSelected` by `mrxguibootstrap.lua`, and reset to `1` externally by `mrxguishell.lua`.
+- `bNeedsReloading`: initialized to `false`. Not read anywhere in this file — set to `true` externally by `mrxguishell.lua`.
+- `_sSelectedCharacter`: initialized to `false`, set/read via `SetSelectedCharacter`/`GetSelectedCharacter` (the latter returns `nil` instead of `false` when unset).
+- Four callback-slot pairs (`f*CallbackFunction` + `t*CallbackArguments`) for entering/exiting singleplayer/multiplayer, set via the four `Set*Callback` functions. Three of the four have a matching "run it" function (`SetUpSingleplayer`/`SetUpMultiplayer`/`ExitMultiplayer`); see the `SetExitSingleplayerCallback` function entry below for the one that doesn't.
 
 ## Functions
 ### `Init()`
@@ -77,7 +84,7 @@ Returns the currently selected character or nil if none is set.
 Sets the callback function and its arguments for entering the single-player game state.
 
 ### `SetExitSingleplayerCallback(fFunction, tArguments)`
-Sets the callback function and its arguments for exiting the single-player game state.
+Sets `fExitSingleplayerCallbackFunction`/`tExitSingleplayerCallbackArguments`. **Note:** unlike its three siblings (`SetEnterSingleplayerCallback` → `SetUpSingleplayer`, `SetEnterMultiplayerCallback` → `SetUpMultiplayer`, `SetExitMultiplayerCallback` → `ExitMultiplayer`), there is no corresponding "run this callback" function anywhere in this file, and no other file in the decompiled `resident/` corpus reads `fExitSingleplayerCallbackFunction`/`tExitSingleplayerCallbackArguments` either. Whatever this was meant to drive appears unused/vestigial, at least within this corpus.
 
 ### `SetEnterMultiplayerCallback(fFunction, tArguments)`
 Sets the callback function and its arguments for entering the multiplayer game state.
@@ -86,10 +93,11 @@ Sets the callback function and its arguments for entering the multiplayer game s
 Sets the callback function and its arguments for exiting the multiplayer game state.
 
 ## Events
-- Listens for custom events to manage GUI layout loading and widget interactions (e.g., precache screen loaded, shell screen loaded).
+No `Event.*` calls appear anywhere in this file. GUI-load completion is handled by plain callback functions passed as arguments to `MrxGuiBase.LoadGUIFile(sLayoutName, fCallback, ...)` — e.g. `EnterPrecache` passes `PrecacheScreenLoaded`, `EnterShell` passes `ShellScreenLoaded`, `LoadPrecache` passes `ClosePrecacheOnLoad`, `LoadShell` passes `CloseShellOnLoad`, `Init` passes `LoadMovieLayouts`. This is a direct function-reference callback, not the engine `Event` system or `MrxGui.SendEvent`'s `EventType`-table pattern seen in other GUI modules (e.g. `mrxguimanager.lua`).
 
 ## Notes for modders
 - Ensure that `Init` is called during module initialization to load initial GUI layouts.
 - Use `EnterPrecache`, `EnterShell`, and related functions to manage transitions between different game states.
-- Customize callback functions for entering and exiting single-player or multiplayer modes by setting appropriate functions and arguments using the provided setter functions.
+- `EnterPrecache`/`EnterShell` vs `LoadPrecache`/`LoadShell` are two different entry points into the same layouts: the `Enter*` pair makes the screen visible and requests the corresponding game state; the `Load*` pair (`LoadPrecache`/`LoadShell`) loads the layout but immediately hides it and disables its children (`ClosePrecacheOnLoad`/`CloseShellOnLoad`) — apparently a pre-warm/pre-load path distinct from actually entering that screen.
+- Customize callback functions for entering and exiting single-player or multiplayer modes by setting appropriate functions and arguments using the provided setter functions — but note `SetExitSingleplayerCallback`'s stored callback has no known consumer (see its Functions entry above).
 - Be aware of widget visibility and state management when extending or modifying GUI interactions.

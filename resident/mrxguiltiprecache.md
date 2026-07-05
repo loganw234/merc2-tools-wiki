@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, loading screen]
+verified: true
+verified_note: found 3 confirmed bugs — HandleInitializationEvent calls ClosePauseScreen without importing MrxGuiPauseScreen (undefined global); _Initialize assigns oPrecacheScreen.Open = OpenPrecacheScreen, a name never defined anywhere in the resident/ corpus; _HandleCloseEvent and _LTIUpdateTo reference oPrecacheScreen as an unassigned global instead of their actual oFlash parameter. Also corrected the Imports line (MrxGuiBase was omitted) and the Events section.
 ---
 
 # MrxGuiLTIPrecache
@@ -15,15 +17,16 @@ tags: [gui, loading screen]
 The `MrxGuiLTIPrecache` module is responsible for managing the pre-cache loading screen in the game. It handles the initialization, display, and interaction with the pre-cache flash animation, ensuring that the loading process is visually engaging and user-friendly.
 
 ## Inheritance
-- Inherits from: none — base/utility module
-- Imports: `MrxGuiManager`, `MrxGuiDialogBox`
+- Inherits from: none — base/utility module (no `inherit(...)` call in this file)
+- Imports: `MrxGuiBase`, `MrxGuiManager`, `MrxGuiDialogBox` (source lines 1-3; the previous version of this page omitted `MrxGuiBase`)
 
 ## Instance pattern
-This module does not follow the per-instance object pattern. It manages the pre-cache screen as a stateless utility module, tracking the following key fields:
-- `bActive`: Indicates whether the pre-cache screen is currently active.
-- `oFlash`: The flash widget used for displaying the pre-cache animation.
-- `bHaveFlash`: A boolean indicating if the flash widget has been successfully loaded.
-- `tHudStates`: A table to store HUD states.
+This module does not follow the per-instance object pattern (no `OnActivate`/`Awake`/`tInstance`). It manages the pre-cache screen as a stateless utility module, storing state on the widget's own `CustomData` table rather than a module-level registry:
+- `CustomData.bActive`: Indicates whether the pre-cache screen is currently active.
+- `CustomData.oFlash`: The flash widget used for displaying the pre-cache animation.
+- `CustomData.bHaveFlash`: A boolean indicating if the flash widget has been successfully loaded.
+- `CustomData.tHudStates`: A table to store HUD states (initialized empty in `HandleInitializationEvent`; not otherwise populated in this file).
+- `tArgument = nil`: a module-level global declared at the top of the file (line 4). No other read or write of `tArgument` exists anywhere in this file — appears unused/dead.
 
 ## Functions
 ### `OpenPrecache(oPrecacheScreen)`
@@ -38,8 +41,12 @@ Handles state change events for the pre-cache screen. If the state name is "Prec
 ### `HandleInitializationEvent(oWidget, tUnused)`
 Handles initialization events for the pre-cache screen. It sets the screen to fullscreen mode, closes any pause screens, and initializes custom data fields.
 
+**Confirmed bug**: calls `ClosePauseScreen(oWidget)` (line 51) as a bare global. `ClosePauseScreen` is a real function — but it's defined in [`mrxguipausescreen.lua`](mrxguipausescreen) (`function ClosePauseScreen(oPauseMenu)`), and this file does **not** `import("MrxGuiPauseScreen")` (its only imports are `MrxGuiBase`, `MrxGuiManager`, `MrxGuiDialogBox` — see Inheritance). Per this wiki's documented `import()` semantics, a module only gets a global name from another module if it explicitly imports that module. Calling `HandleInitializationEvent` as written would fail with `attempt to call global 'ClosePauseScreen' (a nil value)`, unless something else in the runtime environment happens to expose that name first. This is a strong candidate for a genuine, previously-unconfirmed source bug — same class as the `mrxapcdrop`/`moonpatrol` undefined-callback bugs documented elsewhere on this wiki.
+
 ### `_Initialize(oPrecacheScreen)`
 The main initialization function for the pre-cache screen. It creates a flash widget, sets its properties, adds it as a child of the pre-cache screen, and registers various event handlers. It also opens the pre-cache screen.
+
+**Confirmed bug**: line 69, `oPrecacheScreen.Open = OpenPrecacheScreen`, assigns a function value from the global name `OpenPrecacheScreen`. No function named `OpenPrecacheScreen` is defined anywhere in this file, and a corpus-wide search of `src/resident/` for `function OpenPrecacheScreen` finds zero matches — the name does not exist anywhere in the decompiled tree. The function that actually does the "open" work in this file is named `OpenPrecache` (one word shorter, no `Screen`). As written, `oPrecacheScreen.Open` is assigned `nil`, so any later call to `oPrecacheScreen:Open()` (see `_HandleToggleEvent`) fails with `attempt to call method 'Open' (a nil value)`. This looks like a typo/rename bug: `OpenPrecacheScreen` almost certainly should have been `OpenPrecache`.
 
 ### `_FinishLoad(oPrecacheScreen)`
 Called when the flash file has finished loading. It marks the flash widget as available and calls another function to handle the completion of the pre-cache process.
@@ -48,7 +55,9 @@ Called when the flash file has finished loading. It marks the flash widget as av
 Handles toggle events for the pre-cache screen. If the screen is active, it closes it; otherwise, it opens it.
 
 ### `_HandleCloseEvent(oFlash)`
-Called when the flash widget should be closed. It checks if the pre-cache screen is active and closes it if necessary.
+Called when the flash widget should be closed.
+
+**Confirmed bug**: the function's only parameter is `oFlash`, but its body (lines 99-101) reads and calls methods on `oPrecacheScreen` — a name that is never assigned anywhere in this file (checked: no `oPrecacheScreen =` assignment at module scope, and it isn't a parameter here). It is not the same thing as the `oPrecacheScreen` parameter names used in `OpenPrecache`, `ClosePrecacheScreen`, and `_Initialize` — those are local to their own function bodies and out of scope here. As written, `oPrecacheScreen` inside `_HandleCloseEvent` is an undeclared global and evaluates to `nil` at runtime (unless some unrelated code elsewhere happens to have set a global of that exact name, which nothing in this file does), so `oPrecacheScreen.CustomData.bActive` would error with `attempt to index a nil value (global 'oPrecacheScreen')`. This looks like it should reference `oFlash.CustomData.oParent` (set in `_Initialize`, line 66) instead.
 
 ### `_HandleInput(oPrecacheMenu, tInput)`
 Handles input events for the pre-cache menu. It passes the input to the flash widget's event handlers.
@@ -71,11 +80,17 @@ A secondary function called after `_LTIPrecacheSmokeDone`. It also triggers a fu
 ### `_LTIUpdateTo(oFlash, iNumber)`
 Updates the pre-cache screen to a specific state by calling an action script callback on the flash widget.
 
+**Confirmed bug**: same pattern as `_HandleCloseEvent`. The function's parameters are `oFlash, iNumber`, but line 141 calls `oPrecacheScreen.CustomData.oFlash:CallActionScriptCallback("updateTo", {iNumber})` — referencing the same undeclared-global `oPrecacheScreen`, never assigned anywhere in this file, instead of the `oFlash` parameter it actually received. This would error with `attempt to index a nil value (global 'oPrecacheScreen')` if called as written.
+
 ## Events
-- Listens for custom events related to the pre-cache process and handles them accordingly.
-- Triggers functions in the `LTILibName` module when specific stages of the pre-cache are completed.
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. Wiring is a mix of widget-level Flash callbacks and direct calls:
+- `oFlash:SetFlashEventHandler("precacheDone", _LTIPrecacheDone, {})` (in `_Initialize`) — fired by the Scaleform/Flash side when precaching completes; calls `LTILibName.LTIPrecacheDone()` (an external module not covered by this page).
+- `oPrecacheScreen:SetEventHandler("ControllerInput", _HandleInput)` (in `_Initialize`) — passes controller input through to the Flash widget's own `ControllerInput` handler.
+- `HandleStateChangeEvent(oWidget, sStateName, sStateAction)` and `HandleInitializationEvent(oWidget, tUnused)` are defined with `Handle*Event` names but have **no `SetEventHandler` call site anywhere in this file** — by convention they're presumably wired externally from a layout file, same pattern seen in other `mrxgui*` HUD modules on this wiki. No call site found in the decompiled `resident/` corpus.
+- `_LTIPrecacheDone`, `_LTIPrecacheDone2`, `_LTIPrecacheSmokeDone`, `_LTIPrecacheSmokeDone2` all call into an external `LTILibName` module (not imported in this file, and not one of the modules covered by this wiki page set) — its own function definitions were not verified as part of this pass.
 
 ## Notes for modders
+- **Three confirmed bugs in this file** (see Functions above for detail): `HandleInitializationEvent` calls `ClosePauseScreen` without this file importing `MrxGuiPauseScreen` (the only module that defines it); `_Initialize` assigns `oPrecacheScreen.Open` from `OpenPrecacheScreen`, a name that doesn't exist anywhere in the decompiled `resident/` tree (probably meant `OpenPrecache`); and both `_HandleCloseEvent` and `_LTIUpdateTo` reference an undeclared global `oPrecacheScreen` instead of their actual `oFlash` parameter. Any of these code paths would throw a runtime error if exercised as written — worth confirming with live testing if pursuing this as a fix target.
 - Ensure that the pre-cache screen is properly initialized and closed to avoid resource leaks or display issues.
 - Customize the pre-cache animation by modifying the flash widget's properties or replacing the SWF file.
 - Be aware of the dependencies on `MrxGuiBase`, `MrxGuiManager`, and `MrxGuiDialogBox` when extending or modifying this module.

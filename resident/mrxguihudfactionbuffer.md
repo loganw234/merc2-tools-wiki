@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud]
+verified: true
+verified_note: confirmed zero Event.* calls (GuiUpdate is a widget EventHandlers key); flagged StartTimer/StartPursuit referencing an undeclared bInitialize (always nil, likely copy-paste leftover from SetValue)
 ---
 
 # MrxGuiHudFactionBuffer
@@ -40,10 +42,10 @@ Sets whether the specified faction is inside their zone. This function is curren
 Updates the value of the gauge for the specified faction. Handles animations and slot management to ensure smooth transitions between different states.
 
 ### `StartTimer(oWidget, sFactionName, nTime, fFunction, tCallbackData)`
-Starts a timer for the specified faction's gauge. This function is used to manage timed events associated with the faction gauge.
+Starts a timer for the specified faction's gauge. This function is used to manage timed events associated with the faction gauge. **Likely bug**: reads a bare `bInitialize` (line 119) to decide `nLifeTime` (0 vs 0.25), but `bInitialize` is not a parameter of this function, not declared `local` anywhere in scope, and never set as a module-level global in this file — it is always `nil`/falsy here, so the `if bInitialize then nLifeTime = 0 end` branch never fires in practice. `SetValue` (above) has a real `bInitialize` parameter used the same way; this looks like leftover copy-pasted code rather than an intentional design.
 
 ### `StartPursuit(oWidget, sFactionName, nTime, fFunction, tCallbackData)`
-Starts a pursuit event for the specified faction's gauge. Similar to `StartTimer`, but specifically for pursuit-related actions.
+Starts a pursuit event for the specified faction's gauge. Similar to `StartTimer`, but specifically for pursuit-related actions. Has the same bare/undeclared `bInitialize` reference (line 150) as `StartTimer`, with the same effect — always falsy, so `nLifeTime` is always `0.25`.
 
 ### `HideGauge(oWidget, sFactionName)`
 Hides the gauge for the specified faction by animating it out and clearing its slot occupation.
@@ -64,8 +66,7 @@ Finds an available slot for the specified faction gauge. Returns the slot index 
 Checks if all slots are empty. Returns `true` if no gauges are present, otherwise returns `false`.
 
 ## Events
-- Listens for per-frame updates via `GuiUpdate` to call `_Update`.
-- Manages custom events related to faction gauge lifecycle and state changes.
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. `Initialize(oWidget)` registers `_Update` as the widget's `"GuiUpdate"` handler (a widget-level `EventHandlers` key, not an `Event.*` constant) for per-frame slot-lifetime bookkeeping and Objective Tray visibility restoration. All other lifecycle (`AddFactionGauge`, `SetValue`, `StartTimer`, `StartPursuit`, `HideGauge`) is driven by direct function calls from other modules, not engine events.
 
 ## Notes for modders
 - Ensure that the widget passed to `Initialize` is properly set up with a template gauge.

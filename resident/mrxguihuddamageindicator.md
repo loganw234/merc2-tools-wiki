@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud]
+verified: true
+verified_note: confirmed zero Event.* calls in file (widget EventHandlers keys only); corrected Events section — HandleE3HudModeEvent has no call site in this file, GuiPlayerReceiveDamage is toggled but never initially bound here
 ---
 
 # MrxGuiHudDamageIndicator
@@ -38,8 +40,10 @@ Removes the damage indicator widget from the HUD and deletes it.
 Toggles the event handler for the "GuiPlayerReceiveDamage" event based on whether the E3 hud mode is active. Disables the handler when E3 mode is on to prevent damage indicators from showing during that mode.
 
 ## Events
-- Listens for `GuiPlayerReceiveDamage` to create and update damage indicator widgets.
-- Listens for custom event `E3HudModeEvent` to toggle the damage indicator display based on E3 hud mode.
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. All triggering is via widget-level `EventHandlers`/`SetEventHandler` keys (strings), not `Event.*` constants:
+- `HandleReceiveDamageEvent` is set as the `"GuiPlayerReceiveDamage"` handler on a widget — but only from inside `HandleE3HudModeEvent` (toggled on/off depending on `tEvent.bOn`); this file never establishes the *initial* binding, so something outside this file (a layout file) must set it first, or `HandleE3HudModeEvent` must run once with `bOn == false` before damage indicators can appear.
+- The new per-hit indicator widget created in `HandleReceiveDamageEvent` is given its own `"GuiUpdate"` handler, `HandleUpdateEvent`, to animate/fade it out frame-by-frame.
+- `HandleE3HudModeEvent` itself has no call site within this file — nothing here calls it or registers it as a handler for any key. It's invoked externally (by naming convention, likely wired to an `"E3HudModeEvent"`-style key in a layout file not covered by this module) — no call site found in the decompiled `resident/` corpus search performed for this page.
 
 ## Notes for modders
 - Ensure that the reticle widget is correctly named `"reticle"` in your HUD layout to allow proper positioning of damage indicators.

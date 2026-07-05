@@ -10,6 +10,8 @@ nav_order: 1
 inherits: none
 
 tags: [gui, hud]
+verified: true
+verified_note: verified stray-fence bug still clean (already fixed in earlier pass); confirmed all 21 top-level functions covered; corrected Events section — only 2 confirmed SetEventHandler call sites (GuiUpdate, ShowAllCounters), other named "events" (HealthChangedEventNew, ShowHealthEvent, E3HudModeEvent) have no SetEventHandler call site in this file and were unconfirmed guesses from function names
 
 ---
 
@@ -295,19 +297,12 @@ This function draws a debug rectangle on a target widget. It creates a text comm
 
 ## Events
 
-This module subscribes to and responds to several engine events:
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. There are exactly two confirmed `SetEventHandler` call sites, both inside `HandleInitializationMain`:
 
+- **`"GuiUpdate"`** → `HandleUpdateMain` — per-frame countdown that hides the health counter after it's been fully visible for `_knShowTime` seconds.
+- **`"ShowAllCounters"`** → `HandleShowHealthEvent` — re-shows the counter (if hidden) and resets its remaining visible time, using `tEvent.nTime` from the event payload if present.
 
-
-- **`GuiUpdate`**: Triggered by the GUI update loop, this event calls `HandleUpdateMain` to manage the countdown for hiding the health counter after it becomes fully visible.
-
-- **`ShowAllCounters`**: This event is handled by `HandleInitializationMain`, which initializes various animation points and custom data for the widget.
-
-- **`HealthChangedEventNew`**: Triggered when the health of a widget changes, this event calls `HandleHealthChangedEventNew` to update the health counter text and handle color transitions based on health changes.
-
-- **`ShowHealthEvent`**: This event is handled by `HandleShowHealthEvent`, which shows the health counter if it is hidden and sets its remaining time based on an event.
-
-- **`E3HudModeEvent`**: Triggered when the E3 HUD mode is toggled, this event calls `HandleE3HudModeEvent` to adjust the visibility of the widget accordingly.
+The remaining `Handle*Event*`-named functions (`HandleHealthChangedEventNew`, `HandleHealthChangedEventMain`, `HandleHealthChangedEvent`, `HandleVehicleEvent`, `HandleIconUpdateHuman`, `HandleIconUpdateVehicle`, `HandleE3HudModeEvent`, etc.) have **no `SetEventHandler` call site anywhere in this file** — they follow the `Handle*` naming convention used elsewhere in the GUI code, but this file never wires them to a widget event key itself. They're presumably registered externally (in a layout file, similar to `mrxguihudactionhijack.lua`'s `_HandleInitialization`), or invoked directly by other modules by name — no call site found in the decompiled `resident/` corpus search performed for this page. Treat their names as suggestive, not confirmed subscriptions.
 
 
 

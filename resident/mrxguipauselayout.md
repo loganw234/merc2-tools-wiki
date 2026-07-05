@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, pause]
+verified: true
+verified_note: named the four real EventHandlers entries (Events section was vague); flagged AddedWidgetList as never initialized in this file (relies on external MrxGuiBase-style setup)
 ---
 
 # MrxGuiPauseLayout
@@ -12,23 +14,29 @@ tags: [gui, pause]
 *Module: mrxguipauselayout.lua*
 
 ## Overview
-The `MrxGuiPauseLayout` module is responsible for managing the layout and behavior of the pause screen in the game. It defines a widget list that includes properties such as position, color, visibility, and event handlers. The module also provides functionality to reinitialize the pause screen by removing existing widgets and adding new ones based on the defined layout.
+The `mrxguipauselayout.lua` file is a layout-data file (like `mrxguiltiprecachelayout.lua`) defining a single full-screen `"Pause Layout"` widget in `LocalWidgetList[1]`, plus one function, `ReInit()`, that swaps the currently-added widgets for the ones described by that layout. It imports `MrxGuiPauseScreen` (for the widget's event handlers) and `MrxGuiBase` (for the widget add/remove API used by `ReInit`).
 
 ## Inheritance
-- Inherits from: `none` (base/utility module)
+- Inherits from: `none` (base/utility module; no `inherit(...)` call)
 - Imports: `MrxGuiPauseScreen`, `MrxGuiBase`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but manages global widget configurations and interactions.
+Not applicable. No `Create`/`OnActivate`/`Awake`/`tInstance` — a static layout table plus one free function operating on module-level globals (`LocalWidgetList`, `AddedWidgetList`).
 
 ## Functions
 ### `ReInit()`
-Reinitializes the pause screen by removing existing widgets and adding new ones based on the defined layout in `LocalWidgetList`. This function ensures that the pause screen is correctly set up with all necessary widgets and event handlers.
+Rebuilds the pause screen's active widget set from `LocalWidgetList`. For every entry currently in `AddedWidgetList`, calls `MrxGuiBase.RemoveWidget(...)` on it, resets `AddedWidgetList` to `{}`, then for every entry in `LocalWidgetList` calls `MrxGuiBase.LoadAndAddWidgetFromLayoutFileData(LocalWidgetList[i], AddedWidgetList)` to (re)add it.
+
+Note: `AddedWidgetList` is never declared/initialized anywhere in this file before `ReInit`'s first `pairs(AddedWidgetList)` call — `pairs(nil)` would raise a Lua error. No call sites for `ReInit` were found in this file itself, so whatever caller (likely `MrxGuiBase`'s widget-loading machinery, which sets `ModuleName.AddedWidgetList = {}` on modules it manages) must guarantee `AddedWidgetList` already exists as a table by the time `ReInit` runs. Not confirmable from this file alone.
 
 ## Events
-- Listens for custom events to handle state changes, initialization, toggle events, and imposter shell events through the imported `MrxGuiPauseScreen` module.
+No `Event.*` calls appear in this file. `LocalWidgetList[1].EventHandlers` wires four GUI-system event names to `MrxGuiPauseScreen` functions:
+- `GuiGameStateChange` → `MrxGuiPauseScreen.HandleStateChangeEvent`
+- `GuiInitialization` → `MrxGuiPauseScreen._Initialize`
+- `TogglePAUSE` → `MrxGuiPauseScreen._HandleToggleEvent`
+- `ImposterShellEvent` → `MrxGuiPauseScreen.HandleImposterEvent`
 
 ## Notes for modders
-- Ensure that `ReInit()` is called appropriately to refresh the pause screen layout.
-- Customize widget properties by modifying the `LocalWidgetList` configuration.
-- Be aware of event handlers defined in `MrxGuiPauseScreen` and ensure they are correctly implemented for custom behavior.
+- Actual pause-screen behavior lives in `MrxGuiPauseScreen`, not here — this file only supplies layout/position data and the handler-name wiring.
+- `ReInit()` is a full widget teardown/rebuild — calling it discards whatever's currently in `AddedWidgetList` and reloads fresh from `LocalWidgetList`, so any per-widget runtime state set outside this layout is lost.
+- Widget geometry (0,0)-(640,480), anchored center/center, mirrors the pattern used by `mrxguiltiprecachelayout.lua` for a full-screen widget.

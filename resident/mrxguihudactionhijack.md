@@ -10,6 +10,8 @@ nav_order: 1
 inherits: none
 
 tags: [gui, hud]
+verified: true
+verified_note: verified stray-fence bug already clean (per earlier pass); replaced fabricated Events section (Event.OnActivate/OnDeactivate/OnUse do not exist in source — file has zero Event.* calls) and corrected Notes for modders (OnActivate/Awake call-order text did not apply to this stateless module)
 
 ---
 
@@ -167,42 +169,17 @@ The module manages the display and behavior of action hijack HUD elements, inclu
 
   - `oWidget`: The GUI widget to initialize.
 
-
-
-This part of the module does not define any top-level functions. It only contains module-level state definitions as described above.
-
-
-
 ## Events
 
-(list engine events this module subscribes to/fires, and what triggers it)
-
-
-
-- **Event.OnActivate(uGuid, uRuntimeOwner, iArg)**: This event is triggered when the world object instance is spawned/activated. The module responds by calling `Awake` to initialize the per-instance table.
-
-- **Event.OnDeactivate(uGuid)**: This event is triggered when the instance is being torn down (despawned/unloaded). The module handles cleanup and deletion of the per-instance table.
-
-- **Event.OnUse(uGuid, ...)**: This event is triggered when the player interacts with/uses the object. The module may respond to this event to handle specific actions related to the action hijack display.
-
-
+This file contains zero `Event.*` / `Event.Create(...)` references — grepped and confirmed. It is driven entirely by direct function calls (`ShowButton`, `HideButton`, `ShowFail`, etc.) made by other modules against the "Action Hijack" widget looked up via `MrxGui.GetWidgetByNameAndOwner("Action Hijack", uGuid)`. The only GUI-framework hook in the file is `_HandleInitialization(oWidget)`, which by naming convention is wired as a widget `EventHandlers.GuiInitialization` callback in whatever layout file defines the "Action Hijack" widget (not in this file) — this is a widget-level event handler key, not an `Event.*` engine constant.
 
 ## Notes for modders
 
 (call-order requirements, pitfalls, tunables, decompiler artifacts)
 
-
-
-- **Call Order**: Ensure that `OnActivate` and `OnDeactivate` are called in the correct order to properly initialize and clean up the per-instance table. The `Awake` function should be called after `OnActivate` to set up the GUI elements.
-
-  
-
-- **Pitfalls**: Be cautious when modifying or extending this module, as changes to the button mappings or sprite texture names may affect the visual and functional behavior of the action hijack display.
-
-
-
+- **No per-instance lifecycle**: this is a stateless utility module — there is no `OnActivate`/`Awake`/`OnDeactivate` in this file, and no `tInstance` registry. All state lives in `CustomData` on the "Action Hijack" widget itself (per-player, since widgets are looked up by owner GUID), set up once by `_HandleInitialization` when the widget initializes.
+- **Call order**: `_HandleInitialization` must run (via the widget's `GuiInitialization` handler) before `ShowButton`/`HideButton`/`ShowFail`/etc. are called, since those functions read `oActionHijackDisplay.CustomData.oButton/oTimer/oFail/oSparkL/oSparkR` which `_HandleInitialization` creates.
+- **Pitfalls**: `ShowButton` returns silently (no-op) if `_ControllerSpriteTextureMapping[nButton]`, `_ControllerSpriteData[nButton]`, `_ControllerXboxSpriteTextureMapping[nButton]`, or `_ControllerXboxSpriteData[nButton]` is missing for the given `nButton` — only the button IDs explicitly populated in the four mapping tables (D-pad, stick directions, melee, reload) are supported; passing an unmapped `Joystick.BUTTON_*` constant silently fails and logs `"No data for given action hijack buttons"` via `Debug.Printf`.
 - **Tunables**: The sound cues (`_ksPressSound`, `_ksErrorSound`, `_ksMashSound`, `_ksRecoverSound`) can be modified to change the audio feedback for different actions. Similarly, the `nTime` and `nRepeatTime` parameters in `ShowButton` can be adjusted to control the duration of the countdown timer and repeating animations.
-
-
-
-- **Decompiler Artifacts**: The module may contain unused locals or duplicate table keys as artifacts of the decompilation process. These should not affect the functionality of the module but should be noted for clarity.
+- **Deprecated stubs**: `SetDisplayButton()` and `SetDisplayMashAnimation()` are empty except for a `Debug.Printf("Deprecated.")` call — calling them does nothing.
+- **Decompiler Artifacts**: The module may contain unused locals or duplicate table keys as artifacts of the decompilation process (e.g. `Joystick = MrxGui.Joystick` immediately overwritten by a literal `Joystick = {...}` table two lines later). These should not affect functionality but are noted for clarity.

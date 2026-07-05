@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, support]
+verified: true
+verified_note: function coverage was already accurate and complete; Events section was fabricated boilerplate (same invented Event.ObjectHibernation/Awake/HideMarker text found on mrxguimanager.md — zero Event.* calls exist here either) — replaced with the real SetFlashEventHandler ActionScript bridge; found confirmed bug — _RunShop calls MrxGuiManager.GetHudState() with no uPlayerGuid argument, always nil, so the shop never hides the HUD or sets bRestoreHud, making the later bRestoreHud check in _RemoveFlashFile permanently dead too
 ---
 
 # MrxGuiSupportShop
@@ -19,7 +21,9 @@ The `MrxGuiSupportShop` module is responsible for managing the in-game support s
 - Imports: `MrxGui`, `MrxGuiBase`, `MrxPmc`, `MrxSupportData`, `MrxGuiDialogBox`, `MrxGuiManager`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but maintains a list of active shops (`_tShopList`) keyed by player GUID.
+Stateless singleton/utility module — plain module-level globals, no `Create`/`OnActivate`/`Awake`/`tInstance` (despite this module's own factory function being named `Create`, it's not the engine's per-`uGuid` instance pattern — see below). It maintains one active shop widget per player, keyed by player GUID, in `_tShopList` (`false` until `Init()` runs). `sFlashFile` (`"store"`) names the SWF asset to load; if this were `nil`/`false`, the module falls back to a plain dialog box (`_CreateShopDialogBox`) instead of the Flash UI everywhere `_RunShop`/`Create` branch on it — though as declared it's always the string `"store"`, so no call path in this file can actually reach the dialog-box fallback branches without external code changing `sFlashFile` first.
+
+Per-shop state lives on each Flash widget's own `CustomData` table (`tItems`, `bLoaded`, `bRunning`, `fCallback`/`tCallbackData`, `fCloseCallback`/`tCloseCallbackData`, `bRestoreHud`, `oBg`, `nCancelIndex` in dialog-fallback mode) — `Create(uPlayerGuid)` builds one such widget and stashes it in `_tShopList[uPlayerGuid]`, attaching several functions (`_AddItemWidget`, `_AddItemFullWidget`, `_SetCallbackWidget`, `_SetCloseCallbackWidget`, `_CommenceWidget`) directly onto the widget instance as methods (`oFlash.AddItem = _AddItemWidget`, etc.) — a lightweight per-widget method-attachment pattern, not `setmetatable`/`__index`-based inheritance.
 
 ## Functions
 ### `Init()`
@@ -66,7 +70,9 @@ Closes the support shop interface for a specific player. Cleans up resources and
 Handles the event when the Flash file is loaded. Pauses the widget and runs the shop if it was previously running.
 
 ### `_RunShop(oFlashWidget)`
-Runs the support shop interface, either in Flash or as a dialog box, depending on the availability of the Flash file.
+Runs the support shop interface, either in Flash or as a dialog box, depending on the availability of the Flash file (in practice always the Flash branch, since `sFlashFile` is a hardcoded non-nil string — see Instance pattern). On the Flash path: calls `_SetupShopFlash`, shows/plays the widget, grabs control focus, then conditionally hides the HUD.
+
+**Confirmed bug**: line 210 calls `MrxGuiManager.GetHudState()` with **no argument**. `MrxGuiManager.GetHudState`'s real signature is `GetHudState(uPlayerGuid)` (returns `_tHudStates[uPlayerGuid]`) — called with no argument, `uPlayerGuid` is `nil` inside that function, so it returns `_tHudStates[nil]`, which is always `nil`. The `if MrxGuiManager.GetHudState() then` branch here therefore never executes: `MrxGuiManager.ToggleHud(oFlashWidget:GetOwner(), false)` never runs when the shop opens, and `oFlashWidget.CustomData.bRestoreHud` never gets set to `true`. This also makes the `if oFlash.CustomData.bRestoreHud then MrxGuiManager.ToggleHud(oFlash:GetOwner(), true)` check in `_RemoveFlashFile` permanently dead as a consequence — the shop was presumably intended to hide the HUD while open and restore it on close, but as written it never hides the HUD in the first place.
 
 ### `_CreateShopDialogBox(oFlash)`
 Creates a fallback dialog box for the support shop if the Flash file is unavailable. Color-codes items by affordability and displays them to the player.
@@ -75,10 +81,10 @@ Creates a fallback dialog box for the support shop if the Flash file is unavaila
 Handles the event when an item is selected in the dialog box. Calls the callback function if an item is bought and cleans up resources.
 
 ### `_SetupShopFlash(oFlash)`
-Sets up the Flash widget with shop items, stockpile information, and equipped support items. Registers event handlers for buying items, equipping support, and closing the store.
+Sets up the Flash widget with shop items, stockpile information, and equipped support items via `oFlash:CallActionScriptCallback(...)` (`"AddStockpile"`, `"AddShopItem"` per item, `"AddSupportEquipped"` per equipped slot). Pulls currently-equipped support from the player's PDA widget (`MrxGui.GetWidgetByNameAndOwner("PDA", ...)`, up to 3 slots via `oPda:GetEquippedSupport(n)`) and appends those as extra entries in `oFlash.CustomData.tItems` before building the item list — so items added via `AddItem`/`AddItemFull` plus the player's already-equipped support share the same `tItems` array/index space. For each item, resolves designator display text (`smoke`/`satellite`/`advanced satellite`/`beacon`/`laser`/`flare` → localized strings) by looking up `MrxSupportData.tSupportData[tData.sId].oSupport:GetDesignator()`. Registers the three Flash-bridge event handlers (see Events below), builds a fullscreen dark background widget (`oBg`, alpha 192/255), and re-adds `oFlash` after `oBg` so the background renders behind it.
 
 ### `_FlashSupportBoughtCallback(oFlash, sArg)`
-Handles the event when an item is bought in the Flash interface. Parses the buy event and calls the appropriate callback function.
+Registered as the handler for the `"BuyStockpile"` Flash event (the function name says "Bought", the event name says "BuyStockpile" — same handler, just named differently from its event string). Parses `sArg` for two numbers via `string.gmatch(sArg, "-*%d+")` (item index, quantity), looks up `oFlash.CustomData.tItems[t[1]]`, and if found calls `oFlash.CustomData.fCallback` with the stored `tCallbackData` plus the item's `sId` and the quantity appended.
 
 ### `_FlashSupportEquippedCallback(oFlash, sData)`
 Handles the event when a support item is equipped in the Flash interface. Updates the PDA with the new equipment.
@@ -93,11 +99,16 @@ Handles the event when the support shop is closed in the Flash interface. Cleans
 Removes the Flash file and associated background widget from the GUI. Restores the HUD if it was previously hidden.
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation.
-- Listens for custom event `HideMarker` to remove objectives for hidden objects.
+No `Event.*` calls appear anywhere in this file — there is no `Event.ObjectHibernation`, no `Awake`, no `HideMarker` event of any kind. The real mechanism is the Flash/ActionScript bridge: `oFlash:SetFlashEventHandler(sFlashEventName, fCallback, tArgs)`, registered in `_SetupShopFlash` for three named Flash events:
+- `"BuyStockpile"` → `_FlashSupportBoughtCallback` — fired from the SWF when the player buys an item.
+- `"equip"` → `_FlashSupportEquippedCallback` — fired when the player equips a support item to a slot; calls `oPda:SetEquippedSupport(sName, nSlot)`.
+- `"closeStore"` → `_FlashCloseShopCallback` — fired when the player closes the shop UI; also called directly (not through the Flash bridge) by `Close(uPlayerGuid)`.
+
+Separately, `_SetupShopFlash` *sends* data into the Flash widget (not an event, a one-way call) via `oFlash:CallActionScriptCallback(sName, tArgs)`: `"AddStockpile"`, `"AddShopItem"`, `"AddSupportEquipped"`, and `_FlashCloseShopCallback` sends `"requestClose"` the same way.
 
 ## Notes for modders
-- Ensure that `Create`, `AddItem`, and `Commence` are called appropriately to manage the shop lifecycle.
-- Customize shop items by adding them with `AddItem` or `AddItemFull`.
-- Set callbacks using `SetCallback` and `SetCloseCallback` to handle item purchases and store closures.
-- Be aware that the Flash-based interface may require specific ActionScript callbacks to function correctly.
+- Ensure that `Create`, `AddItem`/`AddItemFull`, `SetCallback`/`SetCloseCallback`, and `Commence` are called in that order to manage the shop lifecycle — items and callbacks must be registered before `Commence` runs, since `_RunShop`/`_SetupShopFlash` snapshot `CustomData.tItems` at that point.
+- Customize shop items by adding them with `AddItem` (name/cost/stock only) or `AddItemFull` (adds description, texture, "new" flag) — both append into the same `oFlash.CustomData.tItems` list.
+- Set callbacks using `SetCallback` and `SetCloseCallback` to handle item purchases and store closures. `fCallback` receives `(...tCallbackData, sId, nQuantity)` on a Flash-mode purchase, or `(...tCallbackData, sName, 1)` on a dialog-fallback purchase — the two paths pass different final arguments (item `sId` vs. `sName`, and a parsed quantity vs. a hardcoded `1`), so a callback meant to handle both modes needs to account for that.
+- Be aware that the Flash-based interface requires the three ActionScript callbacks (`AddStockpile`, `AddShopItem`, `AddSupportEquipped`) and the SWF must fire back `BuyStockpile`/`equip`/`closeStore` for the loop to work.
+- The intended "hide HUD while shopping" behavior does not currently work — see the confirmed bug under `_RunShop` in the Functions section above (missing `uPlayerGuid` argument to `MrxGuiManager.GetHudState()`).

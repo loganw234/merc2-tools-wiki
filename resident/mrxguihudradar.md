@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, radar]
+verified: true
+verified_note: confirmed zero Event.* calls (all wiring is widget-level SetEventHandler); corrected Events section to list all 4 confirmed handler-key registrations and flag trespass/icon functions with no SetEventHandler call site in this file; flagged dead-code bAnimation param in ShowMapLabel (line 160 overwrites it to false before use)
 ---
 
 # MrxGuiHudRadar
@@ -52,6 +54,8 @@ Handles clearing GPS destinations by deleting the GPS beacon marker from the min
 ### `ShowMapLabel(oWidget, sString, nDisplayTime, bAnimation)`
 Displays a map label on the widget. It handles animations and ensures that the label is visible for the specified duration.
 
+**Confirmed dead code**: line 160, `bAnimation = false`, unconditionally overwrites the `bAnimation` parameter immediately on entry, before the `if bAnimation then ... else ... end` branch below it. The `then` branch (lines 161-166, which would show blank text and reveal the widget once its flash sub-widget finishes loading) can never execute regardless of what the caller passes — only the `else` branch (the fade-out/fade-in/timer path) ever runs.
+
 ### `_HandleTransition(oWidget, sString, nDisplayTime)`
 Handles the transition of the map label by setting its visibility and starting the animation.
 
@@ -80,8 +84,14 @@ Handles trespass icon events by showing or hiding the icon based on the faction 
 Initializes the module by setting up a table of faction icons used for displaying different factions on the minimap.
 
 ## Events
-- Listens for custom events `SetTargetMarker`, `SetGPSDest`, and `ClearGPSDest` to update target markers, GPS destinations, and clear GPS destinations respectively.
-- Handles trespass events to update the map label and icon accordingly.
+No `Event.*`/`Event.Create(...)` engine-event references appear in this file — confirmed by grep. All wiring uses widget-level `SetEventHandler` (string keys), registered in `_Initialize(oMinimap)`:
+- `"SetTargetMarker"` → `HandleSetTargetMarker` — adds/removes a target-marker objective on the minimap.
+- `"SetGPSDest"` → `HandleSetGPSDest` — adds a GPS beacon objective.
+- `"ClearGPSDest"` → `HandleClearGPSDest` — removes the GPS beacon objective.
+
+`ShowMapLabel` additionally sets `"GuiUpdate"` → `_HandleMapLabelUpdateEvent` dynamically (as the completion callback of an `AnimateToPoint` fade-in), and clears it (`SetEventHandler("GuiUpdate", nil)`) when the label starts fading out or updates.
+
+`_HandleMapLabelTrespassEvent`, `_HandleTrespassIconInit`, and `_HandleTrespassIconEvent` are defined in this file but have **no `SetEventHandler` call site anywhere in it** — by naming convention they're presumably wired externally (layout file) similarly to other `Handle*Event`/`*Init` pairs seen elsewhere in this wiki (e.g. `mrxguicinematiclayout.md`'s `GuiInitialization` keys); no call site found in the decompiled `resident/` corpus for this page.
 
 ## Notes for modders
 - Ensure that the minimap is properly initialized by calling `_Initialize` before using its functions.

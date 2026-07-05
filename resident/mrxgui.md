@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [gui, hud]
+verified: true
+verified_note: corrected Events section (UpdateLoadingHint is a widget SetEventHandler binding, not an Event.* constant; file has exactly one real Event.* call); flagged dead _oTimerEvent guard in GlobalFadeFromBlack
 ---
 
 # MrxGui
@@ -36,6 +38,11 @@ Initiates a global fade to black effect. If multiple fades are requested simulta
 
 ### `GlobalFadeFromBlack()`
 Completes the global fade from black effect by cleaning up resources and resetting internal state.
+
+**Confirmed in source:** this function guards `if _oTimerEvent then Event.Delete(_oTimerEvent) ... end`,
+but `_oTimerEvent` is declared `nil` at module scope (line 84 of source) and is never assigned anywhere
+else in the file — no `Event.Create` call in this module ever sets it. The guard can therefore never be
+true; this looks like dead defensive code, possibly a leftover from a removed timer-based fade path.
 
 ### `HandleLoadingHint(oFlash, tData)`
 Handles the display of loading hints during the fade effect by updating the text in the flash widget.
@@ -95,8 +102,17 @@ Retrieves the size of the reticle image for a given player. If the reticle widge
 Initializes the `MrxGui` module by copying functions and constants from imported modules into its own namespace. This setup allows for easier access to GUI-related functionality throughout the game.
 
 ## Events
-- Listens for custom event `UpdateLoadingHint` to handle loading hints during fade effects.
-- Does not directly listen for engine events but may trigger or respond to them indirectly through its functions and callbacks.
+This file has exactly **one** real `Event.*` call — `Event.Delete(_oTimerEvent)` inside
+`GlobalFadeFromBlack` (see the note on that function above; the guard around it can never be true since
+`_oTimerEvent` is never set). Everything else described as an "event" here is the Scaleform widget
+event-handler mechanism, not the engine `Event.*` system:
+- `_InitFadeFlash` calls `_oFadeFlash:SetEventHandler("UpdateLoadingHint", HandleLoadingHint)` — a
+  widget-level binding for loading-hint text updates.
+- `_CompleteFadeFlashLoad` calls `_oFadeFlash:SetFlashEventHandler("wipeComplete", _FinishFadeToBlack)`
+  and `_oFadeFlash:SetFlashEventHandler("close", _FinishFadeFromBlack)` — ActionScript-side flash
+  callbacks fired by the SWF itself.
+- `_FinishFadeToBlack` calls `_oFadeFlash:SetEventHandler("GuiUpdate", _FadeUpdate)` — a per-frame GUI
+  update binding, cleared again inside `_FadeUpdate` itself.
 
 ## Notes for modders
 - Ensure that the `Init()` function is called appropriately to set up GUI-related functionality.
