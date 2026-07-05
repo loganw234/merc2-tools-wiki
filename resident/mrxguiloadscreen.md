@@ -25,6 +25,12 @@ This is a stateless manager/utility module. It does not track per-instance state
 ### `HandleInit(oLoadScreen)`
 Initializes the loading screen by setting up its properties, adding a Flash widget for rendering, and initializing save icon elements. This function sets the loading screen to use immortal events, fullscreen mode, and adds event handlers for input and state changes.
 
+### `InitSaveIcon()`
+**Not previously documented — the "save icon elements" `HandleInit` calls out.** Builds the save-icon
+widget tree: a container positioned at `(64, 48)` sized by `_knSaveIconSize`, with a child image widget
+inside it, and two animation points (`nOpenPoint`/`nClosePoint`) recording the icon's on/off-screen X
+positions for `HandleSaveIconShow`/`HandleSaveIconHide` to animate between.
+
 ### `HandleStateChangeEvent(oLoadScreen, tData)`
 Handles state change events by activating or deactivating the loading screen based on the `bLoading` flag in the event data.
 

@@ -22,6 +22,10 @@ The `MrxGuiSupportShop` module is responsible for managing the in-game support s
 This is a stateless manager/utility module. It does not track per-instance state but maintains a list of active shops (`_tShopList`) keyed by player GUID.
 
 ## Functions
+### `Init()`
+**Not previously documented** — resets `_tShopList` to an empty table. Standard lifecycle reset, not
+something a mod would normally call directly.
+
 ### `Create(uPlayerGuid)`
 Instantiates a new Flash widget for the support shop and sets up its initial properties. If the Flash file is available, it loads the SWF file; otherwise, it falls back to a dialog box. Returns `true` on success, `false` otherwise.
 

@@ -22,6 +22,11 @@ The `MrxGuiManager` module is responsible for managing the creation, duplication
 This is a stateless manager/utility module. It does not follow the per-instance object pattern but manages global state for GUI layouts and player-specific GUI instances.
 
 ## Functions
+### `Init()`
+**Not previously documented** — resets the module's four tracking tables (`_tPlayerGuiList`,
+`_tPendingList`, `_tHudStates`, `_tPendingHudWidgets`) to empty. Standard lifecycle reset, not something a
+mod would normally call directly.
+
 ### `CreateGui(uPlayerGuid)`
 Called when a new player's GUI needs to be created. Loads master copies of GUI layouts if they haven't been loaded yet, then duplicates these layouts for the given player. Assigns ownership of these layouts to the player and initializes them. If the local player is creating their GUI, it caches certain widgets like `MessageBox`, `Minimap`, `ObjectiveTray`, `SubtitleBuffer`, and `MapLabel`.
 

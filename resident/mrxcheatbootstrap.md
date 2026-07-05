@@ -170,6 +170,18 @@ dialog), `_sSubjectAbbrev`/`_sObjectAbbrev` (faction-attitude dialog's current s
 ### `DisplayOptions()`
 The public entry point (exposed as `_G.Cheat.DisplayOptions`). Calls `_DisplayRootDialog()`.
 
+### `SetTaskTreeRoot(oCurrTask)`
+**Not previously documented** — the setter for `_oCurrTask` (see Instance pattern above), i.e. what
+`_DisplayTraverseDialog` actually starts walking from. Not called anywhere else in this file; something
+external (the mission/task system itself, when a mission activates) is expected to call this to point the
+traversal dialog at the right root.
+
+### `_AddRootOption()` / `_AddCloseOption()`
+**Not previously documented** — two tiny shared helpers used throughout this file's dialog builders:
+`_AddRootOption` adds a `"Return to root menu"` option that calls `_DisplayRootDialog`, `_AddCloseOption`
+adds a plain `"Close this menu"` option. Both just wrap a one-line `MrxMultiPageMenu.AddOption` call so every
+submenu gets the same two navigation options without repeating the exact wording/flags each time.
+
 ### `_DisplayRootDialog()`
 Builds and shows the root menu. Skip-to-mission, skip-to-briefing, "complete current contract", and
 "traverse mission hierarchy" are all hidden while `WifPmcInterior.IsInside()` is true (i.e. while inside

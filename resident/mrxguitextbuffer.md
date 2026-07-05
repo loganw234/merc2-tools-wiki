@@ -145,6 +145,12 @@ scrolled onto screen, or never existed.
 Zeroes out the currently-showing message's remaining display duration, forcing it to advance/dismiss on
 the very next update tick instead of waiting out its normal timer.
 
+### `CallCallback(oMessage)`
+**Not previously documented** — the actual mechanism that fires the `fCallback`/`tCallbackData` a message
+was created with via `AddMessage`. Called as `oMessage:CallCallback()` when a message finishes displaying;
+defensively coerces `tCallbackData` to `{}` if it isn't a table, calls `fCallback(unpack(tCallbackData))`,
+then clears `fCallback` so it can't fire twice.
+
 ### `GetCurrentMessageId(oTextBuffer)`
 Returns an array of the numeric IDs of every message currently visible (not pending).
 

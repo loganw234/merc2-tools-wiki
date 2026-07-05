@@ -217,6 +217,13 @@ The module manages tutorial widgets, their children, and associated animations. 
 
 
 
+### ShowInfoImage(oImage)
+
+**Not previously documented — `HideInfoImage`'s counterpart**, assigned to `oImage.Show` by `InitInfoImage`
+the same way `HideInfoImage` is assigned to `oImage.Hide`. Sets `bVisible = true` and, unless already mid-
+"open" animation, sets `sCurrentAnimation = "open"`, sets full translucency, and animates `oInfo`/`oMid`/
+`oStart`/`oEnd` open the same way `HideInfoImage` animates them closed.
+
 ### HideInfoImage(oImage)
 
 Hides an info image by animating its components. It sets the current animation to "close" and adjusts the positions of `oInfo`, `oMid`, `oStart`, and `oEnd` widgets over a specified time (`nTime`). The function also calls `_ExecTwoAnims` to animate two widgets simultaneously.

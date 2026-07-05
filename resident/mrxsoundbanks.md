@@ -60,6 +60,13 @@ Appends the current language to `vo_`-prefixed asset names to ensure localizatio
 
 ### `_OpenStreamFiles()`
 Opens stream files for voice, music, and ambience by localizing their names and opening them with aliases.
+**Confirmed in source:** it does this via two nested helper functions defined *inside its own body* without
+`local` — `_StripPWSExtension(sFileName)` (strips the trailing `.pws`) and `_OpenFile(sFileName)` (re-adds
+the extension after localizing the stripped name, then calls `Sound.OpenStreamFile`). Because neither uses
+`local`, both are actually (re-)defined as ordinary globals every time `_OpenStreamFiles` runs — harmless
+here since they're only ever called from directly below their own definition, for the three hardcoded
+filenames `"vo_stream.pws"`, `"music.pws"`, `"ambience.pws"`, but worth knowing if you go looking for where
+`_OpenFile`/`_StripPWSExtension` are defined.
 
 ### `_LoadRequiredAssetsCommon()`
 Loads common assets required for sound processing, including opening stream files and loading global sound data.

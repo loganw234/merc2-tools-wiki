@@ -57,20 +57,41 @@ Merges `tConfig` into `self._tConfig`. While the task is **latent**, any key can
 `tConfig.oParent` (if present) automatically registers this task as that parent's child. While the task is
 **active**, only keys where `IsLiveConfigureable` returns true (`tOnActivate`/`fOnActivate`/
 `tOnComplete`/`fOnComplete`/`tOnCancel`/`fOnCancel`) can be changed — anything else is rejected with a
-debug log message, not a silent no-op.
+debug log message, not a silent no-op. Once the active-branch merge is done, `Configure` calls
+`self:ReinterpretConfig()` — **another empty no-op hook in this base class**, a place for a subclass to
+react to a live reconfiguration rather than just letting the config table change silently underneath it.
 
 ### `Activate(self, tSaveData)` / `Activated(self)`
-`Activate` resets state to latent, optionally restores save data, then either dynamically imports a
-module (`dynamic_import`, if `tConfig.sModuleName` is set) or goes straight to `LoadAssets`.
+`Activate` resets state to latent (via `_ResetState`, a one-line wrapper around `_SetState`), optionally
+restores save data, then either dynamically imports a module (`dynamic_import`, if `tConfig.sModuleName` is
+set) or goes straight to `LoadAssets`.
 `Activated` (called once assets finish loading) is what actually flips the task to the active state,
 issues activate callbacks, and starts a timer if `tTimerParams`/`nTimeLimit` was configured — the timer's
 default behavior on expiry is to call `self:Cancel()`.
+
+### `_ModuleLoaded(self, mModule)` / `PreLoadAssets(self)` / `LoadAssets(self, tSaveData)` / `AssetsLoaded(self)` / `_IssueAssetsLoadedCallbacks(self)`
+The full pipeline between `Activate` and `Activated`, one previously-undocumented step at a time:
+`_ModuleLoaded` is `Activate`'s `dynamic_import` callback (called synchronously in the no-`sModuleName`
+case too) — it re-points the task's metatable at the freshly-loaded module (subclass overrides start
+applying from here on), initializes `_tEvents`, then calls `PreLoadAssets` followed by `LoadAssets`.
+**`PreLoadAssets` is an empty no-op in this base class** — a hook point for a subclass to do setup work
+before layers load, the same override pattern as `_GetRewards`/`_CanCompleteViaCheatMenu` further down this
+page. `LoadAssets` loads `tConfig.tLayers` (if any) via `MrxLayerManager.Add`, or calls `AssetsLoaded`
+immediately if there are none. `AssetsLoaded` runs `_IssueAssetsLoadedCallbacks` — which fires
+`tConfig.tOnAssetsLoaded`/`fOnAssetsLoaded`, a separate callback pair from the activate/complete/cancel ones
+covered below — and only then finally calls `Activated`.
 
 ### `Complete(self)` / `Cancel(self)`
 Both are no-ops (with a debug log) if the task is already in that state. Otherwise: run `Cleanup`, set the
 new state, and issue the corresponding callbacks (`tOnComplete`/`fOnComplete` or `tOnCancel`/`fOnCancel`).
 Completing or cancelling a task recursively propagates the same state to all its children
 (`_SetChildrenState`).
+
+### `IsLatent(self)` / `IsActive(self)` / `IsCompleted(self)` / `IsCancelled(self)`
+Simple boolean accessors, each just comparing `_GetState()` (the raw `MrxTaskState` constant) against the
+matching named state. `_SetState(self, nState)` is the underlying mutator these read back from — it
+`ASSERT`s the new state is valid, bails out if it's unchanged, and is what actually triggers
+`_SetChildrenState` on a completed/cancelled transition.
 
 ### `Cleanup(self)`
 Only runs if the task isn't latent and hasn't already been cleaned up. Detaches from its parent, deletes
@@ -116,6 +137,12 @@ messages throughout this module, and what `MrxCheatBootstrap`'s task-tree browse
 Convenience: creates a new task from the same module (`_THIS:Create()`), configures it with `tConfig`,
 sets its parent to `self`, and activates it immediately — a one-line way to spawn a child task rather than
 doing `Create`/`Configure`/`Activate` yourself.
+
+### `_AddChild(self, oChild)` / `_RemoveChild(self, sChildName)` / `_AddChildren(self, tChildren)` / `GetChild(self, sChildName)`
+The lower-level child-table operations `Configure`/`Cleanup`/`CreateChild` build on: `_AddChild` (called
+automatically by `Configure` when `tConfig.oParent` is set) `ASSERT`s the name isn't already taken,
+`_RemoveChild` (called by `Cleanup`) just clears the slot, `_AddChildren` is a bulk-add helper, and
+`GetChild` looks up one specific child by name, as opposed to `GetChildren` returning the whole table.
 
 ### `_GetRewards(self)`
 Returns `{nCash = 0, nFuel = 0}` by default — a hook point for subclasses (like

@@ -58,11 +58,29 @@ Removes a previously added callback function from the list of callbacks.
 ### `SetCompleteCallback(self, fCallback, tCallbackData)`
 Sets a callback function and its associated data to be called when the designation is complete. The callback must be a function, and the data must be a table if provided.
 
+### `CompleteDesignation(self)`
+**Not documented above but this is what actually fires everything `AddCompleteCallback`/`SetCompleteCallback`
+registered.** Sets `bDesignationComplete = true`, calls every function in `tCallbackList` with its stored
+data (`fFunction(unpack(tData))`), then posts an `"Airstrike"` event with `sStage = "DesignationComplete"`,
+`sType = "None"` (subclasses override `GetType` to post a more specific `sType`). Nothing in this base class
+calls `CompleteDesignation` itself — it's meant to be invoked by whatever confirms a valid target was
+reached, e.g. a designator subclass's own drop-zone/landing-zone validation success.
+
 ### `SetDesignationType(self, sTemplateName)`
 Sets the type of designation template to use for the designator. The template name should be a string or `nil`.
 
 ### `SetValidationFunction(self, fFunction)`
 Sets the validation function to be used for validating the drop zone. The function must be a function or `nil`.
+
+### `ValidateGroundDropZone(fCallback, nX, nY, nZ, oSupport, bWater)` / `ValidateWaterDropZone(fCallback, nX, nY, nZ, oSupport)` / `ValidateLandingZone(fCallback, nX, nY, nZ, oSupport)`
+**Not previously documented on this page — the actual drop-zone/landing-zone validation logic the Overview
+refers to**, and the shape of function `SetValidationFunction` expects (note: these three all take
+`fCallback` as their *first* argument, not `self` — plain functions, not methods, despite living in this
+module). All three wrap `Ai.TestDropZone`, looking up per-cargo/per-vehicle radius and height-tolerance
+data from two local tables (`_cargoTemplateData`, `_heliTemplateData`, keyed by template hash string, falling
+back to a `.default` entry) and calling `fCallback` themselves with `(false, "nodrop")` or `(false, "noland")`
+if `Ai.TestDropZone` couldn't even register the test. `ValidateWaterDropZone` is just
+`ValidateGroundDropZone` with `bWater` forced to `true`.
 
 ### `SetTargetValidationRequired(self, bRequireValidation)`
 Sets whether target validation is required before completing the designation.
@@ -72,6 +90,13 @@ Sets the AA test level for the designation.
 
 ### `SetTargetLocation(self, nX, nY, nZ)`
 Sets the target location coordinates for the designator. The coordinates must be numbers.
+
+### `SetDesignationParameters(self, nNewX, nNewY, nNewZ, uGuid, uTarget)`
+**Not previously documented — this, not `SetTargetLocation`, is the setter that actually populates what
+`GetTarget` later returns**, including the two fields `SetTargetLocation` doesn't touch at all (`uGuid`,
+`uTarget`). Each argument is individually type-checked and falls back to keeping the existing value if the
+type doesn't match (`"number"` for the coordinates, `"userdata"` for the two guids) rather than rejecting
+the whole call.
 
 ### `OnDeny(self, uGuid)`
 Called when the designation is denied. Currently does nothing.

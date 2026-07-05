@@ -256,6 +256,9 @@ This function removes and deletes the animated widget from the text fanfare.
   - `sHorizAnchor`, `sVertAnchor`: Anchor points for the text.
   - `sJustification`: Justification of the text.
   - `bExpand`: Whether to expand the text.
+- **Not previously documented:** clamps `nX`/`nWidth`/`nY`/`nHeight` to stay on-screen using a tiny
+  `Clamp(n, nMin, nMax)` helper defined *inside this function's own body* (without `local`, so — like a
+  couple of other modules on this wiki — it's technically a global, just one only ever called from here).
 
 ### _ClassyTextLoadCompleteCallback(oText, sText, nDuration, sJustification, bExpand)
 - **Description**: Handles the completion of loading a classy text widget.

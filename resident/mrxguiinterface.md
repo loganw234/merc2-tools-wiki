@@ -167,6 +167,31 @@ Sets the shooting gallery mode for the support menu for specified players. It ca
 
 
 
+### HudInterface.ResourceCounter:SetCash(tArgs) / HudInterface.ResourceCounter:SetFuel(tArgs)
+
+**Not previously documented — a whole sub-namespace missing from this page.** `tArgs` can be a bare number
+(just the new value) or a table with `nValue`/`sReason`(cash only)/`nIncrement`; `SetFuel` additionally
+accepts `nMax` to render an "X/max" suffix on the widget. Both fetch every matching player's resource-
+counter widget via `_GetWidgetsForPlayers` (filtered on `"money"`/`"fuel"` respectively), call `SetValue`
+on each, and `Show()` the widget.
+
+
+
+### HudInterface.Tutorial:SetText(tArgs) / HudInterface.Tutorial:ShowTutorialForObject(tArgs) / HudInterface.Tutorial:ShowTutorialOnscreen(tArgs)
+
+**Not previously documented — another whole missing sub-namespace.** Thin `_GetWidgetsForPlayers`-driven
+wrappers around [`MrxGuiTutorial`](mrxguitutorial): `SetText` just forwards `tArgs.sText` to each matching
+tutorial widget's own `SetText`; `ShowTutorialForObject`/`ShowTutorialOnscreen` forward straight to
+`MrxGuiTutorial.DisplayTutorialForObject`/`DisplayTutorial` respectively for every player in
+`tArgs.vPlayer` (or every player in the session if `vPlayer` isn't a table/single guid).
+
+### HudInterface.Satellite:SetTutorialText(tArgs)
+
+**Not previously documented.** Forwards `tArgs.sText` (defaulting to `" "` if omitted) to `SetHelpText` on
+every matching player's satellite-overlay widget.
+
+
+
 ### HudInterface.ObjectiveTray:SetSlotToText(tArgs)
 
 Sets the text for a specific slot in the objective tray for specified players. It updates local widgets and, if on the server, synchronizes with remote clients.
@@ -1094,6 +1119,41 @@ Checks if a cinematic movie is currently hiding on the client side.
 - **Parameters**:
 
   - `tArgs.uPlayer`: The player to close the shop session for.
+
+
+
+### PdaInterface:SetSuppressed(tArgs)
+
+**Not previously documented.** A method directly on `PdaInterface` itself (not a sub-table like the others
+on this page) — forwards `tArgs.bSuppress` to `SetSuppressed` on every matching player's PDA widget.
+
+### PdaInterface.Map:AddBlip(tArgs) / PdaInterface.Map:RemoveBlip(tArgs)
+
+**Not previously documented — a whole sub-namespace missing from this page**, alongside `AddLineRegion`/
+`RemoveLineRegion` documented elsewhere on this page. `AddBlip` forwards a large set of `tArgs` fields
+(name, position, label, description, guid, texture, associated mission, meter, sticky/todo-list flags,
+faction — defaulting to `"PMC"` — and sort order) to each matching PDA widget's `AddMapBlip`; `RemoveBlip`
+just needs `tArgs.sName`. Both also net-sync on the server (unless `tArgs.bDontNetSync`) via
+`Net.SendEvent_AddPdaObjective`/`Net.SendEvent_RemovePdaObjective`.
+
+### PdaInterface.Map:AddMission(tArgs) / RemoveMission(tArgs) / UpdateMission(tArgs) / SetSelectedMission(tArgs) / GetSelectedMission()
+
+**Not previously documented.** Thin forwards to each matching PDA widget's own `AddMapMission`/
+`RemoveMapMission`/`UpdateMapMission`/`SetSelectedMission` (name, label, description, faction, default
+blip texture/label, suppress/trackable flags, sort order, depending on the call). `GetSelectedMission`
+is the one read-only accessor in this group — it only looks at the **local** player's widget
+(`Player.GetLocalPlayer()`, not `tArgs.vPlayer`) and returns as soon as it finds one.
+
+### PdaInterface.Map:SetMissionTrackable(tArgs) / SetMissionTrackCallback(tArgs) / SetMissionChangeAllowed(tArgs)
+
+**Not previously documented.** Straightforward forwards to each matching widget's own
+`SetMissionTrackable`/`SetMissionTrackCallback`/`SetMissionChangeAllowed`.
+
+### PdaInterface.Map:SetFakePlayerLocation(tArgs) / SetBeaconTutorialMode(tArgs)
+
+**Not previously documented.** `SetFakePlayerLocation` forwards `nX`/`nY`/`nZ` to each matching widget's own
+`SetFakePlayerLocation` — useful for tutorial/cinematic sequences where the PDA needs to show a location
+other than the player's real one. `SetBeaconTutorialMode` forwards `tArgs.bEnable` to `SetBeaconTutorialMode`.
 
 
 

@@ -179,6 +179,7 @@ Checks if medical evacuation is possible based on various conditions such as pla
 - **Parameters**:
   - `tSaveData`: Table containing saved player data
 - **Returns**: None
+- **Not previously documented:** the actual equipment restore is a nested function, `_RestoreEquipment(uGuid, tSavedEquipment)`, defined *inside* `LoadSingleton`'s own loop body without `local` — like a couple of other modules on this wiki, that means it's technically redefined as a global every time `LoadSingleton` runs, though it's only ever called from directly within that same loop. It rebuilds a flat weapon list from the saved per-slot data, calls `Human.Inventory.SetAllWeapons`, then re-reads the equipped weapons back out and re-applies each one's saved reserve ammo once it's no longer hibernating (`Event.Create(Event.ObjectHibernation, {uEquipment, "a"}, Weapon.SetReserveAmmo, ...)`).
 
 ### IsInVehicle(sFilter)
 - **Description**: Checks if any players are in a vehicle that matches a specified filter. If no filter is provided, it defaults to checking for any vehicle.
