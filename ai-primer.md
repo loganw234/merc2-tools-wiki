@@ -34,12 +34,18 @@ decompiled source + live testing, not official documentation — treat "confirme
 meaningful (someone actually checked), its absence as "probably right, not yet double-checked."
 
 RUNNING CODE (3 ways) — full detail: /getting-started, /first-mod, /first-menu
-- Console (fastest iteration): tools/lua_console.py, TCP 127.0.0.1:27050, send a chunk then `<<<RUN>>>`.
+- RECOMMENDED for rapid testing: scripts/OnKey/*.lua — runs once per keypress, edge-triggered, and is
+  RE-READ FROM DISK ON EVERY PRESS: edit the file, save, press the key again in-game, see the result
+  immediately — no restart, no separate reload step, nothing to run except a text editor and the game
+  itself. This is the most beginner-friendly loop on offer, especially for anyone still getting
+  comfortable with the tooling. Bind via `local KEYVAL = "keyname"` in the first 10 lines, or
+  lua_loader.ini's [OnKey] section. A per-script reentrancy cooldown (~250ms) throttles rapid
+  double-presses of the same key so a stuck/bouncing key can't queue up two overlapping runs.
+- Console: tools/lua_console.py, TCP 127.0.0.1:27050, send a chunk then `<<<RUN>>>` — good for quick
+  one-off queries/inspection (read a value, test a single call), but it's a separate tool with its own
+  wire protocol to learn, a bigger step for a newcomer than just editing a file and pressing a key.
 - scripts/OnBoot/*.lua — runs once, earliest possible (bridge captures Lua state).
 - scripts/OnLoad/*.lua — runs once per level load (GlobalExit-Complete milestone).
-- scripts/OnKey/*.lua — runs once per keypress, edge-triggered, re-read from disk every press. Bind via
-  `local KEYVAL = "keyname"` in the first 10 lines, or lua_loader.ini's [OnKey] section. v0.2.1+: a
-  per-script 250ms reentrancy cooldown throttles rapid double-presses (loader_onkey_cooldown_ms in ini).
 
 Minimal OnKey skeleton:
     local KEYVAL = "insert"  -- must be in the first 10 lines
@@ -84,20 +90,19 @@ each namespace's own page under /namespaces/<name> or /resident/<module>
         Player.SetCash/AddCash change the value but skip the HUD refresh)
     Loader.Printf(sMsg)                                       Loader.IsKeyDown(vk) -> bool
 
-LUA-BRIDGE ADDITIONS (not part of the game itself — version-gated). Full detail: /lua-bridge-api/loader,
+LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api/loader,
 /lua-bridge-api/stdlib
 - Loader.Printf(msg) — see RULES above.
-- Loader.IsKeyDown(vk) / GetKeyboardState() / PopKeyEvents() / ClearKeyEvents() / IsGameFocused() — v0.1.6+,
-  the only general-purpose keyboard input (the game's own Lua surface has none). IsKeyDown/
-  GetKeyboardState for continuous/movement input; PopKeyEvents (edge-triggered ring buffer, focus-gated)
-  for typed text — NOT interchangeable, PopKeyEvents has no "still held" signal.
+- Loader.IsKeyDown(vk) / GetKeyboardState() / PopKeyEvents() / ClearKeyEvents() / IsGameFocused() — the
+  only general-purpose keyboard input (the game's own Lua surface has none). IsKeyDown/GetKeyboardState
+  for continuous/movement input; PopKeyEvents (edge-triggered ring buffer, focus-gated) for typed text —
+  NOT interchangeable, PopKeyEvents has no "still held" signal.
 - Tcp.Send(host, port, msg) — fire-and-forget, localhost-only by design.
-- math.sin/cos (v0.1.6+); full trig, hyperbolic, sqrt, log, log10, fmod, ldexp, modf, frexp, random,
-  randomseed, pi, huge, and assert(v, msg) (v0.2.0+) — stdlib polyfills, additive, don't assume present
-  without confirming version. Pre-v0.1.6 scripts on this wiki hand-roll a Taylor-series sin/cos — no
-  longer necessary on an updated build, harmless if left as-is.
-- v0.2.1 also fixed: assert's error now points at the caller (not the polyfill itself); the polyfill's
-  own success/failure log is now honest instead of always claiming success.
+- Full math.* stdlib (sin, cos, tan, asin/acos/atan/atan2, sinh/cosh/tanh, sqrt, log, log10, fmod, ldexp,
+  modf, frexp, random, randomseed, pi, huge) plus assert(v, msg) — polyfills, additive on top of the
+  engine's own math.floor/abs/max/min/etc. assert's error correctly points at whatever called it, not at
+  internal polyfill code. Older scripts on this wiki hand-roll a Taylor-series sin/cos fallback from
+  before these existed — no longer necessary, harmless if left as-is.
 - lua_Number is float, not double — precision-sensitive math can surprise you.
 
 CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
