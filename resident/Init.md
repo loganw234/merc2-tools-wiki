@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [init, sound]
+verified: true
+verified_note: corrected Events section — OnActivate/OnDeactivate are lifecycle callbacks, not Event.* subscriptions; only Event.TimerRelative is a real event reference in this file
 ---
 
 # Init
@@ -32,9 +34,10 @@ Called when a world object instance is activated. It plays a material animation 
 Called when a world object instance is deactivated. It stops the material animation playing on the object, stops any associated sound, deletes the timer event, and clears the entry in the `tEvents` table for this object.
 
 ## Events
-- Listens for `Event.TimerRelative` to trigger a sound cue after 1 second of activation.
-- Listens for `OnActivate` to start the material animation and set up the timer event.
-- Listens for `OnDeactivate` to stop the material animation, stop the sound, delete the timer event, and clean up the `tEvents` table entry.
+- Fires `Event.TimerRelative` (in `OnActivate`) to schedule `Sound.CueSound` one second after activation.
+- `OnActivate` and `OnDeactivate` are engine-invoked lifecycle callbacks, not `Event.*` subscriptions —
+  they are the entry/exit points the engine calls directly on world-object activate/deactivate, not
+  something this module registers via `Event.Create`.
 
 ## Notes for modders
 - Ensure that `Init()` is called once during module initialization to set up the global `tEvents` table.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [sound, initialization]
+verified: true
+verified_note: fixed fabricated Event.GameExit (no Event.* anywhere in source; ExitGame is a direct call from src/vz/xQ!L.lua:612, not event-driven); confirmed all 5 functions and no undefined callbacks
 ---
 
 # MrxSoundBootstrap
@@ -52,7 +54,15 @@ This function sets up a music playlist for the PMC radio. It clears any existing
 
 ## Events
 
-- **Event.GameExit**: Listens for the game exit event and calls `ExitGame()` to unload all sound banks.
+No `Event.*` references appear anywhere in this file — there is no `Event.Create`/`Event.CreatePersistent`
+call, so `ExitGame()` is **not** wired to an engine event of any kind. Grepping the decompiled corpus shows
+`MrxSoundBootstrap.ExitGame()` is invoked as a plain direct function call from `src/vz/xQ!L.lua:612` (a
+mission-flow script), not through an event subscription. The previous "Event.GameExit" entry on this page
+did not correspond to anything in source and has been removed.
+
+`Init()` itself has no call sites found anywhere in the decompiled corpus — consistent with it being invoked
+by native/engine bootstrap code rather than from other Lua modules; this can't be confirmed from static
+reading alone.
 
 ## Notes for modders
 
@@ -63,3 +73,9 @@ This function sets up a music playlist for the PMC radio. It clears any existing
 - **Tunables**: The pitch and fade categories can be adjusted in the `Init()` function to fine-tune the sound system according to different game modes or player preferences.
 
 - **Decompiler artifacts**: There may be unused local variables or redundant operator groupings due to decompiler quirks. These should not affect the functionality of the module.
+
+- **Confirmed real usage**: `MrxSoundBootstrap.SetPmcRadio(sInsertedCue)` is called from `src/vz/wifmissionflow.lua`
+  at over a dozen points across the mission flow, each time swapping in a mission-specific VO cue (e.g.
+  `"ReporterNeutral.MissionVO.Gur01"`) onto the `mu_src_radio` playlist. That's the intended mod surface if
+  you want a mission to override the PMC radio chatter — call `SetPmcRadio` with your own cue string rather
+  than touching `mu_src_radio` directly.

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [parking lot, tutorial, vehicle]
+verified: true
+verified_note: found likely bug in _TrackVehicle (references undeclared global uVeh instead of parameter uVehicle); corrected Events section to name all real Event.* constants (ObjectDeath, ObjectHibernation, TimerRelative were missing).
 ---
 
 # MrxParkingLotManager
@@ -42,6 +44,8 @@ Unmarks any currently marked vehicle and marks the last vehicle in the parking l
 ### `_TrackVehicle(uChar, uVehicle)`
 Adds a vehicle to the list of parking lot candidates if it is alive and not a boat or emplaced weapon. If the candidate list exceeds the limit (`kiParkingLotLimit`), the oldest candidate is removed.
 
+**Likely bug, confirmed in source:** the boat/emplaced-weapon check reads `Object.HasLabel(uVeh, "Boat")` / `Object.HasLabel(uVeh, "Emplacedweapon")` — but the function's parameter is named `uVehicle`, not `uVeh`. `uVeh` is never assigned anywhere in this file, so it's an undeclared global (`nil` unless some other loaded module happens to set a global of that exact name). In practice this means the boat/emplaced-weapon exclusion check almost certainly never filters the vehicle actually passed in — `Object.HasLabel(nil, ...)` — so boats and emplaced weapons likely get added to the candidate list despite the apparent intent to exclude them.
+
 ### `_MoveVehicle(tData)`
 Moves the last vehicle in the parking lot candidates list to a designated parking point based on its type (normal or helicopter). It also cleans up any remaining vehicles in the candidate list after moving the selected one.
 
@@ -64,13 +68,16 @@ Shows the second tutorial message related to parking lots and sets up a timer to
 Hides any active tutorial messages and deletes the event listener for managing tutorial timers.
 
 ## Events
-- Listens for `Event.ObjectInSeat` to call `_TrackVehicle` when a vehicle enters or leaves a seat.
-- Listens for `Event.ScriptEvent` with the name "parkingLotStart" to call `_MoveVehicle` when a parking lot start event is triggered.
-- Listens for custom events related to vehicle state changes (`eMarkEnter`, `eMarkDeath`, `eMarkHibernation`) to unmark vehicles as needed.
-- Listens for tutorial-related timers (`eTutorial`) to manage the display of tutorial messages.
+- `Event.ObjectInSeat` (persistent, via `Setup`) — filters on `Player.GetAnyCharacter(), 0, "d", "xo"`, calls `_TrackVehicle` when a vehicle is entered/exited.
+- `Event.ScriptEvent` named `"parkingLotStart"` (persistent, via `Setup`) — calls `_MoveVehicle`.
+- `Event.ObjectInSeat` again (non-persistent, via `_MarkVehicle`, handle `eMarkEnter`) — filters on `Player.GetAnyCharacter(), uGuid, "a", "ei"`, calls `_UnmarkVehicle`.
+- `Event.ObjectDeath` (via `_MarkVehicle`, handle `eMarkDeath`) — calls `_UnmarkVehicle` if the marked vehicle dies.
+- `Event.ObjectHibernation` filtered on `"hibernated"` (via `_MarkVehicle`, handle `eMarkHibernation`) — calls `_UnmarkVehicle`.
+- `Event.TimerRelative` (via `_ShowTutorial1`/`_ShowTutorial2`, handle `eTutorial`) — chains `_ShowTutorial1` → `_ShowTutorial2` → `_HideTutorial`, each `kfTutorialTime` seconds apart.
 
 ## Notes for modders
 - Ensure that `Setup` and `Cleanup` are called appropriately to manage the lifecycle of parking lot events and state.
 - Customize vehicle selection criteria by modifying the conditions in `_TrackVehicle` and `_GetLastVehicle`.
 - Adjust tutorial timing and content by changing `kfTutorialTime` and the messages passed to `MrxTutorialManager.ShowMessage`.
 - Be aware that network synchronization (`Net.IsServer`) may affect multiplayer behavior when managing world markers and radar objectives.
+- See the confirmed `uVeh`/`uVehicle` typo bug noted under `_TrackVehicle` above — if you're patching this module, that's the first thing to fix.

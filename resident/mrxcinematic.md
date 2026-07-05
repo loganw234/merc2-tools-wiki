@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [cinematic, slideshow]
+verified: true
+verified_note: spot-checked against source (2 functions, zero Event.* references, no inherit/tInstance) — page already accurate, no changes needed
 ---
 
 # MrxCinematic

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [audio, vo]
+verified: true
+verified_note: replaced vague Events section with the actual Event.* constants used (TimerRelative only); added _uDelayTimer and knPriority* constants to Instance pattern
 ---
 
 # MrxVoSequence
@@ -19,12 +21,14 @@ The `MrxVoSequence` module is responsible for playing voice-over (VO) sequences 
 - Imports: `MrxUtil`, `MrxSoundCategories`
 
 ## Instance pattern
-This is a stateless manager/utility module (no per-instance table). It tracks the following key fields:
-- `_tSequence`: The current VO sequence being played.
-- `_nBaseDelay`: Base delay between stages in the sequence.
-- `_bStoppingSequence`: Flag indicating if the sequence is currently stopping.
-- `_uTimeoutEvent`: Event handle for timeouts during cue playback.
-- `_knTimeout`: Timeout duration for each cue.
+This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid`/`tInstance` pattern) — there is only ever one VO sequence in flight at a time, module-wide. It tracks the following key fields:
+- `_tSequence`: The current, normalized VO sequence being played (nil when idle). Also carries `.nPriority`, `.bSendNetEvent`, and `.tSpeakers` as extra keys on the same table.
+- `_nBaseDelay`: Base delay (seconds) between stages that don't specify their own delay; defaults to `0.25`, overridable via `vSequence.nBaseDelay`.
+- `_bStoppingSequence`: Flag indicating if the sequence is currently stopping (guards against reentrant `_NextStage` calls during `Stop`).
+- `_uDelayTimer`: Event handle for the inter-stage delay timer (`Event.TimerRelative`), cleared in `Stop`.
+- `_uTimeoutEvent`: Event handle for the per-cue timeout timer, cleared when the cue finishes or the sequence stops.
+- `_knTimeout`: Timeout duration for each cue. Never assigned anywhere in this file — no call site sets it, so `_ExecuteStage`'s timeout branch (`if _knTimeout then ...`) is dead in practice unless another module/native code sets it.
+- `knPriorityCinematic`, `knPriorityBriefing`, `knPriorityContract`, `knPriorityBounties`, `knPriorityFreeplay`: Priority constants, aliased from `VO.PRIORITY_*` at load time.
 
 ## Functions
 ### `Start(vSequence, bCinematic, nPriority, bSendNetEvent)`
@@ -49,7 +53,9 @@ Fires uncalled, non-`bIgnoreOnSkip` callbacks on skip for each stage in the sequ
 Returns a boolean indicating whether a VO sequence is currently in progress.
 
 ## Events
-- Listens for custom event triggers within its own functions to manage sequence execution and cleanup.
+- `Event.TimerRelative`: Used twice — to delay execution of the next stage (`_ExecuteStage`, via `_uDelayTimer`) and to enforce a per-cue timeout that calls `VO.Cancel` (via `_uTimeoutEvent`, only created when `_knTimeout` is set — see Instance pattern above).
+- `Event.Delete`: Called to cancel pending `_uDelayTimer`/`_uTimeoutEvent` timers during `Stop` and `_NextStage`.
+- No other `Event.*` constants appear in this file; sequence advancement between non-delayed stages happens via direct recursive calls to `_ExecuteStage`, not events.
 
 ## Notes for modders
 - Ensure that `Start`, `Stop`, and `Reset` are called appropriately to manage the lifecycle of VO sequences.

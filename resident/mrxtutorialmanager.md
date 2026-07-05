@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [tutorial, manager]
+verified: true
+verified_note: fixed fabricated Events section (source has no Event.* calls at all); added _sCurrentMessage/_bMessageDisplayed to Instance pattern
 ---
 
 # MrxTutorialManager
@@ -19,9 +21,11 @@ The `MrxTutorialManager` module is responsible for managing in-game tutorials. I
 - Imports: none
 
 ## Instance pattern
-This is a stateless manager/utility module. It tracks the following key fields:
+This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid`/`tInstance` pattern). It tracks the following key fields:
 - `_tTutorials`: A table containing data for each tutorial, including its module name and whether it has been completed.
 - `_sCurrentActiveTutorial`: The identifier of the currently active tutorial.
+- `_sCurrentMessage`: The text of the tutorial message currently displayed (set/cleared by `ShowMessage`/`HideMessage`).
+- `_bMessageDisplayed`: Whether a tutorial message is currently showing.
 
 ## Functions
 ### `Reset()`
@@ -67,8 +71,7 @@ Saves the state of completed tutorials by returning a list of their names.
 Loads the saved data for completed tutorials, marking them as complete in the module's internal state.
 
 ## Events
-- Listens for custom events to manage tutorial activation and completion.
-- Uses networking functions to synchronize messages across clients if enabled.
+No `Event.*` calls appear anywhere in this file. Tutorial activation/completion is driven entirely by direct function calls (`Setup`, `StartTutorial`, `SetCurrentTutorial`, `HideCurrentTutorial`, etc.) from other modules (individual `WifTutorial*` modules), not by engine events raised here. Networking uses `Net.SetTutorialMessage`/`Net.IsServer` directly, not the `Event` system.
 
 ## Notes for modders
 - Ensure that `Setup` is called appropriately to initialize tutorials.

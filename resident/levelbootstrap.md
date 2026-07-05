@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [level, loading]
+verified: true
+verified_note: spot-checked against source (single-function 18-line file), no changes needed — content and events section were already accurate.
 ---
 
 # LevelBootstrap
@@ -23,7 +25,13 @@ This is a stateless manager/utility module. It does not track any per-instance s
 
 ## Functions
 ### `LoadLevel(LevelName, MasterScript, Reload)`
-Loads the specified level and master script. If `LevelName` or `MasterScript` are not provided, it defaults to using the current level name and master script from the system. It sets these values in the system, logs a debug message, requests the necessary assets (`<level>_base` layer and master script), and transitions the game state to "Loading".
+Loads the specified level and master script. If `LevelName` is `nil`, defaults to `Sys.GetLevelName()`; if
+`MasterScript` is `nil`, defaults to `Sys.GetMasterScriptName()`. Calls `Sys.SetLevelName(LevelName)` and
+`Sys.SetMasterScriptName(MasterScript)`, logs a debug message (`"Loading " .. LevelName .. " level with "
+.. MasterScript .. " masterscript"`), defaults `Reload` to `false` if not provided (the parameter itself
+is otherwise unused in this function body), requests `LevelName .. "_base"` as a `"layer"` asset at
+priority `-2` and `MasterScript` as a `"script"` asset at priority `-3` (both via `Sys.RequiredAsset`,
+non-blocking per the trailing `false` argument), and finally calls `Sys.RequestGameState("Loading")`.
 
 ## Events
 - Listens for none (this module does not subscribe to any engine events).

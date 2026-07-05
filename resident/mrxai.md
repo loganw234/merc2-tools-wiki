@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, command]
+verified: true
+verified_note: flagged a real Deploy() field mismatch (guards on tParameters.Vehicle, waits on tParameters.AIGuid) — rest of file matches source
 ---
 
 # MrxAi
@@ -33,6 +35,16 @@ Removes an AI goal from the specified AIGuid. This is used to clear out any exis
 
 ### `Deploy(tParameters)`
 Deploys an AI to a vehicle. This function ensures that the AI is properly assigned to the specified vehicle once it is awake and ready. Waits for the object to leave hibernation before forwarding the parameters to the engine `Ai.Deploy`.
+
+**Confirmed in source, likely a bug:** unlike `Goal`/`DefaultGoal`/`RemoveGoal`/`Role` (which all guard
+*and* wait on `tParameters.AIGuid`), `Deploy` guards on `tParameters.Vehicle` (`if tParameters.Vehicle
+then`) but then registers the `Event.ObjectHibernation` wait on `tParameters.AIGuid`. If a caller passes
+`Vehicle` without also setting `AIGuid` on the same table, the guard passes but `Event.Create` is handed
+a `nil` guid for the hibernation-wait target — the callback would either never fire or behave
+unpredictably depending on how the engine's `Event.Create` treats a `nil` first list element. No call
+sites for any `MrxAi.*` function (`Goal`, `DefaultGoal`, `RemoveGoal`, `Deploy`, or `Role`) were found
+anywhere in the decompiled corpus, so it's unclear whether real callers always set both `Vehicle` and
+`AIGuid` on the same table (sidestepping the bug) or whether this path is simply never exercised.
 
 ### `Role(tParameters)`
 Sets the role of the specified AIGuid. The role defines the persistent stance of the AI, such as "Follow" or "Idle". Waits for the object to leave hibernation before forwarding the parameters to the engine `Ai.Role`.

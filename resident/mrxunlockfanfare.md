@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [hud, fanfare]
+verified: true
+verified_note: fixed fabricated Events section (no Event.* in source, only outbound Net.SendEvent_* calls); added tClientMessages/_ClientBatchType to Instance pattern
 ---
 
 # MrxUnlockFanfare
@@ -19,7 +21,9 @@ The `MrxUnlockFanfare` module is responsible for displaying unlock banners on th
 - Imports: `MrxGui`, `MrxCheatBootstrap`, `MrxFactionManager`, `MrxSupportData`, `WifStarterData`, `MrxStarterManager`, `WifEquipmentData`, `MrxUtil`
 
 ## Instance pattern
-This is a stateless manager/utility module. It does not track per-instance state but provides functions to manage unlock fanfares.
+This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid` pattern). It tracks two module-level globals used to accumulate a batch before display:
+- `tClientMessages`: List of formatted message strings accumulated across `SetClientBatchFanfareData` calls until the batch completes.
+- `_ClientBatchType`: The `sType` of the batch currently being accumulated.
 
 ## Functions
 ### `AddUnlockedItem(tItemData)`
@@ -41,8 +45,7 @@ Manages batched client-side fanfare data. It clears previous messages if `bClear
 Handles HVT (High Value Target) capture/kill fanfares. It formats the message with faction icons, descriptions, and progress information, then displays it on the HUD.
 
 ## Events
-- Listens for network events to handle replicated unlock fanfares.
-- Triggers `Hud.EventFanfare:Commence` to display fanfares on the HUD.
+No `Event.*` calls appear anywhere in this file. Network replication uses `Net.SendEvent_UnlockFanfare` and `Net.SendEvent_BatchUnlockFanfare` (outbound, server → client) directly, not the `Event` system; the client-side receive path (`SetClientFanfareData`, `SetClientBatchFanfareData`, `ClientHVTFanfare`) is presumably invoked by native/engine networking code, not visible in this file. `Hud.EventFanfare:Commence` is called to display fanfares on the HUD.
 
 ## Notes for modders
 - Ensure that `AddUnlockedItem` and `AddUnlockedItems` are called appropriately to trigger fanfares.

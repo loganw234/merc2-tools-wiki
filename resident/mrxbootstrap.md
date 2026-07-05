@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [bootstrap, initialization]
+verified: true
+verified_note: corrected Events section — file has zero Event.* references, GUI-loaded/player-joined are plain stored-callback wiring via MrxGuiBootstrap/MrxPlayer setter functions
 ---
 
 # MrxBootstrap
@@ -47,8 +49,13 @@ Sets the hero spawn location, which is not used in this module but can be refere
 Enables or disables state transition handling during bootstrapping. This allows for more control over the initialization process.
 
 ## Events
-- Listens for GUI-loaded event to call `_GuiLoaded`.
-- Listens for local player joined event to call `_LocalPlayerJoined`.
+This file has **zero `Event.*` references** — no `Event.Create`, no engine event constants. Both
+"triggers" below are plain stored-callback wiring through other modules' setter functions, invoked by
+direct function call when those modules decide the condition is met:
+- `Start` calls `MrxGuiBootstrap.SetOnGuiLoadedFunc(_GuiLoaded)`, registering `_GuiLoaded` as the
+  callback `MrxGuiBootstrap` invokes once the GUI finishes loading.
+- `Start` calls `MrxPlayer.SetLocalPlayerJoinedCallback(_LocalPlayerJoined)`, registering
+  `_LocalPlayerJoined` as the callback `MrxPlayer` invokes once the local player joins.
 
 ## Notes for modders
 - Ensure that `Start` is called at the beginning of the game to properly initialize the world.

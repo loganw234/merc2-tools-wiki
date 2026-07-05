@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [economy, shop]
+verified: true
+verified_note: fixed fabricated Events section (no Event.* in source, all Hud.Shop callbacks); confirmed all 15 functions and call sites from mrxbriefing.lua
 ---
 
 # MrxShop
@@ -68,7 +70,16 @@ Saves the current state of `_tGlobalShopList` to persistent storage.
 Loads the saved state of `_tGlobalShopList` from persistent storage.
 
 ## Events
-- Listens for custom events related to shop operations, such as item selection and UI interactions.
+No `Event.*` references appear anywhere in this file. Shop interaction is wired entirely through
+`Hud.Shop` callbacks instead of the engine event system:
+- `Hud.Shop:SetCallback({..., fCallback = _ShopSelection, ...})` — routes item purchases to
+  `_ShopSelection`.
+- `Hud.Shop:SetCloseCallback({..., fCallback = function() ... end, ...})` — an inline anonymous
+  function (not a named module function) that clears `_oVender` and invokes the caller-supplied
+  `fOnClose`/`tOnCloseData` via `MrxUtil.CallWithOptionalArgs`.
+
+Both callback targets (`_ShopSelection`, the inline closure) are defined in this file, so there's no
+undefined-callback issue here.
 
 ## Notes for modders
 - Ensure that `Init()` is called during game initialization to set up the global shop list.
