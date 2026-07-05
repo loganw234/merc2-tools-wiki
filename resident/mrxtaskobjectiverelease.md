@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjectiveAction
 tags: [task, objective, release]
 verified: true
-verified_note: deeper pass — clarified this overrides MrxTaskObjectiveAction: _PrepTargets stubbed to no-op (prompts added on proximity instead), _TargetActioned chains to base then sets AI relations from parent tMaterielScale; noted _knTgtNearbyRadius=100 is a module constant; corrected the Events section (proximity events + inherited ContextAction, no "custom events")
+verified_note: 'deeper pass — clarified this overrides MrxTaskObjectiveAction: _PrepTargets stubbed to no-op (prompts added on proximity instead), _TargetActioned chains to base then sets AI relations from parent tMaterielScale; noted _knTgtNearbyRadius=100 is a module constant; corrected the Events section (proximity events + inherited ContextAction, no "custom events")'
 ---
 
 # MrxTaskObjectiveRelease

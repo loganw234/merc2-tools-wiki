@@ -6,7 +6,7 @@ nav_order: 1
 inherits: MrxTaskObjective
 tags: [task, objective]
 verified: true
-verified_note: deeper pass — confirmed this is the exact inverse of MrxTaskObjectiveDestroy: same single Event.ObjectDeath subscription and bHeroOnly branch, but _TargetDestroyed calls CancelPart (a protected target dying = failure); documented the defend-specific icon overrides
+verified_note: 'deeper pass — confirmed this is the exact inverse of MrxTaskObjectiveDestroy: same single Event.ObjectDeath subscription and bHeroOnly branch, but _TargetDestroyed calls CancelPart (a protected target dying = failure); documented the defend-specific icon overrides'
 ---
 
 # MrxTaskObjectiveProtect
