@@ -95,8 +95,6 @@ This is a stateless manager/utility module. It does not track per-instance state
 
     ```
 
-```
-
 
 
 ## Functions

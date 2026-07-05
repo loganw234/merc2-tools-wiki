@@ -80,8 +80,6 @@ anywhere in source. This is one shared support menu, not something spawned per w
 
 - `nCash`, `nFuel`: Current cash and fuel amounts available in the menu.
 
-```
-
 
 
 ## Functions

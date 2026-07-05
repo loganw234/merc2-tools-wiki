@@ -83,8 +83,6 @@ one active briefing session at a time, tracked in module-level fields, not one i
 
 - `_nBaseShadowDistance`: Base shadow distance setting before it is modified for briefing purposes.
 
-```
-
 
 
 ## Functions
@@ -552,7 +550,7 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
   - `bAccepted`: A boolean indicating whether the mission was accepted.
 
 - **Confirmed key steps, in order**: reads `tConfig = _GetSelectedBriefingConfig()`; if accepted and
-  [`WifMissionData.IsMissionAContract`](wifmissiondata) is true, calls `_oStarter:SetPendingContract(
+  `WifMissionData.IsMissionAContract` is true, calls `_oStarter:SetPendingContract(
   _sSelectedMission)` — this is what later tells `WifPmcInterior.Exit()` where to teleport the player, so a
   custom contract mission that never set `bContract = true` on its own `WifMissionData` entry silently
   skips this call and the player ends up stranded with nowhere to go after accepting. Also calls

@@ -49,8 +49,6 @@ something spawned per world object. Key fields:
 
 - **`tControlMap`**: A boolean flag initialized to `false`, likely used to track the initialization state of the control map.
 
-```
-
 
 
 ## Functions

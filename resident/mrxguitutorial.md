@@ -53,8 +53,6 @@ object. Key fields:
 
 The module manages tutorial widgets, their children, and associated animations. It also handles input events and state changes to ensure proper functionality and user experience.
 
-```
-
 
 
 ## Functions

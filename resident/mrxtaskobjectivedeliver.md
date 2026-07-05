@@ -58,8 +58,6 @@ rather than a world-object GUID. Key fields tracked via the config table:
 
 - `tConfig`: Configuration settings for the task objective, including delivery type and criteria.
 
-```
-
 
 
 ## Functions

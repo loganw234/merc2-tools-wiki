@@ -66,8 +66,6 @@ table:
 
 - `_knMarkerYClampDistance`: A constant used for clamping the Y-axis position of markers or blips.
 
-```
-
 
 
 ## Functions

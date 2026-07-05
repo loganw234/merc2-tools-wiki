@@ -57,8 +57,6 @@ fields:
 
 - `tControlMap`: A mapping of joystick buttons to control descriptions.
 
-```
-
 
 
 ## Functions

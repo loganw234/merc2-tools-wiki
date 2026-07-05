@@ -72,10 +72,6 @@ This is a stateless manager/utility module (no per-instance tables). It tracks t
 
 
 
-```
-
-
-
 ## Functions
 
 

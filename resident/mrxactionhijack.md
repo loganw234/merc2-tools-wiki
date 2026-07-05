@@ -58,8 +58,6 @@ Key fields:
 
 - `tRagdoll`: A table defining ragdoll-related settings such as duration, input, and knockdown times.
 
-```
-
 
 
 ## Functions

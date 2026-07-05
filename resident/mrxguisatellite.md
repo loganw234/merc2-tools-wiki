@@ -105,8 +105,6 @@ not something spawned per world object. Key fields:
 
 - `_nCostAccumulator`: Accumulated cost during the minigame.
 
-```
-
 
 
 ## Functions

@@ -61,8 +61,6 @@ This is a stateless manager/utility module (no per-instance tables). It tracks t
 
 The module manages the display and behavior of action hijack HUD elements, including button prompts, fail icons, and timer animations. It also handles sound effects associated with player actions.
 
-```
-
 
 
 ## Functions

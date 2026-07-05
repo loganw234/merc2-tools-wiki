@@ -49,8 +49,6 @@ fields:
 
 - `_ksTargettingSound`: The sound cue ID for the targeting sound used in Stinger lock-on reticles.
 
-```
-
 
 
 ## Functions

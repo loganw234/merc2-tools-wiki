@@ -53,8 +53,6 @@ spawned per world object. Key fields:
 
 The module also maintains internal state for fanfare queues, subtitle buffers, and other UI components. It ensures that all UI updates are synchronized across clients to maintain a consistent user experience in multiplayer scenarios.
 
-```
-
 
 
 ## Functions
