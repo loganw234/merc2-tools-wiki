@@ -815,3 +815,203 @@ A few things worth knowing if you customize this further:
 
 </details>
 
+<details class="script-entry" markdown="1">
+<summary><strong>DestroyerTool.lua</strong> — Spawn either the "Chinese Destroyer" or "Allied Destroyer" set-dressing ship as a real, boardable vehicle, with entry/exit for both players in co-op.</summary>
+
+The base game never lets you drive these ships — they're static set dressing (see
+[MrxLayerManager](resident/mrxlayermanager)'s world-state layer catalog for how that was first found).
+This spawns one via `Pg.Spawn` and boards it with `MrxUtil.EnterBestAvailableSeat`, the same real,
+already-existing engine utility every other vehicle-boarding script on this wiki uses — no workaround
+needed for driver or gunner.
+
+This is the simple version, with just spawning and boarding — no diagnostic tooling. For the full
+investigation this came out of (a seat-naming mystery that turned out to be a red herring, why physics
+can't be fixed from Lua, and an extensive camera investigation that hit what looks like a hard wall), see
+[Deep Dive: Making the Destroyer Driveable](deep-dives/destroyer-vehicle).
+
+```lua
+local KEYVAL = "f9"  -- must be in the first 10 lines -- pick a key not already used by your other OnKey scripts
+
+-- DestroyerTool: turns the "Chinese Destroyer"/"Allied Destroyer" set-dressing ships (normally just
+-- static scenery, never driveable in the base game) into a spawnable, boardable vehicle. Confirmed
+-- working: spawning either variant, and entering/exiting as driver or gunner for both the local player
+-- and a coop partner, via the standard seat-type check every other vehicle in this game already uses.
+--
+-- Known limitations (see the deep dive on the wiki for the full investigation):
+-- - Physics: the ship doesn't actually float/move like a real boat. Object.EnablePhysics/SetMass are
+--   both called after spawn on the theory the template ships with physics off by default, but this was
+--   confirmed NOT sufficient live -- likely needs the underlying compiled vehicle template edited
+--   directly (external tooling, not something reachable from Lua), not something this script can fix.
+-- - Camera: badly broken while driving or gunning -- stays anchored near the ship's own model origin
+--   instead of a normal chase/aim view. Confirmed, after an extensive investigation, that this is very
+--   likely a fully native camera system with no Lua override point at all (the same category of
+--   limitation as turret firing itself, which the Vehicle namespace page already documents has zero
+--   Lua touchpoint anywhere in this game).
+-- Included anyway since you can still spawn it, board it, and use it as a stationary gun platform or
+-- set piece, even with these two rough edges.
+
+import("MrxMultiPageMenu")
+import("MrxUtil")
+
+local nSpawnForwardOffset = 150  -- tweak me: how far in front of the player to spawn it
+local nSpawnHeightOffset = 10    -- tweak me: small lift so it doesn't spawn clipped into the ground/water
+local nEnterRetrySeconds = 0.5   -- tweak me: how often to retry boarding once spawned
+local nMaxEnterAttempts = 10     -- tweak me: give up after this many retries (5 seconds by default)
+local nBoatMass = 50000          -- tweak me: see the physics note above -- confirmed not sufficient alone
+
+-- math.sin/math.cos don't exist in this Lua build -- Taylor-series fallbacks, same as Freecam.lua/Fireworks.lua.
+local function normalizeAngle(nDegrees)
+  while nDegrees > 180 do
+    nDegrees = nDegrees - 360
+  end
+  while nDegrees < -180 do
+    nDegrees = nDegrees + 360
+  end
+  return nDegrees
+end
+local function customSin(nDegrees)
+  local nRad = normalizeAngle(nDegrees) * 3.14159265 / 180
+  return nRad - nRad ^ 3 / 6 + nRad ^ 5 / 120 - nRad ^ 7 / 5040
+end
+local function customCos(nDegrees)
+  return customSin(nDegrees + 90)
+end
+
+_G.DestroyerToolState = _G.DestroyerToolState or {
+  uBoat = nil,
+  sVariant = nil,
+}
+local State = _G.DestroyerToolState
+
+local tVariants = {
+  {sLabel = "Chinese Destroyer", sTemplate = "Chinese Destroyer"},
+  {sLabel = "Allied Destroyer", sTemplate = "Allied Destroyer"},
+}
+
+-- Deliberately excludes "d"/driver -- the driver's seat is reserved for whoever spawned the boat.
+local tPartnerSeatTypes = {"g", "p", "c"}
+
+local function EnterPartnerSeat(uChar, uBoat)
+  for _, sSeatName in ipairs(tPartnerSeatTypes) do
+    local bOkSeat, uSeat = pcall(Vehicle.GetSeatByType, uBoat, sSeatName, true)
+    if bOkSeat and uSeat then
+      local bOkEnter, bEntered = pcall(Vehicle.EnterBySeatGuid, uBoat, uChar, uSeat, true)
+      if bOkEnter and bEntered then
+        return sSeatName
+      end
+    end
+  end
+  return nil
+end
+
+local function EnterPartnerBoat()
+  local uPartner = Player.GetSecondaryCharacter()
+  if not uPartner or not State.uBoat then
+    Loader.Printf("DestroyerTool: no coop partner found")
+    return
+  end
+  local sSeatUsed = EnterPartnerSeat(uPartner, State.uBoat)
+  Loader.Printf("DestroyerTool: coop partner boarding -- "
+    .. (sSeatUsed and ("entered via \"" .. sSeatUsed .. "\"") or "no non-driver seat available"))
+end
+
+local function ExitPartnerBoat()
+  local uPartner = Player.GetSecondaryCharacter()
+  if not uPartner or not State.uBoat then
+    return
+  end
+  pcall(Vehicle.Exit, State.uBoat, uPartner, true)
+end
+
+local function SpawnBoat(sTemplate)
+  local uChar = Player.GetLocalCharacter()
+  if not uChar then
+    return
+  end
+  if State.uBoat then
+    Loader.Printf("DestroyerTool: a boat is already tracked -- exit or despawn it first")
+    return
+  end
+  local x, y, z = Object.GetPosition(uChar)
+  local nYaw = Object.GetYaw(uChar)
+  local nForwardX = customSin(nYaw) * nSpawnForwardOffset
+  local nForwardZ = customCos(nYaw) * nSpawnForwardOffset
+
+  local uBoat = Pg.Spawn(sTemplate, x + nForwardX, y + nSpawnHeightOffset, z + nForwardZ)
+  if not uBoat then
+    Loader.Printf("DestroyerTool: Pg.Spawn(\"" .. sTemplate .. "\") returned nothing")
+    return
+  end
+  State.uBoat = uBoat
+  State.sVariant = sTemplate
+
+  pcall(Object.EnablePhysics, uBoat)
+  pcall(Object.SetMass, uBoat, nBoatMass)
+  Loader.Printf("DestroyerTool: spawned " .. sTemplate)
+end
+
+local function EnterBoat()
+  local uChar = Player.GetLocalCharacter()
+  if not uChar or not State.uBoat then
+    return
+  end
+  local nAttempt = 0
+  local function TryEnter()
+    nAttempt = nAttempt + 1
+    local bOk, bEntered = pcall(MrxUtil.EnterBestAvailableSeat, uChar, State.uBoat, nil, true)
+    if bOk and bEntered then
+      Loader.Printf("DestroyerTool: aboard")
+      return
+    end
+    if nAttempt >= nMaxEnterAttempts then
+      Loader.Printf("DestroyerTool: gave up boarding after " .. tostring(nAttempt) .. " attempt(s)")
+      return
+    end
+    Event.Create(Event.TimerRelative, {nEnterRetrySeconds}, TryEnter, {})
+  end
+  TryEnter()
+end
+
+local function ExitBoat()
+  local uChar = Player.GetLocalCharacter()
+  if not uChar or not State.uBoat then
+    return
+  end
+  pcall(Vehicle.Exit, State.uBoat, uChar, true)
+end
+
+local function DespawnBoat()
+  if not State.uBoat then
+    return
+  end
+  pcall(Object.Remove, State.uBoat)
+  State.uBoat = nil
+  State.sVariant = nil
+end
+
+MrxMultiPageMenu.Reset()
+if State.uBoat then
+  MrxMultiPageMenu.AddOption("Enter " .. tostring(State.sVariant), EnterBoat)
+  MrxMultiPageMenu.AddOption("Exit boat", ExitBoat)
+  MrxMultiPageMenu.AddOption("Enter Coop Partner", EnterPartnerBoat)
+  MrxMultiPageMenu.AddOption("Exit Coop Partner", ExitPartnerBoat)
+  MrxMultiPageMenu.AddOption("Despawn boat", DespawnBoat)
+else
+  for _, tVariant in ipairs(tVariants) do
+    local sTemplate = tVariant.sTemplate
+    MrxMultiPageMenu.AddOption("Spawn " .. tVariant.sLabel, function()
+      SpawnBoat(sTemplate)
+    end)
+  end
+end
+MrxMultiPageMenu.AddOption("Close this menu", nil, nil, true, true)
+MrxMultiPageMenu.Display("Destroyer Tool:")
+```
+
+**Confirmed working**: spawning both variants and boarding as driver/gunner for both players. **Not
+working, included anyway**: physics (the ship doesn't float or move) and the camera (badly broken while
+driving or gunning) — both investigated thoroughly and very likely not fixable from Lua at all; see the
+deep dive for why.
+
+</details>
+

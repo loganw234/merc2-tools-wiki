@@ -49,3 +49,10 @@ different problem instead of just copy-pasting the end result.
   `Pg.Spawn` only catching a tiny fraction of real world population, whether any deeper native hook exists
   for object creation (short answer: not a clean one — see the layer system instead), and an unbuilt
   "layer delamination" tool for extracting a per-layer object roster.
+- **[Making the Destroyer Driveable](destroyer-vehicle)** — *partially working* — turning the "Chinese
+  Destroyer"/"Allied Destroyer" set-dressing ships into a spawnable, boardable vehicle for both players in
+  co-op, confirmed working for spawning and seat entry/exit. A systematic hardpoint-naming probe, a full
+  `Vehicle.GetSeatParams` dump, and an extensive camera-recipe test matrix (built around the one confirmed
+  live-gameplay camera lock anywhere in the corpus) all come up empty on the two open problems — physics
+  (needs external tooling, not reachable from Lua) and the camera (very likely the same "no Lua touchpoint"
+  category as turret firing itself, already confirmed elsewhere on this wiki).
