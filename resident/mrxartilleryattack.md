@@ -25,6 +25,11 @@ This is a stateless manager/utility module (no per-instance table). It does not 
 ### `Create(uGuid, nShells, nDistance, sTemplate, nTime)`
 Spawns an artillery bombardment at the specified location (`uGuid`). Configures the number of shells (`nShells`), distance from the target (`nDistance`), shell template (`sTemplate`), and total time for the attack (`nTime`). Randomizes positions for each shell and schedules their deployment using timers.
 
+**Not mentioned above but confirmed in source:** before scheduling any of the `nShells`, `Create` immediately
+fires one extra shot at the raw (un-offset) target position using a hardcoded `"Artillery Smoke Shell"`
+template — always, regardless of `sTemplate`, and not configurable via any parameter. This is likely a
+marker/ranging round rather than a real hit.
+
 ### `TriggerFallingMissile(x, y, z, sTemplate)`
 Spawns a single falling missile at the specified coordinates (`x`, `y`, `z`) using the provided template (`sTemplate`).
 

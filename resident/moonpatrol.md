@@ -64,10 +64,18 @@ Handles the jump action. It applies an impulse to the vehicle, starts emitters, 
 Called after the jump duration. It stops emitters and waits for the vehicle to land before resetting jump mechanics.
 
 ### `ResetJump(uGuid)`
-Resets jump mechanics by setting up an event to handle the player pressing the jump button.
+Resets jump mechanics by setting up an event to handle the player pressing the jump button. **Confirmed
+gated to the local player only** — the trigger-press listener is only (re-)armed when
+`Vehicle.GetDriver(uGuid) == Player.GetLocalCharacter()`; if a co-op partner is currently driving, this
+client never re-arms the jump listener for them.
 
 ### `Deactivated(uGuid, tListOfObjects)`
 Closes the gate of the vehicle and sets up a proximity event to reactivate it when nearby objects are detected.
+
+**Confirmed in source, likely a bug:** the proximity event's callback is a bare `Activated` — but no function
+named `Activated` (as opposed to `OnActivate`) is defined anywhere in this file. Referencing an undefined
+global in Lua evaluates to `nil` rather than erroring immediately, so this silently registers the proximity
+event with a `nil` callback instead of actually reactivating the vehicle when it fires.
 
 ## Events
 - Listens for `Event.ObjectInSeat` to call `OnEnter` or `OnExit` based on player entry/exit.

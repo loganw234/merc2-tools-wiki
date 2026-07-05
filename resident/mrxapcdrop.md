@@ -23,7 +23,13 @@ This is a stateless manager/utility module that does not follow the per-instance
 
 ## Functions
 ### `Create(srcObj, tConfig)`
-Initializes and starts the APC drop operation based on the provided configuration. It sets up AI goals for moving to the destination, deploying passengers, and flying out. If the vehicle or driver is not alive, it logs an error message.
+Initializes and starts the APC drop operation based on the provided configuration. It sets up AI goals for moving to the destination, deploying passengers, and flying out. If the vehicle is not alive, it logs an error message and returns early.
+
+**Not mentioned above but confirmed in source:** if `tConfig.inDest` is falsy (no `inDest` configured), `Create`
+skips the AI-goal setup entirely and instead calls `self:DropCallback()` immediately. This looks like a bug in
+the game's own code — only `_DropCallback` (with a leading underscore) is actually defined anywhere in this
+module, so that call would fail with an "attempt to call a nil value" error. This path is likely dead/never
+exercised in practice, since every real caller apparently always supplies `inDest`.
 
 ### `Cancel(self)`
 Cancels any ongoing events related to the APC drop operation, such as death events and exit delays.
