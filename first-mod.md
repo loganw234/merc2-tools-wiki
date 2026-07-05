@@ -138,6 +138,9 @@ normal event handler and get confused when it doesn't:
 You now have all three ways of running code: interactive (console), automatic (`OnLoad`/`OnBoot`), and
 on-demand (`OnKey`). From here:
 
+- [Your First Menu](first-menu) is the very next step — a menu with a couple of toggle options that
+  remembers its own state between presses, the smallest complete example of state + `pcall` + a real
+  menu combined.
 - [Recipes](recipes) has more copy-pasteable snippets once you know where they'd go.
 - [Deep Dive: Overriding a Function](deep-dives/function-override) goes one level deeper — replacing a
   piece of the game's own logic instead of just reading/writing a value, worked through end to end.

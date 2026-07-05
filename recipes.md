@@ -19,4 +19,7 @@ built something reusable, either page is a good home for it, depending on whethe
 or a finished tool.
 
 Not sure where to start? [Snippets](snippets) first — [Sample Scripts](sample-scripts) makes more sense
-once you've seen a few smaller examples and know roughly what a script in this ecosystem looks like.
+once you've seen a few smaller examples and know roughly what a script in this ecosystem looks like. If
+you've read a few Snippets and want to see how several of them combine into your own small tool (state
+that survives between keypresses, `pcall`, and a real menu), [Your First Menu](first-menu) is the bridge
+between the two.
