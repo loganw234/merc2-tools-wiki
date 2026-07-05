@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: Bench
 tags: [hack, bench]
+verified: true
+verified_note: corrected Instance pattern and Events — Bench has no Create/OnActivate/Awake/setmetatable/OnUse anywhere; both Bench and Hackybench are stateless, plain functions only, no event wiring at all
 ---
 
 # Hackybench
@@ -12,24 +14,43 @@ tags: [hack, bench]
 *Module: hackybench.lua*
 
 ## Overview
-The `Hackybench` module is a specialized version of the `Bench` module. It inherits from `Bench` and overrides its `Use` function to provide custom behavior when interacted with by players.
+The `Hackybench` module is a thin 4-line specialization of the `Bench` module. It inherits from `Bench`
+via `inherit("Bench")` and redefines `Use` as an empty stub — the file body is literally just the
+`inherit()` call plus one empty function.
 
 ## Inheritance
 - Inherits from: `Bench`
 - Imports: none
 
 ## Instance pattern
-This module follows the per-instance object pattern (keyed by `uGuid`) inherited from `Bench`. It does not introduce any additional state fields beyond those defined in `Bench`.
+**Neither `Hackybench` nor `Bench` follows the per-instance/`uGuid` pattern.** `Bench.lua` (checked
+directly) defines only `QueryRepair`, `QueryActiveUse`, `SuperUse`, `Use`, and `MakeUpright` — five plain
+functions, no `OnActivate`, no `Awake`, no `Create`, no `setmetatable`, no `tInstance` registry, and no
+`inherit()` of its own. `Hackybench` adds nothing on top except overriding `Use`. Both modules are
+stateless — there is no per-instance state to track at all.
 
 ## Functions
 ### `Use(aiguid, floatval)`
-Overrides the `Use` function from the `Bench` module. Currently, this function is empty and does nothing when called.
+Overrides `Bench.Use`. Empty body in both `Hackybench` and `Bench` — this override doesn't actually
+change behavior, since the base implementation was already a no-op.
+
+Inherited from `Bench` (not redefined here): `QueryRepair(intVal)` (returns `"MakeUpright"` if `intVal ==
+1`, else `""`), `QueryActiveUse(intVal)` (returns `"SuperUse"` if `intVal == 1`, else `""`), `SuperUse
+(floatval, aiguid)` (empty stub), and `MakeUpright(objectguid, aiguid)` (empty stub).
 
 ## Events
-- Listens for `Event.ObjectHibernation` to call `Awake` when the object leaves hibernation (inherited from `Bench`).
-- Listens for `OnUse` to trigger the `Use` function when the player interacts with the object (inherited from `Bench`).
+**No events at all.** Neither `Hackybench.lua` nor `Bench.lua` contains a single `Event.*` reference —
+no `Event.Create`, no `Event.ObjectHibernation`, nothing. The previous version of this page claimed
+`Event.ObjectHibernation`/`OnUse` wiring "inherited from Bench," but `Bench` has no such wiring to
+inherit; that claim did not check out against source.
 
 ## Notes for modders
-- This module is a placeholder or template that extends the functionality of `Bench`. The current implementation of the `Use` function does nothing.
-- To extend this module, you can override the `Use` function with custom logic to provide specific behavior when players interact with the object.
-- Ensure that any modifications to the `Use` function do not interfere with other interactions or game mechanics.
+- This module is a placeholder/template — every function it defines or inherits from `Bench` is either an
+  empty stub or a trivial string lookup. There is no observed engine hookup (activation, hibernation, or
+  use-trigger event) anywhere in this two-file chain.
+- To extend this module, override `Use` with custom logic; be aware you're starting from nothing; the
+  base classes provide no scaffolding to build on.
+- `QueryActiveUse`/`QueryRepair` string returns (`"SuperUse"`, `"MakeUpright"`) look like they're meant to
+  be read by an external/native dispatcher (likely by name, to decide which function to call next), but
+  no call site for that dispatch was found in the decompiled corpus — can't confirm the mechanism from
+  static reading alone.

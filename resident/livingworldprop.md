@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [inventory, weapon]
+verified: true
+verified_note: spot-checked against source (single-function 3-line file), no changes needed.
 ---
 
 # LivingWorldProp
@@ -23,7 +25,9 @@ This is a stateless utility module (no `Create`/instance pattern). It does not t
 
 ## Functions
 ### `UnUse(objectGuid, holdersGuid)`
-Called when a player interacts with a living world prop. This function drops the weapon associated with the prop by calling `Human.Inventory.DropWeapon(holdersGuid, objectGuid)`.
+Called when a player stops using/interacting with a living world prop (the engine-invoked counterpart to
+a `Use` handler — no `Use` is defined in this file). Drops the weapon associated with the prop by
+calling `Human.Inventory.DropWeapon(holdersGuid, objectGuid)`. This is the only function in the file.
 
 ## Events
 - Listens for: none — this module does not subscribe to any engine events directly.

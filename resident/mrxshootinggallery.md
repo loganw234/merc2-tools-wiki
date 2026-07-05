@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [mission, player]
+verified: true
+verified_note: Events section was missing 3 real Event.* constants (ObjectHibernation, Boundary, WeaponEvent) actually referenced in source; expanded with accurate handle names and filter args, rest of page confirmed accurate.
 ---
 
 # MrxShootingGallery
@@ -44,15 +46,17 @@ Sets up boundary events for the secondary character on the client side. This fun
 Sets up the shooting gallery border on both server and client sides. It configures firelock states, creates boundary events, and handles player join events to ensure proper mission setup.
 
 ### `SteppedOut(uChar, uBorderName)`
-Called when a character exits the designated boundary area. This function sets the firelock state to true for the character and starts a voice sequence warning about restricted weapon usage.
+Called when a character exits the designated boundary area. This function sets the firelock state to true for the character and starts a voice sequence warning about restricted weapon usage. Contains an empty `if Player.GetLocalCharacter() == uChar then end` block with no body — likely lost/stripped logic from decompilation, has no effect either way.
 
 ### `SteppedIn(uChar, uBorderName)`
 Called when a character enters the designated boundary area. This function sets the firelock state to false for the character and re-creates boundary events to manage further transitions.
 
 ## Events
-- Listens for `Event.GameStateChange` to call `NetSafeSetupBorder` when the game state changes to "WaitForTether".
-- Listens for `Event.ScriptEvent` with `"mpPlayerJoin"` to set up client-side border events for new players.
-- Listens for `Event.Boundary` to manage firelock states and voice sequences when characters exit or enter the designated area.
+- `Event.GameStateChange` filtered on `"WaitForTether", "exit"` (via `NetSafeSetupBorder`, handle `_evNetSafeSetupBorder`) — re-runs `SetupBorder(uBorderName)` once the tether wait state exits, client-only (`Net.IsClient()` gate).
+- `Event.ObjectHibernation` filtered on `"awake"` (via `SetupClientBorder`) — one-shot, waits for the secondary character to wake before wiring up `_BorderEventP2`.
+- `Event.ScriptEvent` named `"mpPlayerJoin"` (persistent, via `SetupBorder`, handle `_evPlayerJoined`) — guarded to only fire when `Net.IsServer()` and the joining player is not local; calls `SetupClientBorder`.
+- `Event.Boundary` (via `SetupBorder`/`SteppedOut`/`SteppedIn`, handles `_BorderEventP1`/`_BorderEventP2`) — fires on `"exit"`/`"enter"` of `uBorderName` for the primary/secondary character; `SteppedOut` and `SteppedIn` re-create each other's opposite-direction listener every time they fire, forming a ping-pong chain.
+- `Event.WeaponEvent` filtered on `"FireLock"` for the primary weapon (via `SteppedOut`, handle `uFireLockVO`) — triggers `MrxVoSequence.Start` with the VO line `"Fiona-In-Mission-MinorContract-Pmc31-08"` when the locked weapon is fired.
 
 ## Notes for modders
 - Ensure that `Reset()` is called appropriately to clear any existing mission state before starting a new shooting gallery mission.

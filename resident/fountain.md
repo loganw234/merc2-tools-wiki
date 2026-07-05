@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [utility]
+verified: true
+verified_note: all 4 functions confirmed against source (QueryActiveUse, Use, SuperUse, QueryRepair); no events, no inheritance; page was already accurate
 ---
 
 # Fountain
@@ -23,16 +25,16 @@ This is a stateless manager/utility module. It does not track any per-instance s
 
 ## Functions
 ### `QueryActiveUse(intVal)`
-Determines the active use type based on the input integer value. If `intVal` is 1, it returns "SuperUse". Otherwise, it returns an empty string.
+Determines the active use type based on the input integer value. If `intVal` is 1, it returns `"SuperUse"`. Otherwise, it returns an empty string.
 
 ### `Use(floatval, aiguid)`
-Handles the general use action for the fountain. This function is currently defined but does not contain any logic (decompiler artifact).
+Handles the general use action for the fountain. Empty body — takes both arguments but does nothing with them.
 
 ### `SuperUse(floatval, aiguid)`
-Handles the super use action for the fountain. This function is currently defined but does not contain any logic (decompiler artifact).
+Handles the super use action for the fountain. Empty body, same as `Use`.
 
 ### `QueryRepair(intVal)`
-Queries the repair state based on the input integer value. It always returns an empty string.
+Queries the repair state based on the input integer value. Ignores `intVal` entirely and always returns an empty string.
 
 ## Events
 This module does not listen for or fire any engine events.

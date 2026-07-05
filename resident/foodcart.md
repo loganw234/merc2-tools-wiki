@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [utility]
+verified: true
+verified_note: 2-line file, single stub Use function confirmed, no events/inheritance in source; page was already accurate
 ---
 
 # FoodCart
@@ -23,7 +25,7 @@ This is a stateless manager/utility module. It does not track any per-instance s
 
 ## Functions
 ### `Use(aiguid, floatval)`
-A placeholder function that currently does nothing. It takes two arguments, `aiguid` and `floatval`, but no implementation is provided.
+A placeholder function that currently does nothing (empty body). It takes two arguments, `aiguid` and `floatval`, but no implementation is provided. This is the only function defined in the file.
 
 ## Events
 - none

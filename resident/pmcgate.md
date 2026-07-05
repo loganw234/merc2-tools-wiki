@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [pmc, gate]
+verified: true
+verified_note: spot-checked against source (7 lines, 2 functions) — function list, event list, and inheritance claim all confirmed accurate, no changes needed
 ---
 
 # Pmcgate

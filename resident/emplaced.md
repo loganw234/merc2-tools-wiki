@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [ai, gunner]
+verified: true
+verified_note: spot-checked against source, no changes needed — all functions and events confirmed present
 ---
 
 # Emplaced

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [tree, animation]
+verified: true
+verified_note: removed fabricated Event.ObjectStateChange claim (file only references Event.ObjectIsReady; OnStateChange is engine-invoked by naming convention) and corrected the Inheritance/Imports line (String/Object are engine namespaces, not imported modules)
 ---
 
 # Treetrunk
@@ -16,7 +18,8 @@ The `Treetrunk` module is responsible for handling the state changes of tree tru
 
 ## Inheritance
 - Inherits from: `none` (base/utility module)
-- Imports: `String`, `Event`, `Object`
+- Imports: none. (`String`, `Event`, `Object` are built-in engine namespaces called directly, not
+  `import()`ed modules — this file has no `import(...)` or `inherit(...)` calls at all.)
 
 ## Instance pattern
 This is a stateless utility module. It does not track any per-instance state; instead, it handles global events related to tree trunk states.
@@ -29,8 +32,12 @@ Called when the state of an object changes. If the new state is either "FireDebr
 Plays a material animation on the specified tree trunk object (`uiGuid`). The animation used is "global_env_treeplaza03_anim".
 
 ## Events
-- Listens for `Event.ObjectStateChange` to trigger animations when a tree trunk's state changes to "FireDebrisState" or "FireDestroyedState".
-- Fires `Event.ObjectIsReady` to ensure the object is ready before playing the animation.
+- `Event.ObjectIsReady` (in `OnStateChange`, via `Event.Create`) — the only `Event.*` call in this file.
+  Used to defer `_PlayMaterialAnims` until the object is ready, after a matching state change is detected.
+- `OnStateChange` itself is **not** registered through `Event.Create` in this file — no
+  `Event.ObjectStateChange` (or similarly named constant) appears anywhere in the source. It's invoked
+  directly by the engine as a naming-convention callback on the world-object script, the same way
+  `OnActivate`/`OnDeath` are called on other modules.
 
 ## Notes for modders
 - Ensure that the tree trunk's state transitions are correctly handled in your game logic.

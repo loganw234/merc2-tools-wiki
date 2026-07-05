@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [contract, hijack]
+verified: true
+verified_note: confirmed all 3 functions against 15-line source; traced external call sites in src/vz/pmccon004.lua for SetActiveContract/CancelActiveContract (CompleteActiveContract has no confirmed caller in the corpus); no events in this file
 ---
 
 # HijackContractManager
@@ -19,22 +21,35 @@ The `HijackContractManager` module is responsible for managing active hijack con
 - Imports: none
 
 ## Instance pattern
-This is a stateless manager/utility module with no per-instance pattern. It tracks the following key field:
-- `_oContract`: The currently active contract object.
+Stateless singleton module — no `OnActivate`/`Awake`/`Create`/`setmetatable`, no `uGuid` keying. It holds
+exactly one piece of global state, a single active contract (not per-instance, not a table of contracts):
+- `_oContract`: the currently active contract object (whatever table was last passed to
+  `SetActiveContract`). Only one contract can be tracked at a time — setting a new one silently discards
+  the reference to any previous one, with no cleanup call made on it.
 
 ## Functions
 ### `SetActiveContract(oContract)`
-Sets the active contract to `oContract`. Logs a debug message indicating that an active contract has been set.
+Sets `_oContract = oContract`. Logs a debug message. Called externally from
+`src/vz/pmccon004.lua:92` (`HijackContractManager.SetActiveContract(self)`), confirming this is used by at
+least one mission/contract script in the corpus.
 
 ### `CompleteActiveContract()`
-Completes the currently active contract by calling its `Complete` method. Logs a debug message indicating that the active contract is being completed.
+Calls `_oContract:Complete()`. Logs a debug message. **No confirmed call site found anywhere in the
+decompiled corpus** — can't confirm from static reading alone whether/how this gets invoked (possibly
+native/engine-triggered, or simply unused in the shipped content).
 
 ### `CancelActiveContract()`
-Cancels the currently active contract by calling its `Cancel` method. Logs a debug message indicating that the active contract is being canceled.
+Calls `_oContract:Cancel()`. Logs a debug message. Called externally from
+`src/vz/pmccon004.lua:506` (`HijackContractManager.CancelActiveContract()`).
 
 ## Events
-- none
+None — no `Event.*` reference anywhere in this file.
 
 ## Notes for modders
-- Ensure that `SetActiveContract`, `CompleteActiveContract`, and `CancelActiveContract` are called appropriately to manage the lifecycle of hijack contracts.
-- The module uses a global variable `_oContract` to track the currently active contract, so be cautious when modifying this variable directly.
+- `SetActiveContract`/`CancelActiveContract` are confirmed used by `src/vz/pmccon004.lua`, a
+  contract/mission script — that's the concrete example to look at for calling convention.
+- `_oContract` must implement `:Complete()` and `:Cancel()` methods for `CompleteActiveContract`/
+  `CancelActiveContract` to work; calling either when `_oContract` is `nil` (i.e., before
+  `SetActiveContract` has ever run) will error.
+- The module only tracks one contract globally — calling `SetActiveContract` again before the current
+  contract completes/cancels overwrites `_oContract` with no warning or cleanup of the old reference.

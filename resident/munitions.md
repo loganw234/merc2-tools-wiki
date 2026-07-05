@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: Blippable
 tags: [munition, pickup, support]
+verified: true
+verified_note: fixed fabricated Events section (real events are ObjectHibernation/ObjectProximity/ContextAction/ObjectInSeat/TimerRelative, not PlayerNear/PlayerFar/ObjectDeath/PlayerJoined); corrected Instance-pattern field names against Blippable source; documented confirmed bug in GetMunitionsCount (line 635, reads global nTagged instead of _nTagged)
 ---
 
 # Munitions
@@ -19,12 +21,13 @@ The `Munitions` module manages the behavior and interactions of munition objects
 - Imports: `MrxGui`, `MrxPlayState`, `MrxPmc`, `MrxSupportData`, `MrxTutorialManager`, `MrxUtil`, `MrxVoSequence`, and `MrxMunitionsPickup`
 
 ## Instance pattern
-This is a per-instance object module (keyed by `uGuid`). It tracks the following key fields:
-- `nStock`: The type of munition (support, fuel, or cash).
-- `bTagged`: Indicates whether the munition has been tagged.
+This is a genuine per-instance object module (keyed by `uGuid`) — confirmed via `OnActivate`/`Awake`/`tInstance` and `oPrototype:Create(uGuid, nStock)` (line 49), inherited from `Blippable`/`Inheritable`. Per-instance fields set directly on `oInstance`/`self`:
+- `nStock`: The type of munition (support, fuel, or cash) — index into the module-level `tMunitions` table.
+- `bTagged`: Indicates whether the munition has been tagged (context action performed).
 - `bPickedUp`: Indicates whether the munition has been picked up.
-- `tContextActions`: Context actions available for the munition.
-- `bBlipped`: Indicates whether the munition is currently blipped on the radar.
+- `bActive`: Inherited from `Blippable` (not a field this file sets directly) — tracks whether the instance is currently blipped; toggled by `Blippable.SetBlipped`/`ClearBlipped`, which this module calls via `self:SetBlipped()`/`self:ClearBlipped()`. The wiki previously called this `bBlipped`; that name does not appear in either `munitions.lua` or `blippable.lua`.
+- `TagEvent`, `VehicleEnterEvent`, `VehicleExitEvent`, `NearnessEvent`, `FarnessEvent`: Individual event handles for the context action, vehicle enter/exit, and radar proximity events, each deleted in `Delete(self)`. There is no `tContextActions` table anywhere in the source — context actions are registered directly via `Pg.AddContextAction`, not stored in a table on the instance.
+- `sTexture`, `tColor`, `tFlash`, `nSize`, `tMarker`: Radar blip/marker appearance, set in `Awake` based on stock type (support/fuel/cash each get distinct texture and marker constants).
 
 ## Functions
 
@@ -47,7 +50,7 @@ This is a per-instance object module (keyed by `uGuid`). It tracks the following
 - **Description**: Called when the instance is being torn down.
 - **Parameters**:
   - `uGuid`: Unique runtime object handle.
-- **Behavior**: Handles immediate pickup of hibernated munitions if necessary and calls `Blippable.OnDeactivate`.
+- **Behavior**: Handles immediate pickup of hibernated munitions if necessary, then calls `Blippable.OnDeactivate(uGuid)`. Note: `Blippable` itself does not define `OnDeactivate` — this call resolves through the inheritance chain to `Inheritable.OnDeactivate` (`Blippable` does `inherit("Inheritable")`). Works correctly via metatable fallback, just not literally defined where the call site implies.
 
 ### HideTutorialMessage(uGuid)
 - **Description**: Hides a tutorial message and deletes the associated event.
@@ -178,7 +181,17 @@ Checks if a specific munition (identified by its GUID) is tagged. Returns `true`
 Tags and blips a specific munition on the client side. It updates the color of the objective and marker for the munition instance and pulses the marker.
 
 ### GetMunitionsCount()
-Returns the count of tagged munitions (`_nTagged`). If no munitions are tagged, returns `false` with the message "nomunitions".
+**Confirmed bug in source (line 635).** Checks `_nTagged > 0`, but the return statement reads a *different*, never-assigned global `nTagged` (missing the leading underscore) instead of `_nTagged`:
+```lua
+function GetMunitionsCount()
+  if _nTagged > 0 then
+    return nTagged        -- bug: should be _nTagged; nTagged is never declared/assigned anywhere in this file
+  else
+    return false, "nomunitions"
+  end
+end
+```
+In practice this means: whenever at least one munition is tagged, the function returns `nil` (Lua's default value for an unset global) instead of the actual tagged count. The "no munitions tagged" branch (`false, "nomunitions"`) is unaffected and works as documented.
 
 ### NetEventCallback(nType, tArgs)
 Handles network events related to munitions. It processes different event types such as setting munitions taggable, client stockpile queries and acknowledgments, pickup events, marker pulses, and checking if a munition is tagged.
@@ -188,11 +201,13 @@ Called when a player joins the game. If on the server, it sends a custom network
 
 ## Events
 
-- **Event.ObjectHibernation**: Listens for this event to call `Awake` when the object leaves hibernation.
-- **Event.PlayerNear**: Listens for this event to trigger the `Near` function when the player enters the near proximity of the object.
-- **Event.PlayerFar**: Listens for this event to trigger the `Far` function when the player exits the near proximity of the object.
-- **Event.ObjectDeath**: Listens for this event to call `OnDeath` when the object's underlying object dies.
-- **Event.PlayerJoined**: Listens for this event to call `OnPlayerJoined` when a player joins the game.
+The following `Event.*` constants are the ones actually referenced in this file (a previous version of this page listed `Event.PlayerNear`, `Event.PlayerFar`, `Event.ObjectDeath`, and `Event.PlayerJoined` — none of those appear anywhere in `munitions.lua`; `OnDeath` and `OnPlayerJoined` are lifecycle callback names the engine/inheritance chain calls directly, not events this file wires up itself):
+
+- **Event.ObjectHibernation**: Wired in `OnActivate` to call `Awake` when the object leaves hibernation.
+- **Event.ObjectProximity**: Used twice, for proximity-based blip near/far detection — `Near`/`Far` register each other via `Event.Create(Event.ObjectProximity, {uGuid, Player.GetLocalCharacter(), "<"/">"​, _kDistance}, ...)`.
+- **Event.ContextAction**: Wired in `AddContextAction` (`self.TagEvent`) to call `Actioned` when the player performs the tag context action.
+- **Event.ObjectInSeat**: Used in `AddContextAction` (vehicle exit, one-shot) and as a persistent vehicle-enter listener (`self.VehicleEnterEvent`) calling `HumanControlled`.
+- **Event.TimerRelative**: Used for the blipped-VO cooldown (`PlayBlippedVO`/`SetAllowBlippedVO`) and for hiding tutorial messages after a delay (`HideTutorialMessage`, via `_tHideEvents`).
 
 ## Notes for modders
 

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [structure]
+verified: true
+verified_note: spot-checked against source (entire file is a 3-line empty function stub), no changes needed.
 ---
 
 # Monument
@@ -23,7 +25,10 @@ This is a stateless manager/utility module (no per-instance tables or fields).
 
 ## Functions
 ### `Use(aiguid, floatval)`
-A placeholder function that currently does nothing. It takes two parameters, `aiguid` and `floatval`, but no actions are performed with them.
+The entire body of this function is empty — it takes two parameters, `aiguid` and `floatval`, but the
+function does nothing at all (no statements between `function` and `end`). This is the only function
+defined in the file. Likely an engine-invoked "use" callback (naming convention matches other `Use`
+handlers in this codebase) left unimplemented for monuments.
 
 ## Events
 - none

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: Blippable
 tags: [vehicle, blip]
+verified: true
+verified_note: corrected Events section — _HomingLaunched is called directly as HomingMissile._HomingLaunched(...) from antiair.lua's own _HomingLaunched, not registered via Event.Create in this file; rest of page (already unusually detailed) confirmed accurate against source
 ---
 
 # HomingMissile
@@ -50,8 +52,18 @@ The real spawn/launch is handled by something native, outside this file entirely
 the likely (unconfirmed) mechanism, and [`Airstrike`](../namespaces/airstrike) for the *other*, confirmed
 projectile-spawning namespace this module does **not** use.
 
+**Not wired via `Event.Create` in this file.** `HomingMissile._HomingLaunched` is invoked as a plain
+cross-module function call, directly from `antiair.lua`'s own `_HomingLaunched(oWidget, tData)`
+(confirmed: `src/resident/antiair.lua:399` reads
+`HomingMissile._HomingLaunched(oWidget, tData)`). `AntiAir`'s version is presumably the actual
+event/widget-callback target registered with the engine — that registration is `AntiAir`'s concern, not
+this file's. `homingmissile.lua` itself contains zero `Event.*` references of any kind.
+
 ## Events
-- Listens for custom event `_HomingLaunched` to activate the missile and set up its blip.
+**None.** `homingmissile.lua` contains no `Event.Create`, `Event.CreatePersistent`, or any other
+`Event.*` reference. The previous version of this page described `_HomingLaunched` as something this
+file "listens for" as a custom event — it isn't; it's a plain function called directly by `AntiAir`, not
+an event registration.
 
 ## Notes for modders
 - Ensure that `OnActivate` and `ClearBlipped` are called appropriately to manage the missile's blip lifecycle.

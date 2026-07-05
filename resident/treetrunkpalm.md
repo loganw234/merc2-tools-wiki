@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [tree, animation]
+verified: true
+verified_note: removed fabricated Event.ObjectStateChange claim (file only references Event.ObjectIsReady; OnStateChange is engine-invoked by naming convention, not the function that's actually scheduled via Event.Create)
 ---
 
 # Treetrunkpalm
@@ -29,7 +31,13 @@ Called when the object's state changes. If the new state is either "FireDebrisSt
 Plays a material animation on the palm tree trunk with the GUID `uiGuid`. The animation played is named "global_env_treepalm_anim". It also logs a debug message indicating that the animation is being played.
 
 ## Events
-- Listens for `Event.ObjectStateChange` to call `_PlayMaterialAnims` when the object transitions to "FireDebrisState" or "FireDestroyedState".
+- `Event.ObjectIsReady` (in `OnStateChange`, via `Event.Create`) — the only `Event.*` call in this file.
+  Schedules `_PlayMaterialAnims` to run once the object reports ready, after a matching state change is
+  detected.
+- `OnStateChange` itself is **not** registered through `Event.Create` in this file — no
+  `Event.ObjectStateChange` (or similarly named constant) appears anywhere in the source. It's invoked
+  directly by the engine as a naming-convention callback on the world-object script, the same way
+  `OnActivate`/`OnDeath` are called on other modules.
 
 ## Notes for modders
 - Ensure that `OnStateChange` is called appropriately to manage state transitions and trigger animations.
