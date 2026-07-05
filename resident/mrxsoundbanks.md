@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [audio, sound]
+verified: true
+verified_note: confirmed all 16 functions and "Events: None"; corrected pending-request structure from queue to LIFO stack (submits _nLastAddedIndex, not oldest)
 ---
 
 # MrxSoundBanks
@@ -29,16 +31,16 @@ This is a stateless manager/utility module. It tracks the following key fields:
 
 ## Functions
 ### `LoadSoundBank(sBank, funcBatchComplete)`
-Enqueues a request to load a sound bank. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
+Pushes a request to load a sound bank onto the pending-request stack via `_AddAssetRequest`. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
 
 ### `UnloadSoundBank(sBank, funcBatchComplete)`
-Enqueues a request to unload a sound bank. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
+Pushes a request to unload a sound bank onto the pending-request stack via `_AddAssetRequest`. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
 
 ### `LoadWaveBank(sBank, funcBatchComplete)`
-Enqueues a request to load a wave bank. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
+Pushes a request to load a wave bank onto the pending-request stack via `_AddAssetRequest`. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
 
 ### `UnloadWaveBank(sBank, funcBatchComplete)`
-Enqueues a request to unload a wave bank. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
+Pushes a request to unload a wave bank onto the pending-request stack via `_AddAssetRequest`. If a batch complete callback is provided, it sets `_funcBatchComplete` to this function.
 
 ### `LoadTempBank(sBank, sType, funcCallback, tCallbackData)`
 Loads a temporary sound bank or wave bank with a specified type and callback. It localizes the asset name before loading.
@@ -50,10 +52,17 @@ Unloads a temporary sound bank or wave bank with a specified type and callback. 
 Requests an ambience bank if the audio library version is 12 or higher. It localizes the asset name before requesting.
 
 ### `_SubmitAssetRequest()`
-Submits pending asset requests to the sound system, ensuring that no more than `MAX_SUBMITTED` requests are in flight at any time. It calls `Sound.LoadBankWithCallback` or `UnloadBankWithCallback` based on the request type and decrements counters accordingly.
+Submits the most-recently-added pending asset request to the sound system, ensuring that no more than `MAX_SUBMITTED` requests are in flight at any time. It calls `Sound.LoadBankWithCallback` or `UnloadBankWithCallback` based on the request type and decrements counters accordingly.
+**Confirmed in source:** `_tPendingRequests` is a **LIFO stack**, not a FIFO queue — both
+`_AddAssetRequest` (push) and `_SubmitAssetRequest` (pop) operate on `_tPendingRequests[_nLastAddedIndex]`,
+the same top-of-stack slot, so the *last* bank request added is the *first* one submitted. A modder queuing
+several bank loads back-to-back should expect them to fire in reverse order, not the order they were
+requested.
 
 ### `_AddAssetRequest(sBank, sType, bLoad)`
-Adds an asset request to the pending queue. It increments the outstanding assets counter and submits the request if possible.
+Pushes an asset request onto the pending stack (`_tPendingRequests[_nLastAddedIndex]`, incrementing
+`_nLastAddedIndex`). It increments the outstanding assets counter and calls `_SubmitAssetRequest` to submit
+immediately if the in-flight limit allows.
 
 ### `_GetLocalizedName(sAssetName)`
 Appends the current language to `vo_`-prefixed asset names to ensure localization.
@@ -92,3 +101,5 @@ Flags an asset operation as complete. It decrements the submitted requests and o
 - Be aware of the maximum number of concurrent asset requests (`MAX_SUBMITTED`) to avoid overwhelming the audio system.
 - Localize asset names using `_GetLocalizedName` if they are prefixed with `vo_`.
 - Use `_LoadRequiredAssetsCommon` and `_UnloadRequiredAssetsCommon` for common sound assets, and `_LoadRequiredAssets` and `_UnloadRequiredAssets` for additional sound assets.
+- The pending-request buffer is LIFO, not FIFO — if you queue several `LoadSoundBank`/`LoadWaveBank` calls
+  in a row expecting first-requested-first-loaded order, the last one you called actually submits first.

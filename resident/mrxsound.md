@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [audio, sound]
+verified: true
+verified_note: fixed Events section (only one real Event.* call; readiness callback is Sound.RegisterReadyCallback, not an Event); confirmed all 29 functions, no undefined callbacks
 ---
 
 # MrxSound
@@ -113,11 +115,23 @@ Checks if the sound system is ready and calls the registered callback if conditi
 Initializes the music system, sets up additional fade settings, and prepares for game exit.
 
 ## Events
-- Listens for `Event.GameStateChange` to handle game state changes during exit.
-- Listens for internal events related to sound asset loading and system readiness.
+Only one real `Event.*` reference exists in this file:
+- `_SetupGameExit()` calls `Event.Create(Event.GameStateChange, {"unloading", "enter"}, ExitGame)` —
+  subscribes `ExitGame` (defined in this file) to fire when the game state transitions to `"unloading"`
+  `"enter"`.
+
+Sound-asset/system-readiness notification is **not** event-based — it's a plain callback registered via
+`Sound.RegisterReadyCallback(_FlagSystemReady)` in `SetSoundReadyFunc`. `_FlagSystemReady` is defined in
+this file, so there's no undefined-callback issue.
 
 ## Notes for modders
 - Ensure that audio-related functions are called appropriately to manage transitions between different states (e.g., pause, cinematic, PDA).
 - Use the provided functions to control music states and sound effects effectively.
 - Be aware of the dependencies on other modules like `MrxMusic` and `MrxSoundCategories`.
-- The decompiler artifact noted is `_bExitingGame`, which appears unused but is part of the internal state management.
+- `_bExitingGame` is **not** unused — `ExitingGame()` exposes it as a getter, and it gates logic in
+  `mrxplayer.lua` (two call sites check `not MrxSound.ExitingGame()` before running hero-death/local-player
+  checks), so it's a real cross-module flag, not decompiler dead weight.
+- `MrxSound.lua` and `MrxSoundBootstrap.lua` both define a top-level `ExitGame()` function. Since each
+  `.lua` file is its own module/environment (no shared global namespace — see the
+  [index page](index#how-these-modules-actually-work)), these are two distinct functions
+  (`MrxSound.ExitGame` vs `MrxSoundBootstrap.ExitGame`), not a naming collision.

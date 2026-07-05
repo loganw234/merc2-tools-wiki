@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [audio, sound]
+verified: true
+verified_note: corrected Events section — no Event.* calls exist anywhere in source; the two entries were invented (this module is called directly by other scripts, not event-driven)
 ---
 
 # MrxSoundCategories
@@ -54,11 +56,21 @@ Ref-counted function to duck the master volume over a specified length of time.
 Ref-counted function to unduck the master volume over a specified length of time.
 
 ## Events
-- Listens for custom event `_AdditionalFadeSetup` to add additional fade settings.
-- Listens for custom event `_DuckGlobalTable` to duck the master volume when the sound database loads.
+No `Event.*` references anywhere in this file — this module is **not** event-driven. `_AdditionalFadeSetup`
+and `_DuckGlobalTable` are plain functions (note the leading underscore, this codebase's usual
+"internal/private" convention), called directly by whatever other script wants this behavior — there are
+no call sites for either inside this file itself, so triggering is entirely external (no call sites found
+in the decompiled corpus for either from this side).
 
 ## Notes for modders
 - Use `SetFadeCategory` and `Fade` to manage audio fades for different categories and modes.
 - Customize pitch adjustments using `SetPitchCategory` and `Pitch`.
 - Control master volume ducks with `SetDuckOnGlobalTableLoad`, `DuckMasterVolume`, and `UnduckMasterVolume`.
-- Be aware that the master volume ducking is ref-counted to ensure proper state management.
+- Be aware that the master volume ducking is ref-counted to ensure proper state management — call
+  `DuckMasterVolume`/`UnduckMasterVolume` in matched pairs, or the ref count drifts and the volume never
+  restores.
+- `Fade`/`Pitch` iterate `_tFadeSettings[sMode]`/`_tPitchSettings[sMode]` with `pairs()` — if `sMode` was
+  never registered via `SetFadeCategory`/`SetPitchCategory` (or via the module's own `_tFadeSettings`/
+  `_tPitchSettings` table literals, which only pre-declare `vosequence`, `credits`, `actionhijack`,
+  `survivalmode`, `fanfare`, `satelliteview` for fade and `survivalmode` for pitch), indexing
+  `_tFadeSettings[sMode]` with an unknown mode returns `nil` and the `pairs(nil)` call errors.

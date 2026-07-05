@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [audio, subtitle]
+verified: true
+verified_note: corrected Events section (no Event.* calls in source, module is called directly) and noted table.getn as legacy Lua 5.0 API
 ---
 
 # MrxSubtitle
@@ -26,17 +28,30 @@ This is a stateless manager/utility module (no per-instance tables). It tracks t
 
 ## Functions
 ### `Add(vMsgs, fCallback, tCallbackArgs)`
-Accepts a string or table of messages; pushes each to `Hud.SubtitleBuffer:AddMessage` with `_knDisplayDuration`/`_knFadeDuration`; attaches callback to the final message. This function is used to queue subtitle messages for display.
+Accepts a string or table of messages (`type(vMsgs)` branches on `"string"` vs `"table"`; any other type
+is a silent no-op — returns with no error and nothing queued). Builds one `tConfig` per message
+(`sMessage`, `nDuration = _knDisplayDuration`, `nFadeTime = _knFadeDuration`, `bClearBuffer = true`,
+`bAllowsAppends = false`) and pushes each to `Hud.SubtitleBuffer:AddMessage(tConfig)`. Only the **last**
+message in the batch (`i == nMsgs`, via `table.getn(tMsgs)`) gets `tConfig.fCallback`/
+`tConfig.tCallbackData` set from `fCallback`/`tCallbackArgs` — earlier messages in a multi-message call get
+no callback. Every message ID returned by `AddMessage` is appended to `_tMsgIds`.
 
 ### `ClearPending()`
-Removes pending messages from the buffer by calling `Hud.SubtitleBuffer:RemovePendingMessage` for each stored message ID. Clears the `_tMsgIds` table after removal.
+Removes pending messages from the buffer by calling `Hud.SubtitleBuffer:RemovePendingMessage({tMessageIds
+= tMsgId})` for each stored message ID. Reassigns `_tMsgIds` to a fresh empty table after removal (source
+does `_tMsgIds = nil` immediately followed by `_tMsgIds = {}`, rather than clearing in place).
 
 ## Events
-- Listens for custom event (not specified in provided code) to trigger subtitle addition.
-- Listens for custom event (not specified in provided code) to trigger clearing of pending subtitles.
+No `Event.*` references anywhere in this file — this module is **not** event-driven. `Add` and
+`ClearPending` are plain functions called directly by whichever script wants to display or clear
+subtitles; there are no call sites for either inside this file, so triggering is entirely external (no
+call sites found in the decompiled corpus for either from this side).
 
 ## Notes for modders
-- Use `Add` to queue multiple subtitle messages with a callback for the final message.
+- Use `Add` to queue multiple subtitle messages with a callback for the final message only — if you need
+  a callback per-message, call `Add` once per message instead of batching them.
 - Use `ClearPending` to remove any queued subtitle messages from the buffer before adding new ones.
 - Customize display and fade durations by modifying `_knDisplayDuration` and `_knFadeDuration`.
 - Be aware that the module uses `Hud.SubtitleBuffer` for managing subtitle messages, so ensure this buffer is available in your game environment.
+- `Add` uses `table.getn(tMsgs)`, a Lua 5.0-era API (removed in later Lua versions) rather than the `#`
+  length operator — consistent with this codebase's older Lua runtime, not a bug.
