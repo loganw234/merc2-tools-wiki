@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [stress test, teleportation]
+verified: true
+verified_note: spot-checked against source, no changes needed — Init/Go coverage, Event.TimerRelative, and stateless-module description all match
 ---
 
 # RandomlyTeleportPlayer

@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [achievement, target]
+verified: true
+verified_note: fixed fabricated Events section (no Event.* in source); added nCount to Instance pattern; noted tChangedCallback is populated by AddCallback but never read/invoked anywhere in this file
 ---
 
 # MrxVerifyManager
@@ -19,12 +21,13 @@ The `MrxVerifyManager` module is responsible for managing and tracking the statu
 - Imports: `MrxAchievements`
 
 ## Instance pattern
-This is a stateless manager/utility module. It tracks the following key fields:
-- `tTargetListStatus`: A nested table that stores the status of each target, categorized by faction.
+This is a stateless manager/utility module (module-level globals, no `Create`/`uGuid`/`tInstance` pattern — `Activated()` here is just a plain function, not the `OnActivate`/`Awake` world-object lifecycle). It tracks the following key fields:
+- `tTargetListStatus`: A nested table that stores the status of each target, categorized by faction (`All`, `Chi`, `Civ`, `Gur`, `Oil`, `Pir`, `Pmc`, `Vza`).
 - `sSolanoStatus`: The status of the Solano target ("alive", "killed", or "captured").
-- `tChangedCallback`: A list of callbacks to be executed when a target's status changes.
+- `tChangedCallback`: A list of callbacks registered via `AddCallback`. Populated but never read or invoked anywhere in this file — no call site iterates it, so it appears to be dead code in this module (or consumed by code outside the decompiled corpus).
 - `tTargetGuidList`: A mapping of GUIDs to target names for quick lookup.
-- `nKilled` and `nCaptured`: Counters for the number of killed and captured targets.
+- `nKilled` and `nCaptured`: Counters for the number of killed and captured targets, recomputed by `UpdateStats()`.
+- `nCount`: Cached total target count, computed once by `GetTotal()` and reused on subsequent calls (starts at `0`, meaning `0 == "not yet computed"` — the count is never legitimately zero since `tTargetListStatus` is pre-populated with dozens of static keys).
 
 ## Functions
 ### `LoadSingleton(tSaveData)`
@@ -136,8 +139,7 @@ Sets the status of a target to "captured" if its current status is not set or is
 Updates the status of the Solano target based on whether any targets have been killed. It sets the Solano status accordingly, updates the target list status, and checks achievements.
 
 ## Events
-- Listens for custom events to manage target lifecycle and update statistics.
-- Triggers achievement checks when target statuses change.
+No `Event.*` calls appear anywhere in this file. `Activated()` (line 90) is presumably invoked by native/engine code (name suggests an activation hook) but has no visible `Event.Create` wiring in this module. All other lifecycle here (target status updates, achievement checks) is driven by direct function calls, not engine events.
 
 ## Notes for modders
 - Use `AddTarget` and `UpdateTarget` to manage target statuses.
