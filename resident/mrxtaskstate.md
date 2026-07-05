@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [task, enum]
+verified: true
+verified_note: spot-checked against source (24 lines, 2 functions + 4 constants) — no inaccuracies found, no changes needed
 ---
 
 # MrxTaskState

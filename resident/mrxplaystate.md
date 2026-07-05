@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [playstate, mission]
+verified: true
+verified_note: spot-checked against source; tightened IsValidState bug description (always returns true for any nState, not just non-null/free/mission) and confirmed Events/Instance-pattern/function-list sections already accurate, no other changes needed.
 ---
 
 # MrxPlayState
@@ -27,7 +29,7 @@ This is a stateless manager/utility module. It tracks the following key fields:
 
 ## Functions
 ### `IsValidState(nState)`
-Checks if the provided state is valid. Returns true if the state is not null, free, or mission (a decompiled-source quirk).
+Intends to check if `nState` is one of the three known states. Implemented as `nState ~= _knNull or nState ~= _knFree or nState ~= _knMission`. **Confirmed bug:** for any single value of `nState`, it can match at most one of the three constants, so at least two of the three `~=` comparisons are always true — the `or` chain evaluates to `true` unconditionally, for every input including garbage values. This looks like an `and`/`or` mix-up (De Morgan's law error): the intended check was almost certainly `nState == _knNull or nState == _knFree or nState == _knMission`.
 
 ### `GetStateDisplayName(nState)`
 Returns a string representation of the given play state (`"null"`, `"free"`, or `"mission"`). Asserts that the display name is set.

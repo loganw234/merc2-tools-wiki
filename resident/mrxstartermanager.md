@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [support, manager]
+verified: true
+verified_note: corrected Events section (no Event.* in source; the attitude-change listener is MrxFactionManager's own API, not this engine's Event system) and flagged MrxHqManager as an unused import
 ---
 
 # MrxStarterManager
@@ -16,7 +18,9 @@ The `MrxStarterManager` module is responsible for managing game starters, which 
 
 ## Inheritance
 - Inherits from: `none — base/utility module`
-- Imports: `MrxFactionManager`, `MrxHqManager`, `MrxStarter`, `MrxSupportData`, `WifStarterData`
+- Imports: `MrxFactionManager`, `MrxHqManager`, `MrxStarter`, `MrxSupportData`, `WifStarterData`. Note:
+  `MrxHqManager` is imported at the top of the file but has no further reference anywhere in source —
+  appears to be a dead/unused import.
 
 ## Instance pattern
 This is a stateless manager utility module. It tracks the following key fields:
@@ -57,9 +61,16 @@ Saves the state of all active starters, including whether fanfare and card displ
 Loads the saved state of starters from the provided save data. It recreates each starter with its saved status and updates its internal state accordingly.
 
 ## Events
-- Listens for faction attitude change events to refresh briefing room displays for all starters.
+No `Event.*` references anywhere in this file — this module does not use the engine's `Event.Create`
+system directly. `Init()` registers a callback via `MrxFactionManager.CreatePersistentAttitudeChangeEvent(
+{nil, "Pmc", nil, nil}, function() ... end)` — that's `MrxFactionManager`'s own event-registration API
+(imported, not defined here), fired whenever the PMC faction's attitude changes. The anonymous callback
+loops `_tStarters` and calls `oStarter:RefreshBriefingRoomDisplay()` on each.
 
 ## Notes for modders
 - Ensure that starters are requested and destroyed appropriately using `RequestStarter` and `DestroyStarter`.
 - Use `SaveSingleton` and `LoadSingleton` to manage the persistent state of starters.
 - Be aware of the dependencies on imported modules like `MrxFactionManager`, `MrxSupportData`, and `WifStarterData`.
+- `Init()` unconditionally resets `MrxSupportData`'s heli-pilot/mechanic/jet-pilot recruited flags to
+  `false` — calling `Init()` again after starters already exist will not un-recruit existing starter
+  instances, but will reset the recruited-flag state that gates equipping those support items elsewhere.

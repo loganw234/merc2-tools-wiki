@@ -5,6 +5,8 @@ grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [co-op, player management]
+verified: true
+verified_note: reworded Instance pattern (was internally contradictory — "stateless" but listing tracked fields); confirmed Events section and all functions against source, no other changes needed
 ---
 
 # MrxCoop
@@ -19,10 +21,13 @@ The `MrxCoop` module manages co-op gameplay mechanics, specifically the tetherin
 - Imports: `MrxGui`, `MrxPlayer`
 
 ## Instance pattern
-This is a stateless manager/utility module. It tracks the following key fields:
-- `_tEvents`: A table to store event handles.
-- `_primaryChar`: The primary player character.
-- `iTetherMin` and `iTetherMax`: Minimum and maximum tether distances.
+No `OnActivate`/`Awake`/`tInstance`/`setmetatable` — not a per-`uGuid` instance module. It's a singleton
+manager that keeps its working state in a handful of module-level globals instead (all set with no
+`local`, so they're visible/shared across the whole module rather than tied to a discrete object):
+- `_tEvents`: table of active `Event.ObjectProximity` handles, keyed by `"<secondaryCharTostring>_in"` /
+  `"_out"` / `"_btw"`.
+- `_primaryChar`: the first player's character GUID, set once by the first `AddPlayer` call.
+- `iTetherMin` / `iTetherMax`: tether distance thresholds, set by `SetupTether`.
 
 ## Functions
 ### `SetupTether(aTetherMin, aTetherMax)`
