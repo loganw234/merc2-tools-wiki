@@ -177,3 +177,18 @@ event names, or a deep dive's full investigation, ask the user to paste the rele
 guessing — do NOT invent a URL path yourself; name the module/namespace/topic and let them find the page.
 Good default ask: "what does wiki.mercs2.tools say about <ModuleName/Namespace>?"
 ```
+
+## Testing notes
+
+Cold-tested against 10 different LLMs (this primer pasted in fresh, no other context, then given the same
+battery of questions/code requests). The restraint and escalation instructions — KNOWN HARD LIMITS, and
+"ask rather than guess" for anything not covered — held up broadly, including on smaller local models, so
+that part of the design seems to be working as intended. The one recurring weak spot: a bare
+namespace/module name listed with no function detail next to it (e.g. the 19-namespace list under MODULE
+SYSTEM) is an inviting surface for a model to confidently invent a plausible-sounding function that was
+never actually stated anywhere in this primer. Treat any function name a pasted-in LLM produces that
+*isn't* in this primer's own QUICK FUNCTION REFERENCE as unconfirmed until checked against the real wiki
+page.
+
+Of the local/self-hosted options tested, **Qwen2.5-coder-14b-instruct** performed capably enough to be a
+viable choice if you want this running locally rather than against a cloud model.
