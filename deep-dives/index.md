@@ -56,3 +56,8 @@ different problem instead of just copy-pasting the end result.
   live-gameplay camera lock anywhere in the corpus) all come up empty on the two open problems — physics
   (needs external tooling, not reachable from Lua) and the camera (very likely the same "no Lua touchpoint"
   category as turret firing itself, already confirmed elsewhere on this wiki).
+- **[Custom UI — Authoring Scaleform Movies](custom-ui)** — *experimental, confirmed rendering and driving
+  live in-game* — a from-scratch pipeline for building brand-new Scaleform GFx UI movies in pure Python
+  (gfxforge) and injecting them into the WAD (gfx_tool), no Adobe Flash or Scaleform tooling required:
+  vector shapes, imported-font text, buttons, menus, and a two-way `fscommand`/`CallActionScriptCallback`
+  bridge to Lua, plus the one wrong `PlaceObject2` flag bit that was causing custom movies to render blank.
