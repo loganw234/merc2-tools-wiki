@@ -14,6 +14,11 @@ source column names), not a spawn-only list. Provided as a CSV export; the exact
 extract it from the game isn't documented here, only what's been cross-checked against this wiki's own
 already-confirmed findings below.
 
+**Looking for something more specific than the full table?** [Spawn Reference](spawn-reference/) has
+task-focused, pre-filtered slices of this same data — drivable vehicles, the full vehicle set,
+confirmed-spawnable weapons, and every real `Pg.Spawn` / `Pg.GetGuidByName` call-site string actually
+used by the shipped scripts.
+
 ## Why this matters
 
 Throughout this wiki's live-testing notes (see the
