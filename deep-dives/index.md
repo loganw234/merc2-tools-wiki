@@ -70,3 +70,12 @@ different problem instead of just copy-pasting the end result.
   on a black screen — a real bug this hit live), and a "pristine" layer that turned out to be base geometry
   rather than a status flag, removing it left captured overlays floating over empty ground — another real,
   confirmed-live bug, now fixed.
+- **[Building ForgeCam — a Forge-Mode Placement Tool](forgecam)** — *confirmed working live* — a
+  Halo-Forge-style world editor built on the [freecam](freecam): fly with the controller, pick a spawn
+  template from a scrolling Scaleform menu with the keyboard, and drop/remove/export placements as a
+  paste-ready table for a runtime spawn director. Settles the question that sat between the freecam and the
+  custom-UI dive (a HUD `FlashWidget` *does* render and take `CallActionScriptCallback` while the PDA
+  pauses the world), lays out the performance model of the one callback that ticks under that pause
+  (capture cheap every call, time-gate the heavy work, handle buttons immediately, drain the keyboard with
+  `PopKeyEvents`), and documents a confirmed engine limitation — `Object.SetPosition` won't move a spawned
+  AI human, so the ghost preview follows by re-spawning instead.
