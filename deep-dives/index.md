@@ -61,3 +61,12 @@ different problem instead of just copy-pasting the end result.
   (gfxforge) and injecting them into the WAD (gfx_tool), no Adobe Flash or Scaleform tooling required:
   vector shapes, imported-font text, buttons, menus, and a two-way `fscommand`/`CallActionScriptCallback`
   bridge to Lua, plus the one wrong `PlaceObject2` flag bit that was causing custom movies to render blank.
+- **[Setting Custom World State from OnLoad](world-state-init)** — *experimental, in development* —
+  rewriting persistent world ownership state (captured layers, faction attitudes, landing-zone ownership)
+  from an `OnLoad` script instead of the real mission flow, for a territorial-war gamemode that needs every
+  session to start from a custom "all outposts already settled" baseline. Covers why `MrxLayerManager`'s
+  layer edits are inert without a manually-driven `MrxState.STATE_WAITFORSTREAMING` reload, the exact
+  `Enter`/`Exit` refcount pairing that reload needs (getting it wrong silently hangs the post-reload fade-in
+  on a black screen — a real bug this hit live), and a "pristine" layer that turned out to be base geometry
+  rather than a status flag, removing it left captured overlays floating over empty ground — another real,
+  confirmed-live bug, now fixed.
