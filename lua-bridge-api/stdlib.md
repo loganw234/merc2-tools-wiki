@@ -43,6 +43,12 @@ throughout lua-bridge, additive to the engine's own pre-existing `math.floor`/`m
 All of the above are backed by the C stdlib's single-precision routines, with the same `SafeProbe` +
 type-tag safety wrapping used throughout the rest of lua-bridge.
 
+**As of v0.3.0**, every function on this page got the same fast-path treatment as
+[`Loader`'s input functions](loader#notes-for-modders): the per-call defensive validation was measured as
+unnecessary overhead on this call path and removed, dropping each call to roughly sub-microsecond cost.
+Calling `math.sin`/`math.sqrt`/etc. in a per-frame loop is measured-safe on v0.3.0+, the same way the
+`Loader` input functions are.
+
 ## v0.2.1 fixes (still worth knowing about)
 
 Two small polyfill nits, both caught in the v0.2.0 code review and fixed one release later:
