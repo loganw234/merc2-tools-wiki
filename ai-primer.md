@@ -95,6 +95,7 @@ each namespace's own page under /namespaces/<name> or /resident/<module>
     import("MrxPmc"); MrxPmc.AddCashQty(n) / AddFuelQty(n)    (HUD-updating economy calls — plain
         Player.SetCash/AddCash change the value but skip the HUD refresh)
     Loader.Printf(sMsg)                                       Loader.IsKeyDown(vk) -> bool
+    Loader.SaveVar(sKey, xValue)                              Loader.LoadVar(sKey) -> x | nil
 
 LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api/loader,
 /lua-bridge-api/stdlib
@@ -104,13 +105,20 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
   for continuous/movement input; PopKeyEvents (edge-triggered ring buffer, focus-gated) for typed text —
   NOT interchangeable, PopKeyEvents has no "still held" signal. All three take a numeric Windows VK code
   — a DIFFERENT scheme from OnKey's `KEYVAL = "keyname"` string binding above; a keyname and a VK code are
-  not interchangeable with each other either.
+  not interchangeable with each other either. Measured sub-microsecond per call — safe to call thousands
+  of times in a single frame, no need to hand-roll throttling for these specifically.
+- Loader.SaveVar(sKey, xValue) / Loader.LoadVar(sKey) — key-value persistence across game restarts
+  (numbers/strings/booleans, type preserved on read-back). Stored in lua_loader_data.ini next to the
+  .asi, human-readable/hand-editable. LoadVar returns nil for a key never saved — standard idiom:
+  `local n = Loader.LoadVar("MyMod_progress") or 0`. Flat namespace shared by every script — prefix keys
+  with your own script's name (MyMod_progress, not progress) to avoid colliding with another mod's data.
 - Tcp.Send(host, port, msg) — fire-and-forget, localhost-only by design.
 - Full math.* stdlib (sin, cos, tan, asin/acos/atan/atan2, sinh/cosh/tanh, sqrt, log, log10, fmod, ldexp,
   modf, frexp, random, randomseed, pi, huge) plus assert(v, msg) — polyfills, additive on top of the
   engine's own math.floor/abs/max/min/etc. assert's error correctly points at whatever called it, not at
-  internal polyfill code. Older scripts on this wiki hand-roll a Taylor-series sin/cos fallback from
-  before these existed — no longer necessary, harmless if left as-is.
+  internal polyfill code. Same sub-microsecond hot-loop-safe cost as the input functions above. Older
+  scripts on this wiki hand-roll a Taylor-series sin/cos fallback from before these existed — no longer
+  necessary, harmless if left as-is.
 - lua_Number is float, not double — precision-sensitive math can surprise you.
 - Only math/assert were probed for completeness — os/io/coroutine/debug tables' presence isn't
   individually confirmed either way on this wiki. Check `type(os) == "table"` (etc.) before relying on
