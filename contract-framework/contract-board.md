@@ -24,7 +24,7 @@ of likely names first so a draft framework can often "just work" without any cha
 | `API.list()` | `Contract.All()` | Array of registered contract definitions. Returns `nil` to fall into demo mode. |
 | `API.accept(c)` | `Contract.Accept(c.id)` | Start contract `c`. Returns `true` on success. |
 | `API.cancel(c)` | `Contract.Abort()` | Abort the running contract. |
-| `API.status()` | `Contract.Status()` | Live state: `{ finished=, progress=, timeLeft=, objectives={{done=},...} }`. |
+| `API.status()` | `Contract.Status()` | Live state: `{% raw %}{ finished=, progress=, timeLeft=, objectives={ {done=}, ... } }{% endraw %}`. |
 
 This is exactly the [`Contract.Register & Lifecycle`](register-and-lifecycle) surface — `Contract.All` is
 literally aliased to `Contract.List` for this reason (`C.All = C.List`, with a comment noting it's "the GFx
