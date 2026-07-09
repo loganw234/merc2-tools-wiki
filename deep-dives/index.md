@@ -79,3 +79,11 @@ different problem instead of just copy-pasting the end result.
   (capture cheap every call, time-gate the heavy work, handle buttons immediately, drain the keyboard with
   `PopKeyEvents`), and documents a confirmed engine limitation — `Object.SetPosition` won't move a spawned
   AI human, so the ghost preview follows by re-spawning instead.
+- **[Building MissionForge — a Contract Authoring Tool](mission-forge)** — *new, in development* — the
+  in-game half of the [Contract Framework](../contract-framework/)'s authoring pipeline, sharing ForgeCam's
+  menu/input lineage but deliberately inverting its core design: runs in the live, unpaused world instead
+  of a paused one, and never spawns a live preview at all — every placement is an inert marker (a faction
+  supply crate, an empty vehicle, a bare prop, or a zone ring) with the real template recorded separately
+  for export, sidestepping ForgeCam's spawned-human repositioning problem entirely rather than working
+  around it. Documents two concrete fixes baked into the shipped script: a stray-table-hole bug that
+  silently truncated exports, and a keyboard-polling rewrite that cut bridge calls per tick from 14 to 2.
