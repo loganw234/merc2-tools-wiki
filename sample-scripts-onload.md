@@ -11,42 +11,138 @@ Complete `.lua` files meant to be dropped into `scripts/OnLoad/` — see [Gettin
 for what makes `OnLoad` different from `OnBoot`/`OnKey` if you haven't read that yet.
 
 <details class="script-entry" markdown="1">
-<summary><strong>WardrobeUnlocker.lua</strong> — Unlocks every character's outfit for selection from any character's own wardrobe menu.</summary>
+<summary><strong>WardrobeUnlocker.lua</strong> — Unlocks every character's outfit, plus ~36 named NPC/character skins, for every hero's own wardrobe menu.</summary>
 
 Normally the HQ wardrobe only offers a character's own small, curated outfit list, further limited to
-however many the game has currently unlocked for them. This merges every character's outfits into
-whichever character you're currently playing, and removes that unlock cap — full breakdown of how and
-why this works, including the wrong turns along the way, in
+however many the game has currently unlocked for them. This merges every hero's outfits together, adds a
+curated roster of named NPC/character skins on top (PMC & allies, Venezuela, Allied Nations, China,
+Guerrillas, Pirates, Universal Petroleum, civilian/misc), and gives the full combined list to **every**
+hero, not just whichever one happens to be active — full breakdown of how and why the underlying
+technique works, including the wrong turns along the way, in
 [Deep Dive: Overriding a Function](deep-dives/function-override).
 
 ```lua
 import("WifPmcInterior")
-import("MrxUtil")
 
-local sHero = MrxUtil.GetCharacterIdentity(Player.GetPrimaryCharacter())
+-- =========================== CONFIG ===========================
+-- PRESET: set to a model code to automatically wear it on load, e.g.
+--   local PRESET = "pmc_hum_obama"
+-- Leave "" (blank) for no preset -- you keep your normal look and just pick
+-- skins from the wardrobe menu.
+local PRESET = ""
 
--- Merge every hero's outfits into the current hero's own bucket (walks the LIVE table --
--- if the game's own data gains a new hero or a new outfit later, this picks it up
--- automatically, since this loop reads the table fresh each time it runs)
-local tMerged = {}
-for sOtherHero, tList in pairs(WifPmcInterior._tOutfits) do
-  for _, tOutfit in ipairs(tList) do
-    table.insert(tMerged, tOutfit)
+-- Verified-working NPC/character skins added to the wardrobe menu, on top of the
+-- game's own Chris/Jennifer/Mattias outfits (which get merged in below).
+-- Format: { "Menu Label", "model_code" }.  Add/remove freely.
+local SKINS = {
+  -- PMC & allies
+  { "Fiona",                     "pmc_hum_fiona" },
+  { "Eva",                       "pmc_hum_eva" },
+  { "Diablo",                    "pmc_hum_diablo" },
+  { "Hoang",                     "pmc_hum_hoang" },
+  { "Stealth",                   "pmc_hum_stealth" },
+  { "PMC Mechanic",              "pmc_hum_mechanic" },
+  { "Blanco (PMC)",              "pmc_hum_blanco" },
+  { "Helicopter Pilot",          "pmc_hum_helipilot" },
+  { "Prop Pilot",                "pmc_hum_proppilot" },
+  -- Venezuela
+  { "Solano",                    "vz_hum_solano" },
+  { "Carmona",                   "vz_hum_carmona" },
+  { "Blanco (VZ)",               "vz_hum_blanco" },
+  { "VZ Captain",                "vz_hum_captain" },
+  { "VZ Deathsquad",             "vz_hum_deathsquad_a" },
+  { "VZ Elite",                  "vz_hum_soldierelite_a" },
+  -- Allied Nations
+  { "Allied Boss",               "al_hum_boss" },
+  { "Allied Officer",            "al_hum_officer_a" },
+  { "Allied Pilot",              "al_hum_pilot" },
+  { "Allied Recruit 1",          "al_hum_starter01" },
+  { "Allied Recruit 2",          "al_hum_starter02" },
+  -- China
+  { "Chinese Boss",              "ch_hum_boss" },
+  { "Chinese Prisoner",          "ch_hum_prisoner" },
+  -- Guerrillas
+  { "Guerilla Boss",             "gr_hum_boss" },
+  { "Guerilla Boss (Disguise)",  "gr_hum_boss_fake" },
+  { "Guerilla Advisor",          "gr_hum_advisor" },
+  { "Guerilla Elite",            "gr_hum_elite" },
+  -- Pirates
+  { "Pirate Boss",               "pr_hum_boss" },
+  { "Pirate Worker",             "pr_hum_worker" },
+  -- Universal Petroleum
+  { "UP Boss",                   "oc_hum_boss" },
+  { "UP Executive",              "oc_hum_executive" },
+  { "UP Board Member",           "oc_hum_boardmember" },
+  { "UP Mercenary",              "oc_hum_mercenary_a" },
+  { "UP Pilot",                  "oc_hum_pilot" },
+  { "Fireman",                   "oc_hum_fireman" },
+  -- Civilian / misc
+  { "Doctor",                    "civ_hum_doctorfemale" },
+  { "Police Officer",            "police_hum_officer_b" },
+  { "Beach Girl A",              "civ_hum_beachfemale_a" },
+  { "Beach Girl B",              "civ_hum_beachfemale_b" },
+  { "Beach Girl C",              "civ_hum_beachfemale_c" },
+  { "Beach Girl D",              "civ_hum_beachfemale_d" },
+}
+-- ==============================================================
+
+-- Build the merged wardrobe once per load (guarded so a re-run in the same
+-- session can't stack duplicate entries).
+if WifPmcInterior and WifPmcInterior._tOutfits and not WifPmcInterior._wardrobePlus then
+  WifPmcInterior._wardrobePlus = true
+
+  -- 1) collect the game's own outfits (every hero) so any character can pick them
+  local tAll = {}
+  for _, tList in pairs(WifPmcInterior._tOutfits) do
+    for _, tOutfit in ipairs(tList) do
+      table.insert(tAll, tOutfit)
+    end
   end
-end
-WifPmcInterior._tOutfits[sHero] = tMerged
+  -- 2) append our verified NPC skins (plain label = shown as-is in the menu)
+  for _, s in ipairs(SKINS) do
+    table.insert(tAll, { Name = s[1], Model = s[2], PlayerVisibleName = s[1] })
+  end
+  -- 3) give every hero the full merged list
+  for sHero in pairs(WifPmcInterior._tOutfits) do
+    WifPmcInterior._tOutfits[sHero] = tAll
+  end
+  -- 4) stop the availability gate from clipping the list back down
+  WifPmcInterior.GetAvailableCostumes = function()
+    return table.getn(tAll)
+  end
 
--- Stop the availability gate from clipping the merged list back down to a handful of entries
-WifPmcInterior.GetAvailableCostumes = function()
-  return table.getn(WifPmcInterior._tOutfits[sHero])
+  Hud.EventFanfare:Commence({ sType = "outfit", vText = "Wardrobe Unlocked!" })
+end
+
+-- Optional preset: wear a chosen skin on load (retries until the character exists).
+if PRESET ~= "" then
+  local tries = 0
+  local function applyPreset()
+    local uChar = Player.GetPrimaryCharacter()
+    if uChar then
+      pcall(Player.SetOutfit, uChar, PRESET)
+    elseif tries < 20 then
+      tries = tries + 1
+      Event.Create(Event.TimerRelative, { 0.5 }, applyPreset)
+    end
+  end
+  applyPreset()
 end
 ```
 
-**Confirmed working by live testing.** Reapplies every level load (that's why it belongs in `OnLoad`, not
-`OnBoot`), so the unlocked wardrobe persists through loading screens within a session — it does not
-persist through a full game restart, since nothing here touches save data.
+**Confirmed working by live testing** (the merge-and-override mechanism itself, unchanged from the
+original version this was built on). Reapplies every level load (that's why it belongs in `OnLoad`, not
+`OnBoot`), guarded by `_wardrobePlus` so a mid-session re-run can't stack duplicate entries; the unlocked
+wardrobe persists through loading screens within a session but not through a full game restart, since
+nothing here touches save data. `sType = "outfit"` is a confirmed entry in `EventFanfare`'s own texture
+table — see
+[Hud: EventFanfare sType catalog](namespaces/hud#eventfanfare-stype-catalog-and-the-custom-toast-trick)
+for the full list of valid styles.
 
 ![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](img/funcoverride.png)
+
+*This screenshot predates the expanded NPC roster above — at ~36 extra entries plus every hero's own
+outfits merged together, the real current menu runs well past the 2 pages shown here.*
 
 </details>
 

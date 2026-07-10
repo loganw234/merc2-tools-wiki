@@ -123,7 +123,8 @@ from "this call is from somewhere else entirely."
 
 Once the costume-change function's real signature (index into the live outfit table, re-read fresh every
 call) was understood, the fix collapsed to two small, additive changes — no rewriting the menu function or
-anything downstream of it at all:
+anything downstream of it at all. The version below is the *original* minimal proof of concept — merge
+every hero's outfits into whichever hero happens to be active at load:
 
 ```lua
 import("WifPmcInterior")
@@ -155,6 +156,43 @@ character voice-line that plays on a costume change all still run exactly as the
 none of that code was touched:
 
 ![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](../img/funcoverride.png)
+
+*This screenshot is from the original two-page version above — see "The current version" below for how
+much bigger the real menu is now.*
+
+## The current version: every hero, named NPCs, and a preset
+
+The deployed `WardrobeUnlocker.lua` (see [OnLoad Scripts](../sample-scripts-onload) for the full file)
+has grown well past the proof of concept above, though the core technique — merge into `_tOutfits`,
+override `GetAvailableCostumes` — is completely unchanged. Notably, this version finally delivers on this
+page's own originally-stated goal in full: the code above only patched **whichever hero happened to be
+`Player.GetPrimaryCharacter()` at load time** — Jennifer or Mattias, if you'd started as one of them,
+never actually got the merged list. The current version loops over every hero's key in `_tOutfits` and
+assigns the same merged table to all of them, so switching heroes no longer resets you back to a small
+curated list.
+
+What else changed:
+
+- **A curated roster of ~36 named NPC/character skins**, organized by faction (PMC & allies, Venezuela,
+  Allied Nations, China, Guerrillas, Pirates, Universal Petroleum, civilian/misc) — plain `{Name, Model}`
+  pairs appended to the same merged list the game's own outfits go into, so they show up in the exact same
+  paginated menu with no separate UI of their own.
+- **An idempotency guard** (`WifPmcInterior._wardrobePlus`) — the merge only builds once per session; a
+  script re-run mid-session (or a second load of this same file) can't stack duplicate entries into the
+  list a second time.
+- **An on-screen confirmation** — `Hud.EventFanfare:Commence({sType = "outfit", vText = "Wardrobe Unlocked!"})`
+  on the first successful merge. `"outfit"` is a confirmed-valid `EventFanfare` style — see
+  [Hud: EventFanfare sType catalog](../namespaces/hud#eventfanfare-stype-catalog-and-the-custom-toast-trick).
+- **An optional `PRESET` config value** — set it to any model code and the script auto-equips that skin on
+  load, via `pcall(Player.SetOutfit, ...)` retried every 0.5s (up to 20 tries) until
+  `Player.GetPrimaryCharacter()` actually resolves to something. Leave it `""` for the normal
+  pick-from-the-menu behavior.
+
+Because the extra skins are just more rows in the same table shape the original, confirmed-working
+version already used, and the preset/fanfare additions are built from primitives already confirmed
+elsewhere on this wiki (`pcall` + `Event.TimerRelative` retry, a real `EventFanfare` style), none of this
+needed a new investigation the way the original three wrong turns did — it's the same confirmed mechanism,
+just applied more completely and given a bigger data set.
 
 ## Why it works
 
@@ -193,11 +231,16 @@ instead of a number or a string.
 - **One merged entry is silently unavailable** through the normal menu — the original menu-building logic
   always excludes one specific position unless a cheat code was entered, and that logic wasn't touched.
   Exactly which outfit lands there after merging isn't guaranteed stable, since Lua doesn't guarantee
-  iteration order over this kind of table.
+  iteration order over this kind of table. Proportionally less noticeable now that the merged list runs to
+  dozens of entries instead of a handful, but the same underlying gap.
 - **Untested: true multiplayer, non-host client.** The wardrobe-menu function calls a different,
   native/engine-level availability check on the client path than the one this override replaces (which
   only applies on the host/server path). A non-host client in a real multiplayer session would likely
   still see the original, gated list. Untested; flagging honestly rather than guessing.
+- **`PRESET`'s retry gives up silently.** If `Player.GetPrimaryCharacter()` never resolves within 20 tries
+  (10 seconds at the 0.5s retry interval), `applyPreset` simply stops rescheduling itself — no
+  `Loader.Printf` marks that it gave up, so a preset that silently never applies looks identical to one
+  that was never configured in the first place. Worth adding a log line there if you rely on this.
 
 ## The general pattern
 
