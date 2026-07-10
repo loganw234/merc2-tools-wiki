@@ -1,6 +1,6 @@
 ---
 title: About
-nav_order: 9
+nav_order: 12
 ---
 
 # About this wiki

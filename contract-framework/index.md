@@ -1,6 +1,6 @@
 ---
 title: Contract Framework
-nav_order: 14
+nav_order: 11
 has_children: true
 has_toc: false
 ---

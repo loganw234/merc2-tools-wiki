@@ -1,6 +1,7 @@
 ---
 title: Spawn Reference
-nav_order: 13
+parent: Reference
+nav_order: 4
 has_children: true
 has_toc: false
 ---

@@ -1,6 +1,7 @@
 ---
 title: Glossary
-nav_order: 7
+parent: Reference
+nav_order: 1
 ---
 
 # Glossary

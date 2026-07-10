@@ -1,6 +1,7 @@
 ---
 title: "Sound, Music & Effects"
-nav_order: 10
+parent: Reference
+nav_order: 3
 ---
 
 # Sound, Music & Effects

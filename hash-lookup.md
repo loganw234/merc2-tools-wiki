@@ -1,6 +1,7 @@
 ---
 title: Hash Lookup
-nav_order: 8
+parent: Reference
+nav_order: 2
 ---
 
 # Hash Lookup

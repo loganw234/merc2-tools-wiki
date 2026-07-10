@@ -1,6 +1,7 @@
 ---
 title: All-In-One Cheat Menu
-nav_order: 3
+parent: Recipes
+nav_order: 4
 ---
 
 # All-In-One Cheat Menu
