@@ -53,14 +53,18 @@ board:detail{
 ```
 
 Unlike `UI.List`, **`onSelect` fires on every cursor move**, not just as a hook you might ignore — it's the
-expected place to call `:detail()` with that row's own data as the cursor moves, keyed off a plain tag field
-on each row (e.g. `{ label = "Oil Refinery Raid", k = 1 }`, switched on in `onSelect`) the same way
-[`UI.List`](list) recipes tag their own rows with an `act` field.
+expected place to call `:detail()` with that row's own data, which is exactly the pattern
+[`menudemo.lua`](menu#the-demo-scripts)'s "Contract Board" entry uses: three items, three different
+`:detail{}` payloads picked by an `it.k` tag on each row.
 
-{: .note }
-> `uidemo.lua`, the kit's current showcase script, doesn't exercise `UI.Board`/`UI.Chat` — its demo coverage
-> is `UI.List`/`UI.Panel`/`UI.Bar`/`UI.Toast`/`UI.Confirm`/`UI.Input`. The pattern above is accurate to the
-> module's own API but doesn't yet have a confirmed, up-to-date demo script backing it specifically.
+`menudemo.lua`'s "Chat Log" entry is `UI.Chat`'s own real usage — a lazily-created, reused instance parked
+in the top-right corner (`x = 640 - 360 - 8, y = 8`), pushed to on demand rather than rebuilt every time:
+
+```lua
+local ch = D.chat
+if not ch then ch = UI.Chat{ title = "RADIO", x = 640 - 360 - 8, y = 8 }; D.chat = ch end
+ch:show():push("Misha: slick menu, boss.")
+```
 
 ## `UI.Chat` — a scrolling log with an optional typed line
 

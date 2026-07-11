@@ -115,6 +115,24 @@ rather than rebuilt and leaked on every press — the source comment calls this 
 earlier version that didn't have it ("v2.2: UI.Menu ForgeMenu parity — persistent per-id state = real
 toggle, no leak").
 
+## The demo scripts
+
+The kit ships **two** showcase scripts, split by what each covers — neither is a leftover or superseded by
+the other:
+
+- **`menudemo.lua`** (`scripts/OnKey/`, bound to F3) — `UI.Menu` itself, end to end: nested categories
+  (`Spawn Vehicles`, `Spawn Enemies > Guerilla/Chinese`), `ctx:spawn`, the `:switch` live ON/OFF toggle
+  (`"God Mode"`), and — under a `"Rich Widgets"` category — composing with `UI.Confirm`/`UI.Input` via
+  `ctx:confirm`/`ctx:ask`, plus dedicated entries that open a full [`UI.Board`](chat-and-board) and a
+  [`UI.Chat`](chat-and-board) log directly from a menu action.
+- **`uidemo.lua`** (`scripts/OnKey/`, bound to Delete; see [UI.List](list) for the recipe pulled from it) —
+  everything *other* than `UI.Menu`: a hand-driven drill-down built directly on
+  [`UI.List`](list) (including a 30-row scrolling stress test), [`UI.Panel`](panel-bar-toast) used as a
+  rolling event log, [`UI.Bar`](panel-bar-toast), and both [`UI.Confirm`/`UI.Input`](confirm-and-input)
+  (including a confirm-before-close guard on its own back button).
+
+Between the two, every one of the kit's nine widgets has a real, current demo behind it.
+
 ## See also
 
 - [Building ForgeMenu](../deep-dives/forge-menu) — the original declarative menu API this one mirrors, and
