@@ -639,6 +639,27 @@ Chris or Jennifer specifically.
 
 </details>
 
+## Remove map boundaries
+
+<details class="script-entry" markdown="1">
+<summary>Lift every out-of-bounds restriction, for every connected player at once.</summary>
+
+Certain areas are gated behind invisible boundary volumes attached to each player (see
+[Player](namespaces/player) — the `AddBoundary`/`RemoveBoundary`/`RemoveAllBoundary`/`IsBoundaryDeath`
+family; whether crossing one warns, forces a turn-back, or kills outright depends on how that specific
+boundary was set up). This clears every boundary currently active on every connected player, co-op safe:
+
+```lua
+for _, p in ipairs(Player.GetAllPlayers()) do
+    Player.RemoveAllBoundary(p)
+end
+```
+
+This only clears what's active *right now* — it doesn't disable the boundary system itself, so the game's
+own scripts can still add a new boundary later (e.g. on a mission or area transition).
+
+</details>
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)

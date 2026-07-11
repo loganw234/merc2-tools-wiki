@@ -136,6 +136,10 @@ UI KIT (mod-authored library, not part of the game or lua-bridge). Full detail: 
   ctx:confirm(text,onYes,onNo), ctx:ask(prompt,onSubmit,onCancel) -- pops another kit widget mid-action.
 - Deploy: uilib.lua -> scripts/OnLoad/ with a low lua_loader.ini number (e.g. =5). Guard consumers:
   `if not (_G.UI and UI.Menu) then return end`.
+- Demos (both current, cover different widgets): menudemo.lua (F3) = UI.Menu end to end -- nesting,
+  ctx:spawn, :switch, popping Confirm/Input/Board/Chat from inside a menu action. uidemo.lua (Delete) =
+  the other eight widgets directly -- a List drill-down (no UI.Menu), Panel-as-log, Bar, Toast, Confirm,
+  Input.
 
 CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
 
