@@ -76,12 +76,12 @@ Drives `chat.gfx`. `opts`: `x`/`y` (default `20, 400`), `w`/`h` (default `360, 1
   with it, Esc cancels without pushing anything.
 - `:title(s)` / `:clear()`.
 
-`UI.Chat` isn't the same mechanism as the [Co-op Text Chat](../deep-dives/coop-chat) deep dive's approach
-(that one is built on `MrxGuiTextBuffer`, worked around a real engine crash, and syncs across a live
-network connection) — it's a separate, purpose-authored movie with its own scrolling-log implementation.
-Whether the two are meant to solve the same problem or different ones (a synced multiplayer chat vs. a
-local flavor-text radio log) isn't stated in the source; treat them as two independent tools until that's
-confirmed one way or the other.
+**Not related to the [Co-op Text Chat](../deep-dives/coop-chat) deep dive** — that one is built on
+`MrxGuiTextBuffer`, worked around a real engine crash, and syncs typed input across a live network
+connection between two players. `UI.Chat` is purely local, general-purpose scrolling-log display — no
+network sync of any kind — included in the kit for future reuse (a radio/flavor-text log, a local
+debug/event feed, anything that wants "a scrolling list of lines plus an optional typed prompt") rather
+than built specifically as a chat solution.
 
 ## See also
 

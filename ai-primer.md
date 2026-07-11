@@ -124,6 +124,19 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
   individually confirmed either way on this wiki. Check `type(os) == "table"` (etc.) before relying on
   something that "should" be there; don't assume stock-Lua-5.1 completeness beyond what's listed here.
 
+UI KIT (mod-authored library, not part of the game or lua-bridge). Full detail: /uilib/
+- uilib.lua (_G.UI) -- nine widgets sharing one input/focus/heartbeat engine: UI.Menu (declarative nested
+  menus), UI.List, UI.Panel, UI.Bar, UI.Toast, UI.Confirm, UI.Input, UI.Chat, UI.Board. Reach for this
+  before hand-rolling a FlashWidget or nesting MrxMultiPageMenu yourself.
+    local menu = UI.Menu{ title = "MY MENU", key = "F8" }
+    menu:entry("Do a thing", function(ctx) ctx:hint("done") end)
+    menu:category("Group", function(c) c:entry("Nested", function(ctx) ... end) end)  -- nests freely
+    menu:toggle()  -- put at the end of your OnKey file
+  ctx: ctx.x/y/z/yaw, ctx.char/player, ctx:spawn(template[,dist]), ctx:hint(msg), ctx:close(),
+  ctx:confirm(text,onYes,onNo), ctx:ask(prompt,onSubmit,onCancel) -- pops another kit widget mid-action.
+- Deploy: uilib.lua -> scripts/OnLoad/ with a low lua_loader.ini number (e.g. =5). Guard consumers:
+  `if not (_G.UI and UI.Menu) then return end`.
+
 CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
 
 State that survives OnKey/OnLoad re-execution (_G is the only thing that persists between separate runs
