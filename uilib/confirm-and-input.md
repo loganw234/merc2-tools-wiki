@@ -35,7 +35,7 @@ leaving nothing focused.
 
 ### Recipe: guarding a dismissive action
 
-`uidemo.lua`'s own `onBack` handler uses `UI.Confirm` to guard against an accidental close, rather than
+[`uidemo.lua`](uidemo)'s own `onBack` handler uses `UI.Confirm` to guard against an accidental close, rather than
 just hiding on the first Back press at the root:
 
 ```lua

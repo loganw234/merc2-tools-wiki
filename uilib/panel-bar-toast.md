@@ -29,7 +29,7 @@ to start pre-sized for, default `0`).
 
 ### Recipe: a Panel as a rolling event log
 
-`uidemo.lua` uses a `Panel` as a scrolling log of the last 8 things that happened — push a new line, drop
+[`uidemo.lua`](uidemo) uses a `Panel` as a scrolling log of the last 8 things that happened — push a new line, drop
 the oldest, rewrite the whole panel:
 
 ```lua

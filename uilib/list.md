@@ -82,7 +82,7 @@ list:title("SPAWNER"):hint("UP/DOWN MOVE   ENTER PICK"):items(myRows)
 
 [`UI.Menu`](menu) is one owned `UI.List` plus a builder API — but you can drive the same list-swapping
 technique yourself when you want more control over the transitions than `:entry`/`:category` gives you.
-`uidemo.lua` (the kit's own showcase script) does exactly this: three plain item arrays and one helper that
+[`uidemo.lua`](uidemo) (the kit's own showcase script) does exactly this: three plain item arrays and one helper that
 just re-points the same list at whichever one is current —
 
 ```lua

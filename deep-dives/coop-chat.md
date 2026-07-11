@@ -7,11 +7,14 @@ nav_order: 4
 # Deep Dive: A Basic Co-op Text Chat
 
 **Confirmed working end-to-end across two real players** — input, send, and display all fire correctly
-together, including real cross-network delivery. One piece is still being tuned: raw chat text can't be
-sent as a Lua string at all (see the [networking deep dive](networking#two-confirmed-constraints-on-custom-payloads)
-for why), so the message has to be re-encoded as numbers on the way out and decoded back into text on the
-way in. The current encoding works for short messages; the exact safe maximum length hasn't been pinned
-down yet.
+together, including real cross-network delivery. The page below is kept exactly as the original discovery
+story (the input problem, the hijack-target dead end, the string-argument wall) — that reasoning is still
+accurate and still the right way to understand *why* any of this works. But the shipped answer has since
+moved to a different front end: [**`coopchat.lua`**](../uilib/coopchat), built on
+[UI Kit](../uilib/)'s `UI.Chat`, resolves all three limitations this page originally left open (character
+set, sender identity, message length) — see
+[Update: a UI Kit rewrite closes the open limitations](#update-a-ui-kit-rewrite-closes-the-open-limitations)
+below.
 
 ## The problem, broken into three pieces
 
@@ -122,18 +125,55 @@ module — `CoopChatUI:AddMessage(sText)` to push a line, `CoopChatUI:Toggle()` 
 `CoopChatUI:SetInputText(sText)` for a live-updating "what am I typing" preview — confirmed working both
 standalone and as part of the full input→send→display pipeline described above.
 
+## Update: a UI Kit rewrite closes the open limitations
+
+[`coopchat.lua`](../uilib/coopchat) (full script on its own page) keeps the exact same hijack target, event
+ID, and below-8 constraint established above, but replaces the custom `CoopChatUI` display layer with
+[`UI.Chat`](../uilib/chat-and-board) from [UI Kit](../uilib/), and replaces the one-character-per-argument
+encoding with a denser, chunked scheme. It resolves all three limitations this page originally left open:
+
+- **Character set**, fixed. `UI.Chat`'s typed-input path uses the same Shift-aware `CHAR` table documented
+  on [UI.Confirm / UI.Input](../uilib/confirm-and-input) — full US-layout case and punctuation, not just
+  the raw VK codes' uppercase-only alphabet the original input method was limited to.
+- **Message length**, fixed — confirming this page's own guess at the fix (line 116 above: "bit-packing
+  multiple characters per slot, or splitting across multiple sequential `SendCustomEvent` calls" — turns
+  out to be *both*). Each numeric argument now packs **3 characters** (24-bit-safe:
+  `byte1*65536 + byte2*256 + byte3`), and a message longer than one call's capacity is split across multiple
+  sequential `SendCustomEvent` calls, tagged and reassembled on the far end:
+  ```lua
+  local SLOTS          = 5     -- slot1=header (msgId+seq+total packed into one number), slot2=senderId, rest=payload
+  local PAY_SLOTS      = SLOTS - 2
+  local CHARS_PER_SEND = PAY_SLOTS * 3     -- = 9 characters per SendCustomEvent call
+  ```
+  `SLOTS = 5` matches the largest array size confirmed safe anywhere in the decompiled corpus (the exact
+  ceiling this page's own Send section already pointed at) — a message of any length now sends as however
+  many 9-character chunks it takes, each tagged with a message id, sequence number, and total, so the
+  receiver can reassemble out-of-order or partially-arrived chunks correctly.
+- **Sender identity**, fixed. A numeric sender id now travels in slot 2, decoded to `"P1"`/`"P2"` on
+  receipt, via `Player.GetLocalPlayerId`/`GetLocalId` (whichever exists, falling back to a `Net.IsServer()`
+  guess if neither is) — the original approach never sent this at all, because a working answer needed a
+  non-string way to identify the sender, and this is that answer.
+
+**New, beyond the original scope:** movement freezes while the input line is open —
+`Player.SetInputEnabled` (the same native control gate the briefing/state-machine code uses) wraps
+`UI.Chat`'s `prompt()`/`_endInput()`, confirmed not to block lua-bridge's own key capture, which lives
+below the game's own input-enabled flag entirely.
+
+None of this invalidates the technique documented above — it's the identical hijacked-`NetEventCallback`
+mechanism, the same below-8 event ID, the same "no raw strings" constraint. It's a better-engineered answer
+to the exact same problem, built once [UI Kit](../uilib/) existed to supply a front end with real Shift-
+aware typing already solved.
+
 ## Known limitations of this whole page
 
 - **Requires lua-bridge v0.1.6 or later** for the `Loader` input functions — included in the stock install
   from that version onward; see the [lua-bridge API section](../lua-bridge-api/) for details.
-- **Character set is limited to uppercase letters, digits, and space.** Input capture reads raw VK codes
-  (see [lua-bridge API: Loader](../lua-bridge-api/loader)), which carry no Shift-state information — no
-  lowercase, no punctuation. A real, current limitation, not yet addressed.
-- **No sender identity is transmitted.** Messages are always labeled "Partner" on receipt, relying on the
-  2-player cap. Would need rework (a numeric role tag, not a string — see Send above) to support more than
-  2 players.
-- **Safe maximum message length is unconfirmed.** See the Send section above — messages longer than
-  whatever the real per-call limit turns out to be will need a different encoding or multiple chunked
-  sends. Not yet tested.
+- ~~Character set is limited to uppercase letters, digits, and space.~~ **Fixed** by
+  [`coopchat.lua`](../uilib/coopchat) — see the Update section above. Still a real limitation of the
+  original `Loader`-VK-code approach documented on this page, if you're not using `UI.Chat`.
+- ~~No sender identity is transmitted.~~ **Fixed** by [`coopchat.lua`](../uilib/coopchat) — see the Update
+  section above.
+- ~~Safe maximum message length is unconfirmed.~~ **Resolved** by [`coopchat.lua`](../uilib/coopchat)'s
+  chunking — see the Update section above.
 - **`LTIStartKeyboardInput`/`LTIEndKeyboardInput` remains untested** as a possible game-native alternative —
   moot now that the lua-bridge-side input API is real, but worth remembering it exists.

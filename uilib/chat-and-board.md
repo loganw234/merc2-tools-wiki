@@ -54,11 +54,13 @@ board:detail{
 
 Unlike `UI.List`, **`onSelect` fires on every cursor move**, not just as a hook you might ignore — it's the
 expected place to call `:detail()` with that row's own data, which is exactly the pattern
-[`menudemo.lua`](menu#the-demo-scripts)'s "Contract Board" entry uses: three items, three different
+[`menudemo.lua`](menudemo)'s "Contract Board" entry uses: three items, three different
 `:detail{}` payloads picked by an `it.k` tag on each row.
 
-`menudemo.lua`'s "Chat Log" entry is `UI.Chat`'s own real usage — a lazily-created, reused instance parked
-in the top-right corner (`x = 640 - 360 - 8, y = 8`), pushed to on demand rather than rebuilt every time:
+`menudemo.lua`'s "Chat Log" entry is `UI.Chat`'s own real usage as a lazily-created, reused instance parked
+in the top-right corner (`x = 640 - 360 - 8, y = 8`), pushed to on demand rather than rebuilt every time. For
+`UI.Chat` doing real work rather than just demoing the widget, see [coopchat.lua](coopchat) — a full co-op
+text chat built on it, with a packed/chunked encoding to carry arbitrary text over `Net.SendCustomEvent`.
 
 ```lua
 local ch = D.chat

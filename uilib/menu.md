@@ -118,20 +118,21 @@ toggle, no leak").
 ## The demo scripts
 
 The kit ships **two** showcase scripts, split by what each covers — neither is a leftover or superseded by
-the other:
+the other. Full scripts, each on its own page, under [UI Kit Scripts](scripts):
 
-- **`menudemo.lua`** (`scripts/OnKey/`, bound to F3) — `UI.Menu` itself, end to end: nested categories
-  (`Spawn Vehicles`, `Spawn Enemies > Guerilla/Chinese`), `ctx:spawn`, the `:switch` live ON/OFF toggle
-  (`"God Mode"`), and — under a `"Rich Widgets"` category — composing with `UI.Confirm`/`UI.Input` via
-  `ctx:confirm`/`ctx:ask`, plus dedicated entries that open a full [`UI.Board`](chat-and-board) and a
+- **[`menudemo.lua`](menudemo)** (`scripts/OnKey/`, bound to F3) — `UI.Menu` itself, end to end: nested
+  categories (`Spawn Vehicles`, `Spawn Enemies > Guerilla/Chinese`), `ctx:spawn`, the `:switch` live ON/OFF
+  toggle (`"God Mode"`), and — under a `"Rich Widgets"` category — composing with `UI.Confirm`/`UI.Input`
+  via `ctx:confirm`/`ctx:ask`, plus dedicated entries that open a full [`UI.Board`](chat-and-board) and a
   [`UI.Chat`](chat-and-board) log directly from a menu action.
-- **`uidemo.lua`** (`scripts/OnKey/`, bound to Delete; see [UI.List](list) for the recipe pulled from it) —
-  everything *other* than `UI.Menu`: a hand-driven drill-down built directly on
+- **[`uidemo.lua`](uidemo)** (`scripts/OnKey/`, bound to Delete; see [UI.List](list) for the recipe pulled
+  from it) — everything *other* than `UI.Menu`: a hand-driven drill-down built directly on
   [`UI.List`](list) (including a 30-row scrolling stress test), [`UI.Panel`](panel-bar-toast) used as a
   rolling event log, [`UI.Bar`](panel-bar-toast), and both [`UI.Confirm`/`UI.Input`](confirm-and-input)
   (including a confirm-before-close guard on its own back button).
 
-Between the two, every one of the kit's nine widgets has a real, current demo behind it.
+Between the two, every one of the kit's nine widgets has a real, current demo behind it. A third script,
+[`coopchat.lua`](coopchat), goes beyond demoing `UI.Chat` into real use — a full co-op text chat.
 
 ## See also
 
