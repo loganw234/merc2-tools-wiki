@@ -205,3 +205,6 @@ _G.COOPCHAT.ui:prompt(onSubmit)
 - [Custom Networked Events](../deep-dives/networking) — the full `NetEventCallback` mechanism, the event-ID
   masking constraint, and the catalog of every `NETEVENT_*` constant already in use.
 - [UI.Chat / UI.Board](chat-and-board) — the front-end widget this script is built on.
+- [ModNet](../modnet) — this same pack/chunk transport, generalized into a reusable library (any number of
+  channels, arbitrary values, synced state) — see [ModNet_CoopChat.lua](coopchat-modnet) for this exact
+  feature rebuilt on it.

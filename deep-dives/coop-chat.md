@@ -164,6 +164,12 @@ mechanism, the same below-8 event ID, the same "no raw strings" constraint. It's
 to the exact same problem, built once [UI Kit](../uilib/) existed to supply a front end with real Shift-
 aware typing already solved.
 
+If your mod needs to sync more than chat — arbitrary state, not just messages — this same transport has
+since been generalized further into **[ModNet](../modnet)**, a reusable library with named channels,
+synced variables, and last-writer-wins conflict resolution. [`ModNet_CoopChat.lua`](../uilib/coopchat-modnet)
+is this exact feature rebuilt on it, worth comparing directly against `coopchat.lua` to see what a shared
+library removes from a single-purpose script.
+
 ## Known limitations of this whole page
 
 - **Requires lua-bridge v0.1.6 or later** for the `Loader` input functions — included in the stock install

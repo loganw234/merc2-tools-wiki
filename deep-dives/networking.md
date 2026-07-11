@@ -243,7 +243,9 @@ you're sending to.
   5 elements (`wifpmcinterior.lua`'s stockpile sync); whether that's an actual engine-enforced cap or just
   the largest the shipped game happened to need is unconfirmed. Relevant if you need to send more data than
   fits in a handful of numbers per event — see the [co-op chat page](coop-chat) for where this matters in
-  practice.
+  practice. Both [`coopchat.lua`](../uilib/coopchat) and [ModNet](../modnet) now operate on exactly this
+  ceiling (`SLOTS = 5`) — real, working code depending on the number, without resolving whether it's a hard
+  engine limit or just never tested past.
 - **The actual network wire protocol is still invisible to us.** Everything past the Lua call boundary is
   compiled native code — rate limits and behavior under packet loss (even with `bReliable = true`) remain
   unknowable from source alone.

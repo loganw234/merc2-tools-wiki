@@ -1,6 +1,7 @@
 ---
 title: Contract Framework
-nav_order: 11
+parent: Frameworks
+nav_order: 1
 has_children: true
 has_toc: false
 ---

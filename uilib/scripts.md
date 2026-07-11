@@ -19,3 +19,6 @@ script here gets its own dedicated page.
   `:switch`, and composing with `UI.Confirm`/`UI.Input`/`UI.Board`/`UI.Chat` from inside a menu action.
 - **[uidemo.lua](uidemo)** — the kit's own smoke test for every widget *other* than `UI.Menu`: a hand-driven
   `UI.List` drill-down, `UI.Panel` as a rolling log, `UI.Bar`, `UI.Toast`, and both `UI.Confirm`/`UI.Input`.
+- **[ModNet_CoopChat.lua](coopchat-modnet)** — `coopchat.lua`, rebuilt on [ModNet](../modnet) instead of a
+  hand-rolled transport. Read alongside `coopchat.lua` to see exactly what a shared networking library
+  removes from a single-purpose script.

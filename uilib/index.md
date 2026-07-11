@@ -1,6 +1,7 @@
 ---
 title: UI Kit
-nav_order: 14
+parent: Frameworks
+nav_order: 2
 has_children: true
 has_toc: false
 ---
