@@ -79,6 +79,14 @@ different problem instead of just copy-pasting the end result.
   (capture cheap every call, time-gate the heavy work, handle buttons immediately, drain the keyboard with
   `PopKeyEvents`), and documents a confirmed engine limitation — `Object.SetPosition` won't move a spawned
   AI human, so the ghost preview follows by re-spawning instead.
+- **[Building Nested Menus with MrxMultiPageMenu](nested-menus)** — *confirmed working live* — the native
+  paginating menu every custom menu on this wiki hijacks has no built-in submenu concept at all, just one
+  shared, module-global "current menu." Nesting is entirely a modder-built pattern: every level is its own
+  `Reset`/`AddOption`/`Display` call, and "Back" is just an ordinary option whose callback rebuilds the
+  parent. Extracted from the real, confirmed four-submenus-deep `MasterCheatMenu.lua`, including the one
+  genuinely non-obvious part — why the menu-builder functions are bare globals instead of `local function`,
+  and the silent-failure mode (a menu option that quietly does nothing) that ordering mistake would cause
+  the other way.
 - **[Building MissionForge — a Contract Authoring Tool](mission-forge)** — *new, in development* — the
   in-game half of the [Contract Framework](../contract-framework/)'s authoring pipeline, sharing ForgeCam's
   menu/input lineage but deliberately inverting its core design: runs in the live, unpaused world instead
