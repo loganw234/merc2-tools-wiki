@@ -204,3 +204,6 @@ root — nesting doesn't change the technique at all, it's the same three-call s
   into declaring a plain tree of categories and entries. Worth reading this page first anyway — the
   reasoning here (why nesting isn't built in, how state threads across levels) still applies, ForgeMenu
   just handles the bookkeeping for you.
+- **[UI Kit: UI.Menu](../uilib/menu)** — the same declarative `:entry`/`:category` API as ForgeMenu, plus
+  eight sibling widgets (toasts, modal dialogs, a two-pane board) sharing one focus/heartbeat engine, so a
+  menu action can pop a confirm dialog or a typed prompt without leaving the menu's own input handling.

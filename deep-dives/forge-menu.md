@@ -663,3 +663,6 @@ menu:toggle()
 - [Your First Menu](../first-menu) — the `_G`-guarded persistent-state idiom used for live ON/OFF labels.
 - [lua-bridge API: Loader](../lua-bridge-api/loader) — `PopKeyEvents`, the input primitive this whole
   library is built on.
+- **[UI Kit](../uilib/)** — this exact input/heartbeat/warm-up engine, generalized further into a full
+  nine-widget toolkit (lists, panels, progress bars, toasts, modal dialogs, a chat log, a two-pane board) —
+  reach for it over ForgeMenu directly if you need more than just a menu.
