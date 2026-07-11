@@ -17,16 +17,21 @@ for exactly how this replaces the original approach and which of its limitations
 
 ## What it does
 
-A co-op text chat window bound to a toggle key (`T` by default): press it to open a typed-input line on a
+A co-op text chat window bound to a toggle key (`F2` by default): press it to open a typed-input line on a
 [`UI.Chat`](chat-and-board) window, type a message, Enter sends it to the other player over the network,
 Esc cancels. Received messages appear in the same scrolling log, titled by sender (`P1`/`P2`).
 
 ## Setup
 
 1. [`uilib.lua`](../uilib/) loaded first, on **both machines** (`OnLoad`).
-2. Copy this file to `scripts/OnKey/coopchat.lua` on both machines, and add `coopchat.lua=t` under
+2. Copy this file to `scripts/OnKey/coopchat.lua` on both machines, and add `coopchat.lua=f2` under
    `[OnKey]`.
-3. Press **T** to open the input line. Type, **Enter** sends, **Esc** cancels.
+3. Press **F2** to open the input line. Type, **Enter** sends, **Esc** cancels.
+
+`local KEYVAL = "f2"` is deliberately the very first line — the loader only picks up a script's default
+hotkey by reading its first 10 lines, so a `KEYVAL` declaration sitting any later than that (as in an
+earlier draft of this file, past a long header comment) is silently never found, and the key falls back to
+needing an explicit `lua_loader.ini` entry instead of just working out of the box.
 
 ## How the pieces fit
 
@@ -62,6 +67,8 @@ Esc cancels. Received messages appear in the same scrolling log, titled by sende
 ## The full script
 
 ```lua
+local KEYVAL = "f2"   -- must be in the first 10 lines (toggle key; add "coopchat.lua=f2" under [OnKey])
+
 -- coopchat.lua --------------------------------------------------------------
 -- Co-op text chat: a UI.Chat window (uilib) + the pack/chunk encoding that
 -- carries arbitrary text over Net.SendCustomEvent (past the string->hash wall).
@@ -72,10 +79,9 @@ Esc cancels. Received messages appear in the same scrolling log, titled by sende
 -- briefing/state code uses; it does NOT block the lua-bridge key capture).
 --
 -- DEPLOY (both machines): uilib.lua loaded first (OnLoad). Then copy this to
--- <game>\scripts\OnKey\coopchat.lua and add  coopchat.lua=t  under [OnKey].
--- Press T to open the input line; type, Enter sends, Esc cancels.
+-- <game>\scripts\OnKey\coopchat.lua and add  coopchat.lua=f2  under [OnKey].
+-- Press F2 to open the input line; type, Enter sends, Esc cancels.
 ----------------------------------------------------------------------------
-local KEYVAL = "t"
 
 if not (_G.UI and UI.Chat) then
   if Loader and Loader.Printf then Loader.Printf("[coopchat] load uilib.lua first (press its key)") end
