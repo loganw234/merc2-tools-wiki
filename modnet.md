@@ -41,6 +41,18 @@ anywhere in your own code. `Track(key, getter)` is the other direction: a functi
 per heartbeat, that gets pushed out automatically the moment its return value actually changes (diffed
 against the last value seen — a getter that returns the same number every tick sends nothing).
 
+**A direct `Shared` write broadcasts every time, whether or not the value actually changed** — unlike
+`Track`, which only sends on an actual diff. Writing the same value to a `Shared` field every tick (a
+health bar, a live counter) spams the wire needlessly. Guard it yourself with a plain equality check before
+writing:
+
+```lua
+local function put(k, v) if S[k] ~= v then S[k] = v end end
+```
+
+This one-line helper is exactly what [`WaveDefense.lua`](wave-defense) wraps every one of its `Shared`
+writes in.
+
 ### 2. Messages
 
 ```lua
@@ -64,6 +76,41 @@ essentially `coopchat.lua`'s own approach, exposed directly for a caller who wan
 encoding for some reason. **`Send`/`On` and `SendRaw`/`OnRaw` are separate pairs per channel** — the
 receiving side has to register with the same one the sender used, since that's what determines whether the
 incoming bytes get deserialized or handed back raw.
+
+## Identity & authority
+
+```lua
+function M.Me()        return localId() end                          -- this machine's player id (0/1)
+function M.IsCoop()     return T(try(Net and Net.IsMultiplayer)) end  -- in a live co-op session?
+function M.IsHost()     return M.IsCoop() and T(try(Net and Net.IsServer)) end
+function M.IsAuthority() return not M.IsCoop() or M.IsHost() end
+```
+
+`IsAuthority()` is the one that actually matters for how you structure a co-op mod: **"should this machine
+run the simulation, or just display it?"** It is *not* the same question as `IsHost()` — `Net.IsServer()`
+can read falsy in single-player (there's no "server" role to hold when nobody else is connected), so
+`IsHost()` alone is **false in single-player**, even though the lone local player obviously *should* be
+authoritative for everything. `IsAuthority()` folds that in: true in single-player unconditionally, true in
+co-op only for the host. This generalizes a bug [Contract Framework](contract-framework/register-and-lifecycle)
+already had to work around once by hand (`Contract.Accept` gating on `Net.IsMultiplayer() and
+Net.IsClient()` specifically because a naive host-check alone broke single-player) — here it's a named,
+reusable function instead of a one-off inline condition.
+
+`T(x)` is a tiny normalizer (`x == true or x == 1`) used throughout, because the engine's own boolean-ish
+return values aren't consistently real Lua booleans — some come back as `1`/`0` instead of `true`/`false`.
+Wrapping every native flag check in `T(...)` avoids a truthy-`0`-is-falsy surprise (`0` is truthy in Lua,
+unlike most C-family languages — a raw `if Net.IsServer() then` can silently do the wrong thing if the
+value that comes back is the *number* `0` rather than `false`).
+
+The typical shape this produces in a mod (see [WaveDefense.lua](wave-defense) for the full pattern):
+
+```lua
+local function loop()
+    if ModNet.IsAuthority() then pcall(engineTick) end   -- only the authority runs the sim
+    pcall(updateHud)                                     -- everyone reads shared state and displays it
+    Event.Create(Event.TimerRelative, { TICK }, loop)
+end
+```
 
 ## How it works
 
@@ -143,6 +190,8 @@ One `Event.TimerRelative` loop (`M.HB`, default 2s) handles everything time-base
 ## The full script
 
 ```lua
+local KEYVAL = "f4"   -- must be in the first 10 lines; only used if you also drop this under [OnKey] for a manual reload
+
 -- ModNet.lua -- co-op data-sync library over Net.SendCustomEvent -------------
 -- One reliable, chunked, arbitrary-data channel between the two co-op clients,
 -- with a simple "synced variable" layer on top. Deploy as OnLoad/ModNet.lua on
@@ -277,6 +326,13 @@ function M.OnRaw(name, fn) M._chan[chash(name)] = { fn = fn, raw = true,  name =
 function M.Send(name, value, reliable)   wireSend(chash(name), bytesToNums(serialize(value)), reliable) end
 function M.SendRaw(name, nums, reliable) wireSend(chash(name), nums, reliable) end
 
+-- ===== public: identity / authority =====
+local function T(x) return x == true or x == 1 end   -- engine flags are sometimes bool, sometimes 1/0
+function M.Me()     return localId() end                                   -- this machine's player id (0/1)
+function M.IsCoop() return T(try(Net and Net.IsMultiplayer)) end           -- in a live co-op session?
+function M.IsHost() return M.IsCoop() and T(try(Net and Net.IsServer)) end -- true only on the host/authority
+function M.IsAuthority() return not M.IsCoop() or M.IsHost() end            -- SP OR co-op host = "should I run the sim?" (IsHost alone is FALSE in single-player)
+
 -- ===== public: synced state (last-writer-wins) + tracked locals =====
 local STATE = "ModNet$state"
 local function broadcastKey(ns, key)
@@ -365,3 +421,5 @@ return "ModNet v" .. M.VERSION
   masking constraint, and the full `NETEVENT_*` catalog this and every other custom-networking page here
   builds on.
 - [A Basic Co-op Text Chat](deep-dives/coop-chat) — the original discovery story.
+- [WaveDefense](wave-defense) — a full gamemode built on `IsAuthority()`/`Shared`/`On`/`Send` together with
+  Contract Framework and UI Kit; the fullest worked example of this library's design in practice.

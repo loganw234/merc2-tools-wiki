@@ -62,6 +62,9 @@ load).
   map.
 - **[End-to-End Walkthrough](first-contract)** — the whole pipeline, start to finish, with a concrete
   worked example.
+- **[ContractFramework.lua](source)** — the engine's complete, current source, reproduced in full.
+- **[WaveDefense](../wave-defense)** — a full gamemode built on the engine's `onBegin`/`hideTracker` escape
+  hatch, using a contract as a bare launcher instead of the whole mission.
 
 ## Load order
 

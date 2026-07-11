@@ -59,6 +59,8 @@ That covers the common case. The full set of `def` fields a contract can use:
 | `fanfareType`, `fanfare` | Customize the native completion sting — see [Support Effects & Triggers](support-effects-and-triggers#fanfare) for the valid `fanfareType` values. |
 | `onComplete`, `onFail` | Plain Lua callbacks, called once, after reward payout / cleanup. |
 | `fResolve` | `function(def)` — runs once, at accept time, to fill in coordinates that can't be known until the player accepts (e.g. relative to wherever they're currently standing). Real modder contracts authored with absolute coordinates from the [MissionForge](mission-forge) creator don't need this — it exists for the built-in demo contract below. |
+| `onBegin` | `function(inst)` — an escape hatch for a bespoke gamemode built *on top of* a contract. See [Handing off to a bespoke gamemode](#handing-off-to-a-bespoke-gamemode) below. |
+| `hideTracker` | `true` to suppress both the native HUD objective-tray line and the [Contract Board](contract-board)'s own floating tracker panel — for a gamemode that draws its own HUD entirely. See the same section below. |
 
 ## `Contract.Accept(idOrDef)`
 
@@ -81,6 +83,33 @@ Starts a contract, by id (looked up in the registry) or by passing a definition 
   from starting. Errors there are logged, not swallowed silently.
 - Finally the objective list runs via the same runner [Objectives Reference](objectives) describes,
   finishing the contract (win or lose) through `C._finish`.
+
+## Handing off to a bespoke gamemode
+
+A contract doesn't have to be *just* a mission — `def.onBegin` lets it be the launcher for something much
+larger, and [WaveDefense](../wave-defense) is the fullest worked example of this. `onBegin(inst)` fires
+inside `Accept`'s `begin()`, after the player has been teleported and relations/support/triggers are set
+up, but **before** the objective list starts running:
+
+```lua
+if def.onBegin then local obOk, obE = pcall(def.onBegin, inst); if not obOk then Loader.Printf("Contract: onBegin error -> " .. tostring(obE)) end end
+C._runList(inst, def.objectives or {}, def.mode, function(ok) C._finish(inst, ok) end, ...)
+```
+
+Wrapped in its own `pcall`, same as every other optional setup step — a bad `onBegin` can never prevent the
+objective runner from starting. The pattern this enables: give the contract a single, effectively-never-
+completing placeholder objective (WaveDefense uses `Contract.Survive{ time = 3600 }`), do all the *real*
+game logic in `onBegin` and your own heartbeat, and call `Contract._finish(inst, bWin)` **yourself**,
+directly, whenever your own logic decides the run is actually over. `ContractFramework.lua` still owns
+accept/teleport/relations/reward-payout/fanfare/cleanup — your gamemode owns everything about what
+"winning" even means.
+
+**`def.hideTracker = true`** pairs with this: it suppresses the native HUD objective-tray line (the
+`hudLine(1, ...)` calls throughout every objective handler go silent while a `hideTracker` contract is
+active) *and*, independently, tells the [Contract Board](contract-board) not to spawn its own floating
+tracker panel for this contract. Between the two, a `hideTracker` contract gets a completely clean screen —
+no native or board-drawn UI competing with whatever HUD your own gamemode draws (via
+[UI Kit](../uilib/), for instance).
 
 ## `Contract.Status()`
 

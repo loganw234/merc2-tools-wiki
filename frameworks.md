@@ -24,3 +24,7 @@ to keep growing.
   and a raw escape hatch — the same chunked-transport technique [A Basic Co-op Text Chat](deep-dives/coop-chat)
   and its [current implementation](uilib/coopchat) solve once, generalized for anything a co-op mod needs
   to keep in sync.
+- **[WaveDefense](wave-defense)** — not a library but the worked example of gluing the other three
+  together: a wave-survival gamemode where a Contract Framework contract is only the launcher, ModNet's
+  authority model decides which machine runs the simulation, and UI Kit draws the entire HUD and setup
+  menu itself.

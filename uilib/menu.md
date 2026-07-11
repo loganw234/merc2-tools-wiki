@@ -53,6 +53,21 @@ end)
 This is the same `switch`-equivalent hand-rolled directly — `:switch` exists so you don't have to write it
 out every time.
 
+**A dynamic label re-renders the instant it's picked, cursor position preserved.** Choosing any entry
+re-paints the current menu level afterward — necessary for `:switch`/dynamic-label entries specifically,
+since without it the label would keep showing its *old* text until you happened to navigate away and back.
+Re-painting means re-calling `UI.List:items()`, which on its own would reset the selection to the top of
+the list; `Menu:_choose` works around that by remembering the selected row first and restoring it after:
+
+```lua
+if self._rt.open then
+    local list = self._rt.list
+    local keep = list and list._sel          -- keep the cursor where it is (a re-items resets it to the top)
+    self:_paint()
+    if list and keep then list:select(keep) end
+end
+```
+
 ## The `ctx` every action receives
 
 Beyond the [ForgeMenu](../deep-dives/forge-menu#the-whole-api-up-front)-equivalent fields
@@ -67,6 +82,23 @@ helpers that pop one of the kit's other modal widgets directly from inside a men
 | `ctx:confirm(text, onYes, onNo)` | Pops a [`UI.Confirm`](confirm-and-input) and routes the result to whichever callback matches. |
 | `ctx:ask(prompt, onSubmit, onCancel)` | Pops a [`UI.Input`](confirm-and-input) typed prompt. |
 | `ctx:spawn(template [, dist])` | Spawns at your feet or `dist` metres ahead; returns the guid. |
+
+**`ctx:spawn` rejects a blank template before it ever reaches the engine.** `Pg.Spawn("")` is a **hard
+native crash** (an empty template name resolves to a null asset in the engine's own C++), and `pcall`
+**cannot catch it** — `pcall` only catches Lua-level errors, and a native crash never raises one. If your
+own code can ever hand `ctx:spawn` an unset or empty template (a dynamically-resolved value from another
+system, a menu built before its data finished loading, ...), that used to be an unrecoverable crash to
+desktop. It's now guarded up front:
+
+```lua
+if type(template) ~= "string" or template:match("^%s*$") then
+    self:hint("NO TEMPLATE SET"); return nil
+end
+```
+
+A blank/whitespace-only `template` now just shows a hint and returns `nil`, the same as any other failed
+spawn — never a crash. Worth remembering for **any** direct `Pg.Spawn` call, not just through `ctx:spawn` —
+`pcall` is not a safety net against this one specific failure mode.
 
 ```lua
 menu:category("Dialogs", function(c)

@@ -83,6 +83,8 @@ Read [UI.Menu](menu) or [UI.List](list) for exactly how these pieces click toget
 two showcase scripts (split by which widgets each covers) plus [coopchat.lua](coopchat), a full co-op text
 chat and the current implementation of [A Basic Co-op Text Chat](../deep-dives/coop-chat).
 
+**Full source:** see [uilib.lua](source) for the library's complete, current source, reproduced in full.
+
 **Pick a toggle key that isn't a navigation key** (arrows/Enter/Esc/Backspace by default) — those drive
 whichever widget currently has focus while it's open, the same caution [ForgeMenu](../deep-dives/forge-menu)
 calls out for the same reason.
@@ -98,3 +100,5 @@ calls out for the same reason.
   implementation of this deep dive's problem, built on `UI.Chat`.
 - [Contract Framework: The Contract Board](../contract-framework/contract-board) — `UI.Board` reuses its
   exact movie (`contracts.gfx`); see that page for the movie's own callback surface.
+- [WaveDefense](../wave-defense) — a full gamemode whose entire HUD and setup menu is built on `UI.Panel`,
+  `UI.Bar`, and a hand-rolled "cycler" convenience over `UI.Menu`.
