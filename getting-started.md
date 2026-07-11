@@ -13,20 +13,24 @@ running in the live game right now: **lua-bridge**.
 
 Already comfortable installing ASI mods and don't need the walkthrough? Here's the whole thing:
 
-1. **Get lua-bridge.** No stable release exists yet — `lua-bridge-DEV` in
+1. **Patch the game once.** Mercenaries 2's SecuROM check has to be bypassed before any ASI loader can run
+   at all. Use [mercs2-securom-bypass](https://github.com/Mercenaries-Fan-Build/mercs2-securom-bypass) to
+   patch `Mercenaries2.exe` — a one-time step, and not something any tool below does for you.
+2. **Get `pmc_bb.dll`**, the actual ASI loader lua-bridge plugs into — built by
+   [pmc-blackbox](https://github.com/Mercenaries-Fan-Build/pmc-blackbox). Easiest path: install
+   [mercs2-modkit](https://github.com/Mercenaries-Fan-Build/mercs2-modkit) (a desktop app for managing
+   WAD-asset mods) — it installs pmc-blackbox for you as part of its own setup, no separate step needed.
+   Skipping modkit's own asset-mod features entirely? `pmc-blackbox`'s own repo has manual install steps.
+3. **Get lua-bridge.** No stable release exists yet — `lua-bridge-DEV` in
    [github.com/loganw234/Merc2-Mods-Exp](https://github.com/loganw234/Merc2-Mods-Exp) is the current
-   active build. Either install it manually (drop the built `.asi`/`.ini` into `scripts/`, see [Install](#install)
-   below), or install through the community
-   [mercs2-modkit](https://github.com/Mercenaries-Fan-Build/mercs2-modkit) mod manager, which can pull it
-   for you — see that repo for its own setup instructions.
-2. **Launch the game via `pmc_bb.dll`** (the Fan Build ASI loader). lua-bridge doesn't run standalone.
-3. **Run code one of two ways:**
+   active build. Drop the built `.asi`/`.ini` into `scripts/` — see [Install](#install) below.
+4. **Run code one of two ways:**
    - Interactively: `py tools/lua_console.py`, a small GUI REPL client — write Lua, hit F5, see the
      result. Fastest way to poke at game state.
    - Automatically: drop a `.lua` file into `scripts/OnLoad/` (runs once per level load — use this for
      almost everything) or `scripts/OnKey/` (runs on a hotkey press — declare the key with
      `local KEYVAL = "insert"` in the script's first 10 lines).
-4. That's it — no compilation step, no ASI-mod boilerplate. If something's not working, jump to
+5. That's it — no compilation step, no ASI-mod boilerplate. If something's not working, jump to
    [Troubleshooting](#troubleshooting-checklist) at the bottom of this page.
 
 New to this entirely, or want the reasoning behind each step? Keep reading below.
@@ -47,10 +51,31 @@ along, build against this.
 
 ## Install
 
+### Prerequisite: `pmc_bb.dll`
+
+lua-bridge is an ASI plugin — it doesn't run standalone, and needs `pmc_bb.dll` (the actual ASI loader)
+already in place first. `pmc_bb.dll` is a **separate project from lua-bridge**, built by
+[pmc-blackbox](https://github.com/Mercenaries-Fan-Build/pmc-blackbox): a DRM-bypass + debug DLL for
+Mercenaries 2 that, among other things, discovers and loads `.asi` plugin files — lua-bridge is one such
+plugin.
+
+1. **Patch the SecuROM check.** Use
+   [mercs2-securom-bypass](https://github.com/Mercenaries-Fan-Build/mercs2-securom-bypass) to patch
+   `Mercenaries2.exe` so it'll run without the retail DRM check getting in the way of ASI loading at all.
+   One-time, and independent of everything below — see that repo for exact steps.
+2. **Install `pmc_bb.dll`.** The easiest path is
+   [mercs2-modkit](https://github.com/Mercenaries-Fan-Build/mercs2-modkit) — a desktop app primarily for
+   managing WAD-asset mods, which installs pmc-blackbox's `pmc_bb.dll` for you as part of its own setup
+   (see that repo for its own instructions). If you don't want modkit's asset-mod features, `pmc-blackbox`'s
+   own repo documents installing `pmc_bb.dll` directly: copy it next to `Mercenaries2.exe`.
+
+### Installing lua-bridge itself
+
+Once `pmc_bb.dll` is in place:
+
 1. Build or download `lua_bridge.asi` and its companion `lua_bridge.ini`.
 2. Drop both into your game's `scripts/` folder (next to `Mercenaries2.exe`).
-3. Launch the game through `pmc_bb.dll` (the Mercenaries Fan Build ASI loader) — lua-bridge is an ASI
-   plugin, it doesn't run standalone.
+3. Launch the game — `pmc_bb.dll`'s ASI loader picks up `lua_bridge.asi` automatically.
 4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`,
    `scripts/OnKey/`, and a `lua_loader.ini` config file next to the exe.
 
