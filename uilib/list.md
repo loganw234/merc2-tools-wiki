@@ -78,6 +78,51 @@ rather than snapping — the same eased-resize idea [`UI.Panel`](panel-bar-toast
 list:title("SPAWNER"):hint("UP/DOWN MOVE   ENTER PICK"):items(myRows)
 ```
 
+## Recipe: driving a drill-down menu directly, without `UI.Menu`
+
+[`UI.Menu`](menu) is one owned `UI.List` plus a builder API — but you can drive the same list-swapping
+technique yourself when you want more control over the transitions than `:entry`/`:category` gives you.
+`uidemo.lua` (the kit's own showcase script) does exactly this: three plain item arrays and one helper that
+just re-points the same list at whichever one is current —
+
+```lua
+local ROOT = {
+    { header = "WIDGETS" },
+    { label = "Pop a toast",    act = "toast" },
+    { label = "Open a submenu", act = "sub" },
+}
+local SUB = {
+    { header = "SUBMENU" },
+    { label = "Back to the top", act = "back" },
+}
+
+local function goto_menu(items, crumb)
+    D.at = crumb
+    D.list:items(items)
+    D.list:crumb(crumb)
+end
+
+local function on_choose(it)
+    if it.act == "toast" then UI.Toast("You picked: " .. it.label)
+    elseif it.act == "sub" then goto_menu(SUB, "DEMO > SUBMENU")
+    elseif it.act == "back" then goto_menu(ROOT, "DEMO") end
+end
+
+local function on_back()
+    if D.at ~= "DEMO" then goto_menu(ROOT, "DEMO") else D.list:hide() end
+end
+```
+
+Each row just carries a plain tag (`act`) your own `onChoose` switches on — there's no tree structure at
+all, just whichever flat array `:items()` was last given. Going "back" from a submenu is the identical idea
+[the native-menu nesting technique](../deep-dives/nested-menus) uses: rebuild (here, just re-point to) the
+parent's own item list, tracked in a plain `D.at` string rather than a stack, since `uidemo.lua` only ever
+needs one level of "back" at a time.
+
+This is also the easiest way to stress-test scrolling/auto-resize while building your own widget: a 30-row
+array with a header inserted mid-list is enough to see the scrollbar thumb, the header-skipping cursor
+behavior, and the eased body-resize animation all at once, without needing 30 real menu actions to test.
+
 ## See also
 
 - [UI.Menu](menu) — a tree-navigation wrapper built entirely on one owned `UI.List`.

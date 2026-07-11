@@ -33,6 +33,28 @@ and restores that focus once resolved — so popping a confirm from inside, say,
 [`UI.Menu`](menu) action via `ctx:confirm(...)` hands control back to that same menu afterward, rather than
 leaving nothing focused.
 
+### Recipe: guarding a dismissive action
+
+`uidemo.lua`'s own `onBack` handler uses `UI.Confirm` to guard against an accidental close, rather than
+just hiding on the first Back press at the root:
+
+```lua
+local function on_back()
+    if D.at ~= "DEMO" then
+        goto_menu(ROOT, "DEMO")           -- not at the root yet: just go up one level, no confirmation needed
+    else
+        UI.Confirm{
+            text = "Close the demo?",
+            onResult = function(yes) if yes then D.list:hide() end end,
+        }
+    end
+end
+```
+
+The pattern generalizes to anything you don't want a stray extra Backspace/Esc to dismiss outright — only
+ask when the action is actually about to do something hard to undo (here, leaving the root level), not on
+every intermediate step.
+
 ## `UI.Input` — one-shot typed prompt
 
 ```lua

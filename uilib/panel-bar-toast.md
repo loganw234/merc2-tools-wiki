@@ -27,6 +27,24 @@ to start pre-sized for, default `0`).
   toward it, same auto-resize idea as [`UI.List`](list).
 - `:clear()` blanks all 8 lines and fits back down to 0.
 
+### Recipe: a Panel as a rolling event log
+
+`uidemo.lua` uses a `Panel` as a scrolling log of the last 8 things that happened — push a new line, drop
+the oldest, rewrite the whole panel:
+
+```lua
+D.lines = D.lines or {}
+local function log(s)
+    D.lines[#D.lines + 1] = tostring(s)
+    while #D.lines > 8 do table.remove(D.lines, 1) end
+    for i = 0, 7 do D.log:line(i, D.lines[i + 1] or "") end
+end
+```
+
+Rewriting all 8 lines on every call is simpler than tracking which single line changed, and cheap enough
+that it doesn't matter — `:line()` is a plain `CallActionScriptCallback`, not something worth
+micro-optimizing for an 8-line panel.
+
 ## `UI.Bar` — a label plus a progress bar
 
 ```lua

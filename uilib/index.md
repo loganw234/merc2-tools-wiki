@@ -78,6 +78,12 @@ Read [UI.Menu](menu) or [UI.List](list) for exactly how these pieces click toget
    if not (_G.UI and UI.Menu) then Loader.Printf("load uilib first"); return end
    ```
 
+**Demo:** `uidemo.lua` (`scripts/OnKey/`, bound to Delete) is the kit's own showcase/smoke test — a
+drill-down `UI.List` with headers and a 30-row scrolling stress test, a `UI.Panel` used as a rolling event
+log, a `UI.Bar`, `UI.Toast`s, and both `UI.Confirm`/`UI.Input`, all copy-paste-able as reference code. It
+doesn't cover `UI.Menu`, `UI.Chat`, or `UI.Board` — those three are documented from the module source
+directly rather than a confirmed demo script.
+
 **Pick a toggle key that isn't a navigation key** (arrows/Enter/Esc/Backspace by default) — those drive
 whichever widget currently has focus while it's open, the same caution [ForgeMenu](../deep-dives/forge-menu)
 calls out for the same reason.
