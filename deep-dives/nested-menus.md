@@ -198,3 +198,9 @@ root — nesting doesn't change the technique at all, it's the same three-call s
   extracted from, four submenus deep.
 - [Your First Menu](../first-menu) — the single-level version of the `_G`-guarded state pattern this page
   extends to multiple menu functions.
+- [Building ForgeMenu — a Reusable Nested-Menu Library](forge-menu) — the easier alternative: a library
+  that reuses the `forge.gfx` Scaleform movie instead of the native dialog box, turning everything on this
+  page (the manual `Reset`/`AddOption`/`Display` per level, the bare-global gotcha, hand-wiring "Back")
+  into declaring a plain tree of categories and entries. Worth reading this page first anyway — the
+  reasoning here (why nesting isn't built in, how state threads across levels) still applies, ForgeMenu
+  just handles the bookkeeping for you.

@@ -87,6 +87,14 @@ different problem instead of just copy-pasting the end result.
   genuinely non-obvious part — why the menu-builder functions are bare globals instead of `local function`,
   and the silent-failure mode (a menu option that quietly does nothing) that ordering mistake would cause
   the other way.
+- **[Building ForgeMenu — a Reusable Nested-Menu Library](forge-menu)** — *new, built on already-confirmed
+  pieces* — a small library that reuses the shipped `forge.gfx` movie (the same one ForgeCam/MissionForge
+  drive) to turn nested-menu-building into declaring a plain tree of categories and entries — no widget
+  code, no navigation-stack bookkeeping, none of the bare-global gotcha
+  [the native-menu approach](nested-menus) requires. Explains the one detail that makes it fundamentally
+  simpler than everything upstream of it: a menu only needs discrete key events, which
+  `Loader.PopKeyEvents` already provides, so it never needs the PDA-pause trick the freecam lineage is
+  built around.
 - **[Building MissionForge — a Contract Authoring Tool](mission-forge)** — *new, in development* — the
   in-game half of the [Contract Framework](../contract-framework/)'s authoring pipeline, sharing ForgeCam's
   menu/input lineage but deliberately inverting its core design: runs in the live, unpaused world instead
