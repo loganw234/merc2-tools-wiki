@@ -1,12 +1,12 @@
 ---
 title: Gurpodium
-parent: World Objects & Props
+parent: Vehicles
 grand_parent: Resident Modules
 nav_order: 1
 inherits: none
 tags: [vehicle, speech]
 verified: true
-verified_note: "deeper pass: re-confirmed all 9 functions, the 3 Event.Create types (ObjectDeath/ObjectInSeat/TimerRelative) and the VO.CueWithoutSubtitles/VO.Cancel calls against source; surfaced the 5 hardcoded cue strings and 1.5s timer as tunables; replaced lifecycle boilerplate in Notes with actionable levers"
+verified_note: "deeper pass: re-confirmed all 10 functions, the 3 Event.Create types (ObjectDeath/ObjectInSeat/TimerRelative) and the VO.CueWithoutSubtitles/VO.Cancel calls against source; surfaced the 5 hardcoded cue strings and 1.5s timer as tunables; replaced lifecycle boilerplate in Notes with actionable levers"
 ---
 
 # Gurpodium

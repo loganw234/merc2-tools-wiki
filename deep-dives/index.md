@@ -34,7 +34,8 @@ different problem instead of just copy-pasting the end result.
 - **[Building a Chat/Log UI](coop-chat-ui)** — *confirmed working by live testing* — a real engine crash
   bug found in `MrxGuiTextBuffer`'s own documented constructor, a scope-sealing dead end while trying to
   patch around it, and the bug-free internal function that turned out to be the real fix — plus a
-  confirmed static-source-vs-runtime discrepancy in `MrxGui` itself.
+  confirmed static-source-vs-runtime discrepancy in `MrxGui` itself. Its display module has since been
+  superseded by [UI Kit](../uilib/)'s `UI.Chat` — see the page's own Update section.
 - **[Adding a Custom Contract](custom-contract)** — *research notes, currently broken* — registering a
   mission into `WifMissionData` and Fiona's briefing menu, confirmed working end to end exactly once
   (menu, accept, teleport-out, spawn/destroy/reward), plus two hard native-safety rules

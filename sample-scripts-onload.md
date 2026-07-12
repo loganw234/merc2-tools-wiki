@@ -11,7 +11,7 @@ Complete `.lua` files meant to be dropped into `scripts/OnLoad/` — see [Gettin
 for what makes `OnLoad` different from `OnBoot`/`OnKey` if you haven't read that yet.
 
 <details class="script-entry" markdown="1">
-<summary><strong>WardrobeUnlocker.lua</strong> — Unlocks every character's outfit, plus ~36 named NPC/character skins, for every hero's own wardrobe menu.</summary>
+<summary><strong>WardrobeUnlocker.lua</strong> — Unlocks every character's outfit, plus 40 named NPC/character skins, for every hero's own wardrobe menu.</summary>
 
 Normally the HQ wardrobe only offers a character's own small, curated outfit list, further limited to
 however many the game has currently unlocked for them. This merges every hero's outfits together, adds a
@@ -141,7 +141,7 @@ for the full list of valid styles.
 
 ![The merged, auto-paginated wardrobe menu in-game — "Select an outfit: (Page 1/2)", listing Next page, Default, Tactical, Sleeveless, Catsuit, Chicken, Default, Metal, and Cancel, with the currently-worn chicken-suit character model visible behind the dialog.](img/funcoverride.png)
 
-*This screenshot predates the expanded NPC roster above — at ~36 extra entries plus every hero's own
+*This screenshot predates the expanded NPC roster above — at 40 extra entries plus every hero's own
 outfits merged together, the real current menu runs well past the 2 pages shown here.*
 
 </details>

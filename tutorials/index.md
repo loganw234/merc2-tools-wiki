@@ -7,7 +7,7 @@ has_toc: false
 
 # Tutorials
 
-Ten small, guided lessons, meant to be done roughly in order. Where [Getting Started](../getting-started)
+Eleven small, guided lessons, meant to be done roughly in order. Where [Getting Started](../getting-started)
 gets the tooling installed and [Your First Mod](../first-mod) gets one script running end to end, this
 section slows down and gives each individual idea — a log line, a menu toggle, a timer, an event hook — its
 own page, with room to explain the parts other pages take for granted or mention only in passing. Where

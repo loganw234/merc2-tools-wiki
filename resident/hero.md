@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [player, survival, tutorial]
 verified: true
-verified_note: "deeper pass: re-confirmed all 26 functions and Event.* constants against 401-line source; surfaced the health/survival tuning constants, pickup-marker sizes, transfer vehicle-label gate, and grapple-tutorial CueTable/string; SetTimeScale (do return end) and SurvivalModeCallback confirmed dead; replaced vacuous Notes boilerplate"
+verified_note: "deeper pass: re-confirmed all 27 functions and Event.* constants against 401-line source; surfaced the health/survival tuning constants, pickup-marker sizes, transfer vehicle-label gate, and grapple-tutorial CueTable/string; SetTimeScale (do return end) and SurvivalModeCallback confirmed dead; replaced vacuous Notes boilerplate"
 ---
 
 # Hero

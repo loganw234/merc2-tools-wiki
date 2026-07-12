@@ -6,7 +6,7 @@ nav_order: 1
 inherits: EnemyBlippable
 tags: [anti-air, radar, missile]
 verified: true
-verified_note: deeper pass — re-confirmed all 17 functions/events, the _tLockOnUpdates dead field, and the tColor*=false disabling; surfaced the ksCue*/knCueAlertCooldown sound constants as a tunables block and cross-linked EnemyBlippable/HomingMissile/MrxSupport up the chain
+verified_note: deeper pass — re-confirmed all 18 functions/events, the _tLockOnUpdates dead field, and the tColor*=false disabling; surfaced the ksCue*/knCueAlertCooldown sound constants as a tunables block and cross-linked EnemyBlippable/HomingMissile/MrxSupport up the chain
 ---
 
 # AntiAir

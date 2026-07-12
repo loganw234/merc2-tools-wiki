@@ -1,15 +1,15 @@
 ---
-title: Mrxtaskcontract
+title: MrxTaskContract
 parent: Missions & Tasks
 grand_parent: Resident Modules
 nav_order: 1
-inherits: Mrxtaskmission
+inherits: MrxTaskMission
 tags: [task, contract]
 verified: true
 verified_note: deeper pass — removed a fabricated "ActionHijack" instance field (it is MrxActionHijack.IsInHijack(), a module call); corrected imports ("none" -> the 14 real imports); rewrote the Events section (the listed OnPlayerJoined/Activated/Complete/Cancel/Cleanup are lifecycle methods, NOT event subscriptions — the only real event is MrxFactionManager.CreateAttitudeChangeEvent); surfaced the faction-music codes, reward-type branch, and the multi-stage Complete/Cancel unload chain
 ---
 
-# Mrxtaskcontract
+# MrxTaskContract
 
 *Module: mrxtaskcontract.lua*
 

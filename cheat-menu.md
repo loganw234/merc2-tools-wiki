@@ -39,7 +39,7 @@ one's already open, so the two scripts can never both end up reading the same ke
 
 **Deliberately not folded in**, each left exactly as-is on its own key if you already use it:
 - **Freecam** and **Fireworks** — their own complex, persistent-state systems, better left standalone.
-- **WorldProbe/WAILA** and **LayerScraper** — research/diagnostic tools, not really "cheats."
+- **WorldProbe/WAILA** — a research/diagnostic tool, not really a "cheat."
 - The **Chinese/Allied Destroyer spawner** — pulled back out of this menu on request, since the destroyer
   vehicle is mostly broken in-game (see the [destroyer-vehicle deep dive](deep-dives/destroyer-vehicle)
   for the full story). [DestroyerTool.lua](sample-scripts-onkey) still has the
@@ -187,7 +187,7 @@ local KEYVAL = "f10"  -- must be in the first 10 lines -- f2-f9 already taken by
 --   wiki) -- stays its own dedicated tool on f9 rather than cluttering this menu.
 -- - Freecam (f4) and Fireworks (f6) -- their own complex, persistent-state systems, better left on
 --   dedicated keys rather than folded into a generic menu.
--- - WorldProbe/WAILA (f7) and LayerScraper (f8) -- research/diagnostic tools, not really "cheats."
+-- - WorldProbe/WAILA (f7) -- a research/diagnostic tool, not really a "cheat."
 -- All of the above still work exactly as before on their existing keys.
 
 -- ============================================================

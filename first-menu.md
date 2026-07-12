@@ -73,8 +73,9 @@ MrxMultiPageMenu.Display("Test Menu:")
 
 That last option is the standard "close/cancel" row used throughout this wiki's sample scripts — the
 trailing `true, true` binds it to the menu's own cancel button, and a `nil` callback there is a
-special-cased no-op (not something you'd want to do for a *real* option — see the
-[cheat-menu bugfix note](cheat-menu) on exactly this if you're curious why).
+special-cased no-op (not something you'd want to do for a *real* option — see
+[`MrxMultipageMenu`'s notes for modders](resident/mrxmultipagemenu#notes-for-modders) on exactly this if
+you're curious why).
 
 ## Putting it together
 

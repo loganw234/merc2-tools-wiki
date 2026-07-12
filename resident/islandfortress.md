@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, fortress]
 verified: true
-verified_note: "deeper pass: re-confirmed all 5 functions; corrected the propagation delay to its two real ranges (0.3-0.5s when a node still has health, 0.7-1.0s when already dead); surfaced the trigger hash pair, starting-node set, and 15-entry adjacency table; OnStateChange is an engine hook, sole Event.* is TimerRelative"
+verified_note: "deeper pass: re-confirmed all 6 functions; corrected the propagation delay to its two real ranges (0.3-0.5s when a node still has health, 0.7-1.0s when already dead); surfaced the trigger hash pair, starting-node set, and 15-entry adjacency table; OnStateChange is an engine hook, sole Event.* is TimerRelative"
 ---
 
 # IslandFortress

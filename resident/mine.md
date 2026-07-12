@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [mine, proximity]
 verified: true
-verified_note: "deeper pass: re-confirmed all 5 functions; consolidated the high-value constants (proximity radius 1, delays 0.75s/0.25s, animation global_weapon_c4land_60thsec, sound wpn_bomb_timer_01_finalstage, and the three Explosion (...) spawn prefabs) into a tunables block; re-confirmed uVehicleFilter is dead in this file"
+verified_note: "deeper pass: re-confirmed all 6 functions; consolidated the high-value constants (proximity radius 1, delays 0.75s/0.25s, animation global_weapon_c4land_60thsec, sound wpn_bomb_timer_01_finalstage, and the three Explosion (...) spawn prefabs) into a tunables block; re-confirmed uVehicleFilter is dead in this file"
 ---
 
 # Mine

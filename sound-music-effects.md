@@ -65,7 +65,7 @@ The base-game faction-region music system (HQ + op tracks), e.g. `mu_src_al_hq_0
 | `PlaySpecialMusic(cue)` | play a special-music cue over the normal track |
 | `StopSpecialMusic()` | stop it, return to normal |
 | `PlayFanfare(bWin)` | the win/lose sting (the framework uses this on complete) |
-| `EnterContractMusic()` / `EnterFreeplayMusic()` | switch the whole music context |
+| `EnterContractMusic(sFaction)` / `EnterFreeplayMusic()` | switch the whole music context |
 | `Reset()` | reset the music state |
 | `BindMusicCue(...)` / `AddMusicPlaylist(...)` / `ClearMusicPlaylist()` | playlist plumbing |
 

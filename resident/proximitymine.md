@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [mine, proximity]
 verified: true
-verified_note: 'deeper pass: re-confirmed all 5 functions + the ObjectProximity/TimerRelative subscriptions; documented the exact trigger (6-unit "human" filter, non-networked flags) and the Airstrike.SpawnOrdnance payload ("Grenade MG Projectile", +8 up, distance 1.8, Object.Kill cleanup); cross-linked Airstrike/Object/Event namespaces + mine.'
+verified_note: 'deeper pass: re-confirmed all 6 functions + the ObjectProximity/TimerRelative subscriptions; documented the exact trigger (6-unit "human" filter, non-networked flags) and the Airstrike.SpawnOrdnance payload ("Grenade MG Projectile", +8 up, distance 1.8, Object.Kill cleanup); cross-linked Airstrike/Object/Event namespaces + mine.'
 ---
 
 # ProximityMine

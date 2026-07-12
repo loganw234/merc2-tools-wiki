@@ -10,8 +10,9 @@ The complete, current source of the engine every other [UI Kit](../uilib/) page 
 time — [`UI.Menu`](menu), [`UI.List`](list), [`UI.Panel`/`UI.Bar`/`UI.Toast`](panel-bar-toast),
 [`UI.Confirm`/`UI.Input`](confirm-and-input), and [`UI.Chat`/`UI.Board`](chat-and-board). Reproduced here in
 full for anyone who wants to read the whole thing start to finish, or diff it against their own copy.
-Version `2.2a` per the file's own `UI.VERSION` — see [UI.Menu](menu#ctxspawn-rejects-a-blank-template-before-it-ever-reaches-the-engine)
-for what the `2.2a` point-fix actually changed.
+Version `2.2` per the file's own `UI.VERSION`, with a `2.2a` point-fix noted inline in the version-history
+comment — see [UI.Menu](menu#ctxspawn-rejects-a-blank-template-before-it-ever-reaches-the-engine) for what
+that point-fix actually changed.
 
 ## Deploy
 

@@ -9,7 +9,7 @@ nav_order: 9
 The complete, current source of the engine every other [Contract Framework](../contract-framework/) page
 documents one piece at a time — `Register`/`Accept`/`Status`/`Abort` and the
 [`onBegin`/`hideTracker` gamemode-handoff](register-and-lifecycle#handing-off-to-a-bespoke-gamemode)
-([Contract.Register & Lifecycle](register-and-lifecycle)), the 15 objective handlers
+([Contract.Register & Lifecycle](register-and-lifecycle)), the 16 objective handlers
 ([Objectives Reference](objectives)), support effects and the trigger system
 ([Support Effects & Triggers](support-effects-and-triggers)), and grouped units, AI orders, and faction
 relations ([Units, AI Orders & Relations](units-ai-and-relations)). Reproduced here in full for anyone who
@@ -1295,7 +1295,7 @@ Loader.Printf("ContractFramework: loaded (" .. #C._registry .. " contract(s) reg
 
 - [Contract.Register & Lifecycle](register-and-lifecycle) — the modder-facing API, `Accept`/`Status`/`Abort`,
   and the `onBegin`/`hideTracker` gamemode handoff.
-- [Objectives Reference](objectives) — all 15 `C.tHandlers` entries and their builder sugar, explained.
+- [Objectives Reference](objectives) — all 16 `C.tHandlers` entries and their builder sugar, explained.
 - [Support Effects & Triggers](support-effects-and-triggers) — the `SUPPORT_EFFECTS` table and the generic
   `armTrigger` condition system.
 - [Units, AI Orders & Relations](units-ai-and-relations) — `C._spawnUnits`, the `AI_BEHAVIORS` table, and

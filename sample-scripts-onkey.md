@@ -374,7 +374,7 @@ local nPollInterval = 0.01    -- Loader's key-event buffer fills at ~60Hz; poll 
 
 -- ============================================================
 -- VK code -> typed character, shift-aware (template names are case-sensitive
--- and use punctuation, unlike the co-op chat's uppercase-only input)
+-- and use punctuation, unlike the original co-op chat's uppercase-only input)
 -- ============================================================
 local tShiftedDigits = {
   [0x30] = ")", [0x31] = "!", [0x32] = "@", [0x33] = "#", [0x34] = "$",
@@ -809,7 +809,12 @@ above, found the firing direction needed the `nYawCorrectionDegrees` calibration
 A few things worth knowing if you customize this further:
 - **The `nYawCorrectionDegrees` value is an empirical fudge factor, not a derived constant** — it corrects
   a real, observed rightward bias in this specific script's yaw-to-direction math, tuned to *this* offset
-  by testing, not calculated from a confirmed forward-vector formula for `Object.GetYaw`.
+  by testing, not calculated from a confirmed forward-vector formula for `Object.GetYaw`. Worth flagging:
+  this script's math implies `GetYaw` returns radians (the correction constant is converted from degrees
+  before use), while `DestroyerTool.lua` further down this same page feeds `GetYaw` straight into a
+  function named `customSin(nDegrees)`, implying degrees. See the [`Object.GetYaw`](namespaces/object)
+  entry — the actual unit is unconfirmed, and this empirical fudge factor could simply be absorbing the
+  mismatch rather than exposing it.
 - **These are real ordnance** — `Airstrike.SpawnOrdnance` is the same native every scripted bomb/missile in
   the game fires with, not a cosmetic particle effect. Fire this somewhere open.
 - The shell list is a deliberately curated subset, not the full catalog — see

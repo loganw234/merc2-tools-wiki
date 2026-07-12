@@ -266,3 +266,19 @@ end
 - **The `MrxGui.ImageWidget`/`TextWidget`/`AddWidget`/`RemoveWidget` discrepancy** (real at runtime,
   literal `0` in decompiled source) is confirmed as a real gap in what static source analysis alone can
   tell you — worth remembering for any future work touching `MrxGui`.
+
+## Update: superseded by UI.Chat
+
+`CoopChatUI` — the whole module built above — is no longer the current display layer. The same "not tested
+across a real co-op session" limitation was closed on the transport side by [ModNet](../modnet)/`coopchat.lua`
+(see the [co-op chat deep dive's own Update section](coop-chat#update-a-ui-kit-rewrite-closes-the-open-limitations)),
+and on the display side by [UI Kit](../uilib/)'s [`UI.Chat`](../uilib/chat-and-board) — a scrolling message log
+with an optional typed-input line, built once, on top of the kit's shared input/focus/heartbeat engine, rather
+than hand-rolled per script. [`coopchat.lua`](../uilib/coopchat) (the current, shipped implementation) uses
+`UI.Chat` directly and never touches `MrxGuiTextBuffer` at all.
+
+None of the investigation above is invalidated by this — the `InstantiateTextBuffer` bug, the module-scoping
+wrong turn, and the `MrxGui.ImageWidget`/`TextWidget` decompiled-source discrepancy are all still genuine,
+confirmed findings about the engine, independent of which display module a mod chooses to build on. This page
+remains the reference for anyone who specifically needs `MrxGuiTextBuffer` (or hits the same bugs) rather than
+using `UI.Chat`.

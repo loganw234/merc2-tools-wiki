@@ -90,7 +90,7 @@ function counts as "at least this many," not complete:
 
 | Namespace | Functions (call-site only) | Notes |
 |---|---|---|
-| [Airstrike](airstrike) | 2 | The only mechanism in the whole corpus for spawning a projectile/ordnance object — `SpawnOrdnance`/`SpawnTargettedOrdnance`, plus a catalog of every confirmed ordnance template name string. |
+| [Airstrike](airstrike) | 7 | The only mechanism in the whole corpus for spawning a projectile/ordnance object — `SpawnOrdnance`/`SpawnTargettedOrdnance`/`Flyby`/`ConeSpawn`/`SpawnCarpetBombLine`/`SpawnDirectedObject`/`EquipDesignator`, plus a catalog of every confirmed ordnance template name string. |
 | [Weapon](weapon) | 3 | Ammo-reserve management for a player's carried/equipped weapon — confirmed to have no relationship to vehicle turrets. |
 
 ## What's left

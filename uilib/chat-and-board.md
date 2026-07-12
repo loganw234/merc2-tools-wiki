@@ -52,8 +52,10 @@ board:detail{
 }
 ```
 
-Unlike `UI.List`, **`onSelect` fires on every cursor move**, not just as a hook you might ignore — it's the
-expected place to call `:detail()` with that row's own data, which is exactly the pattern
+`onSelect` fires on every cursor move exactly as it does on `UI.List` — the one difference is that
+`UI.Board:items()` also fires it once immediately, so the details pane is already populated the instant the
+board opens or its list is refreshed, rather than staying blank until the player first presses up/down. It's
+the expected place to call `:detail()` with that row's own data, which is exactly the pattern
 [`menudemo.lua`](menudemo)'s "Contract Board" entry uses: three items, three different
 `:detail{}` payloads picked by an `it.k` tag on each row.
 

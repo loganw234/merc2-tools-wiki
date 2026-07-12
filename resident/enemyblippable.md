@@ -17,8 +17,9 @@ verified_note: "deeper pass: surfaced exact color-table RGB values + their relat
 The `EnemyBlippable` module extends [`Blippable`](blippable) to manage radar objectives and off-screen
 world markers specifically for vehicles, colored by the relationship between the vehicle's driver and the
 PMC faction. Despite the name, the color logic covers ally/neutral/enemy/empty/PMC cases, not just "enemy"
-— see `PickColor`. It is a sibling of [`OrientedBlippable`](orientedblippable)/[`VehicleBlippable`](vehicleblippable)
-in the blip chain (all three inherit from `Blippable`).
+— see `PickColor`. It is a sibling of [`OrientedBlippable`](orientedblippable) in the blip chain (both inherit from
+[`Blippable`](blippable)). [`VehicleBlippable`](vehicleblippable) is not a third direct sibling here — it's a
+descendant of `OrientedBlippable` instead (see that page's Inheritance section).
 
 ## Inheritance
 - Inherits from: [`Blippable`](blippable) (which itself inherits from [`Inheritable`](inheritable))

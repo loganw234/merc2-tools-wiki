@@ -19,7 +19,7 @@ modders below).
 
 This page's function list comes from a live `pairs(Human)` enumeration in-game, not from reading engine
 source — the engine implementation isn't available to us. That dump gives names and raw function
-pointers only, nothing about parameters or behavior. It found 22 confirmed functions: 13 top-level plus
+pointers only, nothing about parameters or behavior. It found 29 confirmed functions: 20 top-level plus
 9 more nested under a `Human.Inventory` sub-table (the same nested-table pattern seen elsewhere in this
 project, e.g. `Event.Create` or `Hud.Tutorial.SetText`). Where a function is actually called somewhere in
 the ~230 decompiled `.lua` scripts, this page shows a real argument pattern. Where it isn't called

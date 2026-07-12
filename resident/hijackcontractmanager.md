@@ -1,6 +1,6 @@
 ---
 title: HijackContractManager
-parent: World Objects & Props
+parent: Missions & Tasks
 grand_parent: Resident Modules
 nav_order: 1
 inherits: none

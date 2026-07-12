@@ -22,8 +22,8 @@ rely on depends on which build you're running, since this section has grown acro
 | Added in | What |
 |---|---|
 | v0.1.6 | `Loader`'s keyboard input API; `math.sin`/`math.cos` |
-| v0.2.0 | The rest of `math.*` (trig, hyperbolic, `sqrt`/`log`/`log10`, low-level number manipulation, `random`/`randomseed`, `pi`/`huge`) and `assert(v, msg)` |
-| v0.2.1 | Per-script OnKey reentrancy cooldown; missing-file guard for OnKey scripts; fixes to `assert`'s error location and the stdlib polyfill's own success/failure logging |
+| v0.2.0 | The rest of `math.*` (trig, hyperbolic, `sqrt`/`log`/`log10`, low-level number manipulation, `random`/`randomseed`, `pi`/`huge`) and `assert(v, msg)`; missing-file guard for OnKey scripts |
+| v0.2.1 | Per-script OnKey reentrancy cooldown; fixes to `assert`'s error location and the stdlib polyfill's own success/failure logging |
 | v0.3.0 | `Loader.SaveVar`/`Loader.LoadVar` (key-value persistence across game restarts); a hot-path rewrite dropping `Loader`'s input functions and every `math.*` function to sub-microsecond, measured-safe-in-a-per-frame-loop cost |
 
 If you're relying on anything past the keyboard API and basic trig, confirm you're on **v0.2.0 or later**;

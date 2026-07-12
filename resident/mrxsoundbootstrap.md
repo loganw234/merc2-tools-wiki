@@ -1,6 +1,6 @@
 ---
 title: MrxSoundBootstrap
-parent: Core Engine & Utilities
+parent: Audio & Music
 grand_parent: Resident Modules
 nav_order: 1
 inherits: none

@@ -49,7 +49,7 @@ That covers the common case. The full set of `def` fields a contract can use:
 | `id`, `title`, `briefing`, `category` | Identity and board display. `id` is the only required field. |
 | `reward` | `{ cash=, fuel=, support={id=qty,...}, equipment={id,...} }` — paid out via `MrxPmc` on completion. |
 | `start` | `{x,y,z,yaw}` (or a **list** of them, one per co-op hero) — teleports the player(s) there via `MrxUtil.TeleportHeroesToLocations` before objectives begin. Omit to start wherever the player already is. |
-| `objectives` | An array built from the [objective builders](objectives) — see that page for all 15 types. |
+| `objectives` | An array built from the [objective builders](objectives) — see that page for all 16 types. |
 | `mode` | `"sequential"` (default) or `"parallel"` — see [Objectives Reference](objectives). |
 | `timeLimit` | Overall seconds before the whole contract auto-fails. |
 | `fail` | Background conditions built from `Contract.Protect{...}` / `Contract.StayInArea{...}` — see [Objectives Reference](objectives). |

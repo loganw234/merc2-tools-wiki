@@ -295,6 +295,10 @@ local nBoatMass = 50000
 -- UPDATE: math.sin/math.cos are natively available as of lua-bridge v0.1.6 -- see Stdlib Additions.
 -- This workaround is no longer necessary on an updated build; left as-is here since it was accurate at
 -- the time this deep dive was written.
+-- UNIT CAVEAT: customSin/customCos are named/written for DEGREES, and Object.GetYaw(uChar) below is fed
+-- straight in -- implying GetYaw returns degrees. Fireworks.lua (sample-scripts-onkey.md) makes the
+-- OPPOSITE assumption (its correction constant is converted to radians before use). GetYaw's actual unit
+-- is unconfirmed (see namespaces/object.md) -- don't trust either assumption without testing it yourself.
 local function normalizeAngle(nDegrees)
   while nDegrees > 180 do
     nDegrees = nDegrees - 360

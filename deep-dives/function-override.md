@@ -173,7 +173,7 @@ curated list.
 
 What else changed:
 
-- **A curated roster of ~36 named NPC/character skins**, organized by faction (PMC & allies, Venezuela,
+- **A curated roster of 40 named NPC/character skins**, organized by faction (PMC & allies, Venezuela,
   Allied Nations, China, Guerrillas, Pirates, Universal Petroleum, civilian/misc) — plain `{Name, Model}`
   pairs appended to the same merged list the game's own outfits go into, so they show up in the exact same
   paginated menu with no separate UI of their own.

@@ -38,7 +38,7 @@ Three ways to source the guids an objective acts on, all supported (in different
   label = "..." }`) — a live `Pg.FastCollect*` sweep of the given area, optionally filtered by faction/label
   (checked via `Object.HasLabel`). Whatever matches *right now* becomes the target set.
 
-## The 15 objective types
+## The 16 objective types
 
 | Builder | Objective type | Completes when |
 |---|---|---|

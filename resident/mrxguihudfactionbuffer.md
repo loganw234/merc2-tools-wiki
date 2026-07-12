@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [gui, hud]
 verified: true
-verified_note: 'deeper pass: re-confirmed all 11 functions + zero Event.* calls; corrected Instance pattern (stateless module + per-widget CustomData, not "no tables"); surfaced slot-lifetime constants (5s / 5+nTime / pursuit), the SetValue delta<3 snap, and Objective Tray slot-3 hide interplay; re-verified the StartTimer/StartPursuit undeclared-bInitialize bug'
+verified_note: 'deeper pass: re-confirmed all 12 functions + zero Event.* calls; corrected Instance pattern (stateless module + per-widget CustomData, not "no tables"); surfaced slot-lifetime constants (5s / 5+nTime / pursuit), the SetValue delta<3 snap, and Objective Tray slot-3 hide interplay; re-verified the StartTimer/StartPursuit undeclared-bInitialize bug'
 ---
 
 # MrxGuiHudFactionBuffer

@@ -48,7 +48,7 @@ load).
 
 - **[Contract.Register & Lifecycle](register-and-lifecycle)** — the modder API surface, why it's
   save-safe, `Accept`/`Status`/`Abort`, and the built-in demo contract.
-- **[Objectives Reference](objectives)** — all 15 objective types, sequential vs. parallel execution,
+- **[Objectives Reference](objectives)** — all 16 objective types, sequential vs. parallel execution,
   nesting, and how objectives source their targets.
 - **[Support Effects & Triggers](support-effects-and-triggers)** — scripted call-ins (artillery, airstrikes,
   reinforcements, music/vfx/vo) and the condition system that fires them.

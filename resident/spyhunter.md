@@ -1,6 +1,6 @@
 ---
 title: SpyHunter
-parent: World Objects & Props
+parent: Vehicles
 grand_parent: Resident Modules
 nav_order: 1
 inherits: none

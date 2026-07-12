@@ -202,7 +202,7 @@ above — that presumption is unverified.
   `uGuid`-first arguments. Don't assume the positional convention carries over to `Hud`.
 - `Hud.Tutorial:SetText` is the lowest-level, directly-confirmed entry point for showing a custom tutorial
   message, but you should not call it directly in a mod. Use `MrxTutorialManager.ShowMessage`/`HideMessage`
-  instead — see [Snippets: Show a custom HUD message](../snippets#show-a-custom-hud-message) for the
+  instead — see [Snippets: Show a custom HUD message](../snippets#show-a-custom-hud-message-with-icon-and-sound) for the
   tested, higher-level wrapper, which additionally handles net-sync, duplicate-message suppression, and
   identifier-based message ownership that calling `Hud.Tutorial:SetText` directly would bypass.
 - `SubtitleBuffer` exposes the exact same method names as `MessageBox` (`AddMessage`, `ModifyPendingMessage`,

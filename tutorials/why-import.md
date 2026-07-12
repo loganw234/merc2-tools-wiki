@@ -58,7 +58,7 @@ This game's Lua code comes in two flavors that look identical to call but behave
 - **Engine namespaces** — `Player`, `Object`, `Event`, `Pg`, and others. These are built into the engine
   itself and are **always** globally available, from any script, with zero setup. This is why
   [Tutorial 3](reading-state)'s `Player.GetCash()` and `Object.GetPosition(...)` just worked.
-- **Resident modules** — `MrxTutorialManager`, `MrxPmc`, and roughly 225 others. These are `.lua` files
+- **Resident modules** — `MrxTutorialManager`, `MrxPmc`, and roughly 226 others. These are `.lua` files
   the game itself loads (you can browse them under [Resident Modules](../resident/)), and by default
   they're only visible *inside their own file*. `import("Name")` is what pulls one into *your* script's
   environment so you can call it too. Skip it, and the name is simply `nil` where you are — which is

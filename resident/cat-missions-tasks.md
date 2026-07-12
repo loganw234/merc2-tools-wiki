@@ -22,7 +22,7 @@ The mission/task tree: contracts, jobs, objectives, briefing flow, and the state
 - **[MrxStarterManager](mrxstartermanager)** — The `MrxStarterManager` module is responsible for managing game starters, which are likely key mission or support elements in the game.
 - **[MrxState](mrxstate)** — The `MrxState` module manages the global state transitions and lifecycle events in the game.
 - **[MrxTask](mrxtask)** — The `MrxTask` module is the base class for all mission-related tasks in the game.
-- **[Mrxtaskcontract](mrxtaskcontract)** — The `Mrxtaskcontract` module is responsible for managing contract missions within the game.
+- **[MrxTaskContract](mrxtaskcontract)** — The `MrxTaskContract` module is responsible for managing contract missions within the game.
 - **[MrxTaskContractOutpost](mrxtaskcontractoutpost)** — The `MrxTaskContractOutpost` module is responsible for managing outpost-capture contracts in the game.
 - **[MrxTaskContractPlaceholder](mrxtaskcontractplaceholder)** — The `MrxTaskContractPlaceholder` module is a stub implementation of a task contract.
 - **[MrxTaskJob](mrxtaskjob)** — The `MrxTaskJob` module is a base class for multi-target mission tasks.

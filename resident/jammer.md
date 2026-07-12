@@ -6,7 +6,7 @@ nav_order: 1
 inherits: none
 tags: [ai, support]
 verified: true
-verified_note: "deeper pass: re-confirmed the duplicate-OnDeactivate bug and all 7 functions; surfaced the animation name (global_gpsjammer_anim), the two sound cues, the [ContextAction.UseAlarm] prompt, and the \"jammer\" anti-air tag as tunables; replaced vacuous Notes bullet"
+verified_note: "deeper pass: re-confirmed the duplicate-OnDeactivate bug and all 8 functions (one, OnDeactivate, defined twice — see Notes); surfaced the animation name (global_gpsjammer_anim), the two sound cues, the [ContextAction.UseAlarm] prompt, and the \"jammer\" anti-air tag as tunables; replaced vacuous Notes bullet"
 ---
 
 # Jammer
