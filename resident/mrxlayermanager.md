@@ -257,7 +257,7 @@ advances**), `mar_outskirt` (act1/2), `mar_village` (act1), `margarita` (act2, p
 `vz_state_pmc`, `vz_state_pmc_pristine`, `vz_state_pmc_livedin`, `vz_state_pmc_act1`,
 `vz_state_pmcinterior`, `vz_state_pmcinterior_hel`, `vz_state_pmcinterior_jet`, `vz_state_pmcinterior_mec`,
 `vz_state_pmcinterior_mecabsent`, `vz_state_pmc001_villawaveone`, `vz_state_pmc001_villawavetwo` — layers
-tied to `WifPmcInterior`'s own HQ state; the `_hel`/`_jet`/`_mec` suffixes plausibly correspond to which
+tied to [`WifPmcInterior`](../vz/wifpmcinterior)'s own HQ state; the `_hel`/`_jet`/`_mec` suffixes plausibly correspond to which
 secondary hero (Ewan/Misha/Eva) is currently active, `_mecabsent` to Eva specifically not yet being present.
 
 </details>
@@ -382,7 +382,7 @@ distinct from its own `_staging`/`_pristine`/etc. variants).
 
 Found while investigating why hooking `Pg.Spawn` (see the
 [World Inspector deep dive](../deep-dives/world-inspector)) only ever caught a tiny fraction of what
-populates the open world during play — the answer turned out to be this file. `vz/xQ!L.lua` is the
+populates the open world during play — the answer turned out to be this file. [`vz/xQ!L.lua`](../vz/xql) is the
 level/game bootstrap script, and unlike the 649-name catalog above (recovered by grepping every
 `MrxLayerManager.*` call site scattered across the whole corpus), these two tables are read directly,
 verbatim, as literal string arrays hardcoded in that one file — no grep, no inference about what might

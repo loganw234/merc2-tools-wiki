@@ -63,7 +63,7 @@ with a mission VO cue from the mission flow (see below).
 
 No `Event.*` references appear anywhere in this file — there is no `Event.Create`/`Event.CreatePersistent`
 call, so `ExitGame()` is **not** wired to an engine event of any kind. Grepping the decompiled corpus shows
-`MrxSoundBootstrap.ExitGame()` is invoked as a plain direct function call from `src/vz/xQ!L.lua:612` (a
+`MrxSoundBootstrap.ExitGame()` is invoked as a plain direct function call from [`src/vz/xQ!L.lua:612`](../vz/xql) (a
 mission-flow script), not through an event subscription. The previous "Event.GameExit" entry on this page
 did not correspond to anything in source and has been removed.
 

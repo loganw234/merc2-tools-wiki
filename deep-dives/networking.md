@@ -196,7 +196,7 @@ table is scoped to the `NETEVENT_` prefix specifically.
 | `VzaCon001` | `vz/vzacon001.lua` | `CLIENTSETUP=0` |
 | `MrxFactionManager` | `resident/mrxfactionmanager.lua` | `SETMUTABLE=0`, `CIVKILLINIT=1`, `CIVKILL=2` |
 | `WifMissionFlow` | `vz/wifmissionflow.lua` | `CLIENTCREDITS=0` |
-| `WifPmcInterior` | `vz/wifpmcinterior.lua` | `UPDATESTOCKPILE=0`, `CHANGEOUTFIT=1`, `NOTIFYOUTFITCHANGE=2` |
+| [`WifPmcInterior`](../vz/wifpmcinterior) | `vz/wifpmcinterior.lua` | `UPDATESTOCKPILE=0`, `CHANGEOUTFIT=1`, `NOTIFYOUTFITCHANGE=2` |
 | `MrxGuiPda` | `resident/mrxguipda.lua` | `SETSELECTEDMISSION=0`, `PDAOPEN=1`, `PDACLOSE=2` |
 | `MrxMissionFlow` | `resident/mrxmissionflow.lua` | `SETGRAPPLE=0`, `AUTOSAVE=1`, `SETVEHICLEDISGUISE=2` |
 | `MrxOilCon002Delivery` | `resident/mrxoilcon002delivery.lua` | `SETDELIVERYLOCATIONS=0` |

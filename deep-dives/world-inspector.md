@@ -145,7 +145,7 @@ compiled template entry -- not yet live-tested, flagged as the next thing to try
 ## Open questions / where to pick this up
 
 - **The layer-delamination sweep tool itself — designed, not built.** It now has a concrete, safe seed list
-  to iterate: the ~416 names in `xQ!L.lua`'s boot manifest (see the layer manager page), which removes the
+  to iterate: the ~416 names in [`xQ!L.lua`](../vz/xql)'s boot manifest (see the layer manager page), which removes the
   need for either riskier approach originally considered — racing the boot sequence to intercept early
   `Pg.LoadLayer` calls, or mass-unloading currently-loaded layers to get back to some "clean" state.
 - **`SpawnScraper.lua` has no guid→name cross-reference yet.** Flagged earlier as a small, easy addition —

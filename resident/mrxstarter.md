@@ -350,7 +350,7 @@ indexed by a world-object GUID inside this module itself. It tracks the followin
   is a `bContract` field on the mission's `WifMissionData.tMissionData` entry — set automatically by
   `WifMissionData.Init()` for every real mission, but that pass already ran before a custom `OnLoad`
   script's own entry exists, so a custom contract has to set `bContract = true` itself or this call never
-  happens, and `WifPmcInterior.Exit()` (which reads `GetPendingContract()` to decide where to teleport the
+  happens, and [`WifPmcInterior.Exit()`](../vz/wifpmcinterior) (which reads `GetPendingContract()` to decide where to teleport the
   player) falls back to the HQ's own default exterior exit instead — confirmed live: skipping this leaves
   the player with no clear way out after accepting.
 
@@ -411,7 +411,7 @@ indexed by a world-object GUID inside this module itself. It tracks the followin
   - `tMissionsAcceptedThisSession`: A table of missions accepted this session.
   - `sLastAcceptedMission`: The last accepted mission name.
 - **Confirmed**: for a PMC starter (`bPmcStarter` true) with a non-`nil` `sLastAcceptedMission`, calls
-  `WifPmcInterior.Exit(1, false)` — this is the actual call that teleports the player back out of the HQ
+  [`WifPmcInterior.Exit(1, false)`](../vz/wifpmcinterior) — this is the actual call that teleports the player back out of the HQ
   interior after accepting a mission. Called from [`mrxbriefing.lua`'s `_EndBegin`](mrxbriefing) as
   `_oStarter:End(_tMissionsToBeAccepted, _sLastAcceptedMission)`, the very end of the accept flow. Confirmed
   reached live for a custom contract mission with no real spiel asset, once the two workarounds documented

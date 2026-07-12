@@ -62,7 +62,7 @@ end
 That `Init()` pass already ran, once, before any `OnLoad` script's custom entry exists — so a custom
 mission has to set `bContract = true` itself, or `WifMissionData.IsMissionAContract()` returns false for
 it. That function gates whether accepting the mission calls `_oStarter:SetPendingContract(...)`, which is
-what later tells `WifPmcInterior.Exit()` where to actually send the player on the way out. Skip this and
+what later tells [`WifPmcInterior.Exit()`](../vz/wifpmcinterior) where to actually send the player on the way out. Skip this and
 the accept flow completes, but you're left standing in the HQ interior with nowhere to go — the first
 symptom hit while building this.
 
@@ -275,7 +275,7 @@ end
 With every workaround above in place, a single fresh-game-session test completed the *entire* chain for
 the first time: Fiona's menu shows the entry → placeholder briefing screen → correctly populated
 accept/decline dialog → accept → `_UnloadSpiel(true)` actually returns → `_EndBegin` → the real
-`_oStarter:End(...)` → `WifPmcInterior.Exit(1, false)` → teleport out → `fOnActivate` fires → cars spawn
+`_oStarter:End(...)` → [`WifPmcInterior.Exit(1, false)`](../vz/wifpmcinterior) → teleport out → `fOnActivate` fires → cars spawn
 → destroying them fires the `Event.ObjectDeath` handler → cash granted → mission completes. Confirmed via
 live `Loader.Printf` tracing, not inference.
 

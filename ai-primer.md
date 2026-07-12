@@ -1,6 +1,6 @@
 ---
 title: AI Primer
-nav_order: 13
+nav_order: 15
 ---
 
 # AI Primer

@@ -96,7 +96,7 @@ The 80 functions listed below are a complete, authoritative enumeration taken fr
 | `IsStaticLayer` | `IsStaticLayer(sLayerName)` | Used as `Pg.IsStaticLayer(sLayerName)` (`resident/mrxlayermanager.lua`), guarding both add and remove requests. |
 | `LoadingStaticLayers` | `LoadingStaticLayers(bFlag)` | Used as `Pg.LoadingStaticLayers(false)` / `Pg.LoadingStaticLayers(bOldStaticLayers)` (`resident/mrxtask.lua`) — appears to be a setter, distinct from `GetLoadingStaticLayers` below despite the similar name. |
 | `GetLoadingStaticLayers` | `GetLoadingStaticLayers()` | Used with no arguments: `local bOldStaticLayers = Pg.GetLoadingStaticLayers()` (`resident/mrxtask.lua`) — the getter counterpart of `LoadingStaticLayers`. |
-| `UnloadingStaticLayers` | `UnloadingStaticLayers(bFlag)` | Used as `Pg.UnloadingStaticLayers(false)` / `Pg.UnloadingStaticLayers(true)` (`vz/xQ!L.lua`) — setter, mirrors `LoadingStaticLayers`. |
+| `UnloadingStaticLayers` | `UnloadingStaticLayers(bFlag)` | Used as `Pg.UnloadingStaticLayers(false)` / `Pg.UnloadingStaticLayers(true)` ([`vz/xQ!L.lua`](../vz/xql)) — setter, mirrors `LoadingStaticLayers`. |
 | `GetUnloadingStaticLayers` | `GetUnloadingStaticLayers()` | Used with no arguments: `if Pg.GetUnloadingStaticLayers() then ...` (`vz/xQ!L.lua`, `resident/mrxlayermanager.lua`) — getter counterpart. |
 | `ResetSingletonDone` | `ResetSingletonDone()` | Used with no arguments: `Pg.ResetSingletonDone()` (`shell/shellbootstrap.lua`, `vz/xQ!L.lua`). |
 | `SaveGame` | — | No call sites found in the decompiled corpus. Exists per live enumeration; unconfirmed. |

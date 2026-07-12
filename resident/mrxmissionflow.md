@@ -98,7 +98,7 @@ Retrieves the start locations for a given mission. If the mission has specific s
 
 **Confirmed exact body**: `if tMissionConfig.tStartLocations then return tMissionConfig.tStartLocations end`
 — read directly off the mission's own config, no fallback logic beyond that check. This is what
-`WifPmcInterior.Exit()` calls to figure out where to teleport the player after accepting a contract.
+[`WifPmcInterior.Exit()`](../vz/wifpmcinterior) calls to figure out where to teleport the player after accepting a contract.
 `tStartLocations` in every real mission is a list of *string* level-marker names (e.g.
 `{"OilCon005_Startpoint_01", "OilCon005_Startpoint_02"}`), but
 [`MrxUtil.TeleportHeroesToLocations`](mrxutil) (what actually consumes this list) also accepts a plain

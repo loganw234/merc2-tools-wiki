@@ -1,6 +1,6 @@
 ---
 title: lua-bridge API
-nav_order: 9
+nav_order: 11
 has_children: true
 has_toc: false
 ---

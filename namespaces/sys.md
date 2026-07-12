@@ -63,11 +63,11 @@ no call site exists anywhere in that corpus, this page says so explicitly rather
 | `FinishedShell` | `b = Sys.FinishedShell()` | Guarded/optional-style call: `if Sys.FinishedShell and Sys.FinishedShell() then` (`resident/gamebootstrap.lua:43`). |
 | `AutoLoad` | `b = Sys.AutoLoad()` | Used with no arguments as a boolean gate for skipping the shell/menu flow, e.g. `if not Sys.AutoLoad() then` (`shell/mrxguishell.lua:259`), `elseif Sys.AutoLoad() then` (`resident/gamebootstrap.lua:65`, `shell/shellbootstrap.lua:94`). |
 | `RequiredAsset` | `Sys.RequiredAsset(sAssetName, sAssetType, nPriority, bFlag)` | Confirmed with 4 arguments: `Sys.RequiredAsset(LevelName .. "_base", "layer", -2, false)` and `Sys.RequiredAsset(MasterScript, "script", -3, false)` (`resident/levelbootstrap.lua:14-15`) — registers an asset (layer or script) as required for the current level, with a numeric priority (negative in both observed cases) and a trailing boolean whose meaning is not confirmed. |
-| `GetSkipMission` | `s = Sys.GetSkipMission()` | Used with no arguments: `local sSkipToMissionName = Sys.GetSkipMission()` (`vz/xQ!L.lua:639`). |
+| `GetSkipMission` | `s = Sys.GetSkipMission()` | Used with no arguments: `local sSkipToMissionName = Sys.GetSkipMission()` ([`vz/xQ!L.lua:639`](../vz/xql)). |
 | `SetSkipMission` | `Sys.SetSkipMission(sMissionName)` | Confirmed repeatedly with a mission-name string (including an empty-string "clear" call): `Sys.SetSkipMission(sMission)` (`shell/mrxguishell.lua:168`), `Sys.SetSkipMission("")` (`vz/xQ!L.lua:640,689`), `Sys.SetSkipMission(sMissionId)` (`vz/xQ!L.lua:909`). |
 | `GetForceNewGame` | `b = Sys.GetForceNewGame()` | Guarded/optional-style call: `if Sys.GetForceNewGame and Sys.GetForceNewGame() then` (`resident/mrxmissionflow.lua:154`). |
 | `GetINIBriefing` | `b = Sys.GetINIBriefing()` | Widely used with no arguments as a boolean, e.g. `shell/mrxguishell.lua:148,165`, `vz/xQ!L.lua:643`. |
-| `SetINIBriefing` | `Sys.SetINIBriefing(bValue)` | Confirmed: `Sys.SetINIBriefing(not Sys.GetINIBriefing())` (`shell/mrxguishell.lua:165`), `Sys.SetINIBriefing(bBriefing)` (`vz/xQ!L.lua:910`). |
+| `SetINIBriefing` | `Sys.SetINIBriefing(bValue)` | Confirmed: `Sys.SetINIBriefing(not Sys.GetINIBriefing())` (`shell/mrxguishell.lua:165`), `Sys.SetINIBriefing(bBriefing)` ([`vz/xQ!L.lua:910`](../vz/xql)). |
 | `GetINILoadLastSave` | — | No call sites found in the decompiled corpus. Exists per live enumeration; unconfirmed. |
 
 ### Platform & Build Info

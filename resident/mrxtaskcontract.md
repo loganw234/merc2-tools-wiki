@@ -76,7 +76,7 @@ Finalizes the contract completion by checking if the task is already completed, 
 
 ### Cancel(self)
 Handles the cancellation of the contract mission. Sets `_bEndSequenceInProgress`, unlocks seat movement,
-then routes through HQ/PMC-interior unload callbacks (`MrxHqManager`/`WifPmcInterior.SetUnloadCallback`) if
+then routes through HQ/PMC-interior unload callbacks (`MrxHqManager`/[`WifPmcInterior.SetUnloadCallback`](../vz/wifpmcinterior)) if
 inside one, else calls `Cancel2` directly; clears the player's GPS and calls `Pg.ContractCancelled()`.
 
 ### Cancel2(self)

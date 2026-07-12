@@ -442,7 +442,7 @@ Finalizes the teleportation process by enabling physics for heroes, resetting ca
 
 - **Returns**: The identity label of the character. Used by `ConsoleCheatsMenu.lua`'s "Unlock All Costumes"
   option (see [OnKey Scripts](../sample-scripts-onkey)) to find which hero's outfit list
-  (`WifPmcInterior._tOutfits[sHero]`) to unlock everything into.
+  ([`WifPmcInterior._tOutfits[sHero]`](../vz/wifpmcinterior)) to unlock everything into.
 
 
 
@@ -636,7 +636,7 @@ This function calculates and returns the number of digits in the given number `n
 
 ### IsInside()
 
-This function checks if the current location is inside either a PMC interior or an HQ managed area by calling `WifPmcInterior.IsInside()` and `MrxHqManager.IsInside()`, respectively.
+This function checks if the current location is inside either a PMC interior or an HQ managed area by calling [`WifPmcInterior.IsInside()`](../vz/wifpmcinterior) and `MrxHqManager.IsInside()`, respectively.
 
 
 

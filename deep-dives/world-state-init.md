@@ -151,7 +151,7 @@ The outpost capture layers in this game (per `vz/*con05x.lua`'s `GetOutpostConfi
 kinds per outpost: a `_Pristine` layer, a `_Staging` layer, a `_Defenses` layer, and a `_Captured` layer.
 The real capture flow (`resident/mrxtaskcontractoutpost.lua`'s `Complete()`) removes staging and defenses,
 adds captured, and **leaves pristine alone**. An earlier version of this script got that wrong by also
-removing pristine, on the assumption it was some kind of "uncaptured" flag layer — it isn't. `xQ!L.lua`'s
+removing pristine, on the assumption it was some kind of "uncaptured" flag layer — it isn't. [`xQ!L.lua`](../vz/xql)'s
 `_tDefaultDynamicLayers` (confirmed, line 184+) lists pristine layers among the level's own default dynamic
 content: it's the outpost's actual base geometry, loaded by default on a fresh save. Unloading it left the
 captured overlay (flags, new faction units) rendering over an empty hole in the map — the "destroyed and
@@ -234,7 +234,7 @@ discarded, so a deliberate re-enable stays possible later — this script just n
 A session that starts (or resumes) inside the PMC HQ interior hasn't streamed in the open-world outpost
 regions at all — a `Pg.GetGuidByName` for an outpost building genuinely has nothing to find yet, and a
 `WaitForStreaming` transition has nothing meaningful to composite. `TerritorialWarInit.lua` checks for this
-(`WifPmcInterior.IsInside()`) and for any other `MrxState` transition already in flight
+([`WifPmcInterior.IsInside()`](../vz/wifpmcinterior)) and for any other `MrxState` transition already in flight
 (`MrxState.IsLocked()`) before attempting the flip, deferring on a short poll until both are clear:
 
 ```lua

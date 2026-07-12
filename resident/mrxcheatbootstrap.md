@@ -160,7 +160,7 @@ sudden teleport) — treat "safe outdoors, unsafe indoors" as the operating rule
   [`MrxMultiPageMenu`](mrxmultipagemenu), [`MrxPlayState`](mrxplaystate), [`MrxRewardData`](mrxrewarddata),
   [`MrxTaskState`](mrxtaskstate), [`MrxTransit`](mrxtransit), [`MrxUtil`](mrxutil), `WifMissionData`,
   `WifMissionFlow`, `WifVzBoundary`, `WifCheatStockpile`, [`MrxPmc`](mrxpmc),
-  [`MrxSupportData`](mrxsupportdata), `WifPmcInterior`, [`Munitions`](munitions). (The `Wif*` modules
+  [`MrxSupportData`](mrxsupportdata), [`WifPmcInterior`](../vz/wifpmcinterior), [`Munitions`](munitions). (The other `Wif*` modules
   are level/campaign data with no wiki pages of their own.)
 
 ## Instance pattern
@@ -189,7 +189,7 @@ submenu gets the same two navigation options without repeating the exact wording
 
 ### `_DisplayRootDialog()`
 Builds and shows the root menu. Skip-to-mission, skip-to-briefing, "complete current contract", and
-"traverse mission hierarchy" are all hidden while `WifPmcInterior.IsInside()` is true (i.e. while inside
+"traverse mission hierarchy" are all hidden while [`WifPmcInterior.IsInside()`](../vz/wifpmcinterior) is true (i.e. while inside
 a PMC interior/HQ) — those five options only appear during actual mission gameplay.
 
 ### `_DisplaySkipDialog(bDoBriefing)`

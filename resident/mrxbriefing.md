@@ -572,7 +572,7 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
 - **Confirmed key steps, in order**: reads `tConfig = _GetSelectedBriefingConfig()`; if accepted and
   `WifMissionData.IsMissionAContract` is true, calls `_oStarter:SetPendingContract(
-  _sSelectedMission)` — this is what later tells `WifPmcInterior.Exit()` where to teleport the player, so a
+  _sSelectedMission)` — this is what later tells [`WifPmcInterior.Exit()`](../vz/wifpmcinterior) where to teleport the player, so a
   custom contract mission that never set `bContract = true` on its own `WifMissionData` entry silently
   skips this call and the player ends up stranded with nowhere to go after accepting. Also calls
   `_oStarter:SetMissionAccepted(_sSelectedMission, true)` and appends to `_tMissionsToBeAccepted`. Branches
@@ -654,7 +654,7 @@ Unloads assets from the given asset table in a similar manner to `LoadTableOfAss
 
 - **Confirmed**: the non-client branch ends with `_oStarter:End(_tMissionsToBeAccepted,
   _sLastAcceptedMission)` ([`MrxStarter.End`](mrxstarter)), which is what actually calls
-  `WifPmcInterior.Exit(1, false)` for a PMC starter to teleport the player back out — the real end of the
+  [`WifPmcInterior.Exit(1, false)`](../vz/wifpmcinterior) for a PMC starter to teleport the player back out — the real end of the
   whole accept sequence. Confirmed reached live, end to end, for a custom contract mission with no real
   spiel asset, once `_UnloadSpiel` (below) was fixed to not error for such a mission.
 

@@ -19,7 +19,7 @@ this approach should pick it up automatically, with no code changes.
 
 ## The starting point: three pieces, three different rules
 
-The wardrobe lives behind `import("WifPmcInterior")`. Three things there matter, and they don't all
+The wardrobe lives behind [`import("WifPmcInterior")`](../vz/wifpmcinterior). Three things there matter, and they don't all
 behave the same way:
 
 - **`_tOutfits`** — a hero-keyed table (`chris` / `jennifer` / `mattias`), each holding that hero's own
@@ -80,7 +80,7 @@ possible example of what `local` actually means in this module system: not "hard
 genuinely unreachable, full stop.
 
 `_tOutfits`, found while looking for the actual wardrobe code (which turns out to live in
-`WifPmcInterior`, not in the HQ-management module the search started with), had no such problem — it's
+[`WifPmcInterior`](../vz/wifpmcinterior), not in the HQ-management module the search started with), had no such problem — it's
 reachable.
 
 <details class="lua101" markdown="1">
