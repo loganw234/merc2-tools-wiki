@@ -136,6 +136,15 @@ the turret's actual aim direction, which isn't Lua-readable — see the
 is aiming at or firing) — Freecam's own deep dive confirms `SetPosition` silently no-ops without an
 active `SetLookAt` binding.
 
+**Update: the aim direction itself is now readable.** [Reading and Attaching to Any Bone](bone-manipulation)
+found that a turret's own hardpoints (`hp_seat_cannon`/`hp_barreltip_cannon` on this same destroyer) resolve
+like any other bone, and the vector between two points on the barrel *is* its real aim direction — solving
+exactly the "not Lua-readable" gap called out above. That doesn't change the finding immediately below:
+knowing the aim vector isn't the same as controlling the camera while gunning, which was retested with the
+confirmed bones and stays a hard wall. `Vehicle`'s "no Lua touchpoint for firing" finding is separate again
+and still stands untouched — reading where a gun points and making it fire remain two different problems,
+and only the first one is solved now.
+
 **Still no movement**, seated in the vehicle, at all.
 
 ### Round 3: recipe testing around `Player.SetCinematicMode` and `Camera.Blend`
@@ -647,6 +656,10 @@ end
 -- exposes what a turret is aiming at or firing). This is only enough to test whether repositioning works
 -- at all while seated -- it will NOT track your mouse-aim correctly, so don't judge the final camera feel
 -- from this, only whether the position moves at all.
+--
+-- UPDATE: the aim direction IS now readable -- see the bone-manipulation deep dive. Two hardpoints on
+-- this same destroyer (hp_seat_cannon/hp_barreltip_cannon) give the real barrel vector. That doesn't
+-- change anything below: this recipe's camera lock is a separate, still-unsolved problem.
 -- ============================================================
 local nCameraFollowInterval = 0.05  -- tweak me: how often to refresh the tracked position, seconds
 local nCameraLookAhead = 20         -- tweak me: how far ahead of the hardpoint the look-at point sits

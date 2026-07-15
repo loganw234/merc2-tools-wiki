@@ -85,6 +85,12 @@ in the corpus connects it to a vehicle's own turret; the modules that call it (`
 functions manage. As far as the decompiled corpus shows, a player-operated vehicle's mounted gun fires via
 a mechanism with no Lua touchpoint at all.
 
+**Update: this is specifically about firing, not aiming.** [Reading and Attaching to Any Bone](../deep-dives/bone-manipulation)
+found that a turret's aim direction *is* readable — the vector between two of its own hardpoints (e.g.
+`hp_seat_cannon`/`hp_barreltip_cannon`) gives the real barrel line. What's confirmed above still holds
+unchanged: knowing where a gun points is not the same as knowing what makes it fire, and no Lua touchpoint
+for the latter has been found.
+
 The eleven hijack-related functions — `HijackStart`, `HijackAbort`, `HijackAbortDone`, `HijackComplete`, `SetHijackState`, `SetHijackSuccess`, `IsHijackBad`, `IsHijackRemote`, `CancelHijack`, `StartTankHijackMotion`, and `StopTankHijackMotion` — clearly belong to a single state machine driving the game's hijack-a-vehicle mechanic, based on their co-occurrence in the hijack-handling source. Beyond that, this page does not attempt to describe the actual flow (what triggers each transition, what states `SetHijackState`'s numeric argument accepts, etc.) — that would go beyond what the call-site evidence supports. This is a strong candidate for future live-testing to map out the real sequencing.
 
 Several functions (`IsFlipped`, `SpinHeli`, `RestoreAmmo`, `RestoreHealth`, `SetTurretYaw`, `GetRiderFromSeat`, `GetFromSeat`, `IsHijackBad`, `StartTankHijackMotion`) have zero call sites anywhere in the decompiled corpus. They are confirmed to exist via the live `pairs(Vehicle)` dump, but nothing is known about their arguments or behavior beyond what their names suggest — treat any assumption about them as a guess, not a fact.
