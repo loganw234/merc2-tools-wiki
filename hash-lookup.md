@@ -18,7 +18,9 @@ already-confirmed findings below.
 **Looking for something more specific than the full table?** [Spawn Reference](spawn-reference/) has
 task-focused, pre-filtered slices of this same data — drivable vehicles, the full vehicle set,
 confirmed-spawnable weapons, and every real `Pg.Spawn` / `Pg.GetGuidByName` call-site string actually
-used by the shipped scripts.
+used by the shipped scripts. Looking specifically for **bone/hardpoint names** instead of spawn templates?
+The [Model Rig Browser](model-rig-browser) is the same cracking effort applied to every model's skeleton,
+browsable interactively rather than as a flat table.
 
 ## Why this matters
 

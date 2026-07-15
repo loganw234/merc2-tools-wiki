@@ -45,6 +45,13 @@ Where do the names come from? Bone/hardpoint strings aren't stored in the model 
 hashes are. They're recovered externally by cracking those hashes back to a preimage (see the
 [Hash Lookup](../hash-lookup) reference). This page is about what you can *do* once you have them.
 
+**The human/destroyer numbers above are just the two models this page walks through in detail — the
+real scope is much bigger.** The same cracking effort now covers all 329 models in the game (76
+characters, 168 vehicles, 85 weapons; 16,690 bone/hardpoint slots total, 64% with a recovered real name
+so far, the rest still reachable through a synthetic handle). Browse the whole thing interactively —
+searchable, filterable, with the same solid-dot/hollow-ring verified-vs-unknown view this page describes
+— at the [Model Rig Browser](../model-rig-browser).
+
 ## The core API
 
 All of these are on the always-global [`Object`](../namespaces/object) namespace (no `import` needed) and

@@ -17,3 +17,5 @@ document *behavior* (what a function does); everything here documents *names* (w
 - **[Sound, Music & Effects](sound-music-effects)** — music cue, particle effect, and voice-over key names.
 - **[Spawn Reference](spawn-reference/)** — `Pg.Spawn`/`Pg.GetGuidByName` template names, organized by
   task (vehicles, weapons, name lookups).
+- **[Model Rig Browser](model-rig-browser)** — an interactive, searchable browser for every bone/hardpoint
+  name recovered across all 329 models in the game, with a live 2D skeleton view.
