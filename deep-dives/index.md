@@ -104,3 +104,11 @@ different problem instead of just copy-pasting the end result.
   for export, sidestepping ForgeCam's spawned-human repositioning problem entirely rather than working
   around it. Documents two concrete fixes baked into the shipped script: a stray-table-hole bug that
   silently truncated exports, and a keyboard-polling rewrite that cut bridge calls per tick from 14 to 2.
+- **[Reading and Attaching to Any Bone](bone-manipulation)** — *confirmed working live* — every bone on a
+  character *and* a vehicle is reachable from Lua by name: `Object.GetHardpointPosition` reads any bone's
+  live world position and `Object.Attach` parents a spawned object/effect to it so it follows the skeleton.
+  Confirmed on 85 of 89 human bones, all 158 destroyer bones, and by gluing fire/smoke/flare onto hands,
+  fingers, feet, and head. Explains the one insight behind it (hardpoints and skeleton bones are one hashed
+  keyspace, so synthetic collision handles address bones whose real name was never cracked), includes the
+  full 89-bone human skeleton reference, and closes the loop on the turret aim vector the
+  [destroyer dive](destroyer-vehicle) called unreadable — while confirming that same camera wall still holds.
