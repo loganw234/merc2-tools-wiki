@@ -12,7 +12,7 @@ nav_order: 16
 > character of a hash algebraically at ~17 trillion candidates a second. Along the way: the exact hash function,
 > the single piece of math that caps the whole problem, three collision blunders that had to be caught and undone,
 > and the hard wall that a large chunk of the names sit permanently behind. Final tally — of the ~10,199 distinct
-> bone/hardpoint hashes, **~47.5% now carry a real or best-effort name** (the game's own dev shipped **6%**), and
+> bone/hardpoint hashes, **~47.5% now carry a real or best-effort name** (the other dev's own extraction had **6%**), and
 > **100% are addressable** through either a real name or a synthetic hash-matching handle. If you just want to
 > *use* the names, read [Reading and Attaching to Any Bone](bone-manipulation) instead — this page is how they were
 > recovered.
@@ -265,7 +265,7 @@ proven unrecoverable every way it could be:
 
 - A 2.1-million-word dictionary sweep: **zero** wheel-child names.
 - Every delimiter, every convention scaffold, wildcards to L≤6: only junk, no scaffold beating the chance floor.
-- And the decisive one — **the game's own dev, with his own extraction, has a real name for only 1 of 592
+- And the decisive one — **the other dev, with his own extraction, has a real name for only 1 of 592
   wheel-children, and it's garbage** (`xZIQDWw\VZ` on a stingray wheel). The strings simply aren't in the extracted
   binary; they're procedural or were never exported.
 
@@ -299,7 +299,7 @@ low collision, kept only when the id-stem forms a ≥2 cluster). Those two alone
 
 ## The result
 
-Where it landed, against the game's own dev shipping **578 named bones (6%)**:
+Where it landed, against the other dev's own extraction, which had **578 named bones (6%)**:
 
 - **Of the ~10,199 distinct bone/hardpoint hashes, ~47.5% now carry a real or best-effort name**, and **100% are
   addressable** — every bone has either a recovered name or a synthetic, hash-matching handle, so nothing in any

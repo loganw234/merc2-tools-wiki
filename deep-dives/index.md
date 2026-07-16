@@ -121,5 +121,5 @@ different problem instead of just copy-pasting the end result.
   collision-proof (mirror pairs, consecutive families, joint ids), three collision blunders that had to be caught
   and undone, and the hard wall a large share of the names sit permanently behind (opaque procedural ids with no
   authored string, unrecoverable by anything). Final tally: **~47.5% of the ~10,199 distinct hashes now carry a real
-  or best-effort name** (the game's own dev shipped 6%), and **100% are addressable** through a real name or a
+  or best-effort name** (the other dev's own extraction had 6%), and **100% are addressable** through a real name or a
   synthetic hash-matching handle. The prequel to the [bone-manipulation dive](bone-manipulation) above.
