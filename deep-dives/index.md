@@ -112,3 +112,14 @@ different problem instead of just copy-pasting the end result.
   keyspace, so synthetic collision handles address bones whose real name was never cracked), includes the
   full 89-bone human skeleton reference, and closes the loop on the turret aim vector the
   [destroyer dive](destroyer-vehicle) called unreadable — while confirming that same camera wall still holds.
+- **[Cracking the Bone-Name Hashes](name-cracking)** — *method proven, results delivered and cross-validated* —
+  where every bone and hardpoint *name* on this wiki actually came from. The full arc: from an in-game Lua probe
+  brute-forcing strings against a Transport Truck parked in the PMC HQ overnight, to a pair of GPUs solving the last
+  character of the hash algebraically at ~17 trillion candidates a second. Covers the exact `pandemic_hash_m2`
+  function (FNV-1a with a case-fold and an "m2" finalize), the one piece of math that caps the whole problem — you
+  cannot out-brute a 32-bit hash, precision = keyspace/2³² — the corroboration principle that makes recovery
+  collision-proof (mirror pairs, consecutive families, joint ids), three collision blunders that had to be caught
+  and undone, and the hard wall a large share of the names sit permanently behind (opaque procedural ids with no
+  authored string, unrecoverable by anything). Final tally: **~47.5% of the ~10,199 distinct hashes now carry a real
+  or best-effort name** (the game's own dev shipped 6%), and **100% are addressable** through a real name or a
+  synthetic hash-matching handle. The prequel to the [bone-manipulation dive](bone-manipulation) above.
