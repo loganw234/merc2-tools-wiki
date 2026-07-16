@@ -1,7 +1,7 @@
 ---
 title: "Building MissionForge — a Contract Authoring Tool"
 parent: Deep Dives
-nav_order: 12
+nav_order: 14
 ---
 
 # Deep Dive: Building MissionForge — a Contract Authoring Tool
