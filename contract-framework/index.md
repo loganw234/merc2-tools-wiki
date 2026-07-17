@@ -1,12 +1,17 @@
 ---
 title: Contract Framework
 parent: Frameworks
-nav_order: 1
+nav_order: 2
 has_children: true
 has_toc: false
 ---
 
 # Contract Framework
+
+> **Deprecated — superseded by [Essentials (Ess)](../ess).** This system is absorbed there as native
+> `Ess.Contract` — the same objective builders plus the support / trigger / relations / AI-order
+> subsystems — shipped in one drop-in `1_Ess.lua`. This page and its children stay as historical reference
+> for the standalone predecessor; new mods should build on Ess.
 
 > **Status: new, in development.** This documents a real, substantial system as currently written and
 > read directly from source — not a proposal. It hasn't yet accumulated the kind of live-test history the

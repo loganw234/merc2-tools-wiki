@@ -1,10 +1,14 @@
 ---
 title: ModNet
 parent: Frameworks
-nav_order: 3
+nav_order: 4
 ---
 
 # ModNet
+
+> **Deprecated — superseded by [Essentials (Ess)](ess).** `ModNet.lua` is absorbed there as native
+> `Ess.Net`, shipped in one drop-in `1_Ess.lua`. This page stays as historical reference for the standalone
+> predecessor; new mods should build on Ess.
 
 > **Status: new, built on already-confirmed pieces.** The hijack target, event ID constraint, and
 > 3-bytes-per-number wire packing are the exact mechanics [`coopchat.lua`](uilib/coopchat) already uses,

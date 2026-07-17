@@ -1,12 +1,17 @@
 ---
 title: UI Kit
 parent: Frameworks
-nav_order: 2
+nav_order: 3
 has_children: true
 has_toc: false
 ---
 
 # UI Kit
+
+> **Deprecated — superseded by [Essentials (Ess)](../ess).** `uilib.lua` is absorbed there as native
+> `Ess.UI` — the same nine widgets, the same backward-compatible menu builder — shipped in one drop-in
+> `1_Ess.lua`. This page stays as historical reference for the standalone predecessor; new mods should
+> build on Ess.
 
 > **Status: new, already iterated once.** Not a first draft — the header comment documents a full v1→v2
 > rewrite ("v1 drove input with an always-on 33Hz `IsKeyDown` poll + focus model that misbehaved in-game")
