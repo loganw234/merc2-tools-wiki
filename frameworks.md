@@ -12,7 +12,7 @@ it never has to solve that problem themselves. Distinct from [Deep Dives](deep-d
 single investigation end to end; a framework here is an ongoing library with its own API surface, likely
 to keep growing.
 
-- **[Essentials (Ess)](ess)** — the foundational library that now underpins everything: safe, one-line
+- **[Essentials (Ess)](ess/)** — the foundational library that now underpins everything: safe, one-line
   wrappers around every hard-won engine pattern, shipped as one drop-in `1_Ess.lua`. It **absorbs the three
   libraries below** as native code (`Ess.UI`, `Ess.Net`, `Ess.Contract`) — new mods start here.
 - **[Contract Framework](contract-framework/)** *(deprecated — now `Ess.Contract`)* — a save-safe, ephemeral custom-mission system: objectives,

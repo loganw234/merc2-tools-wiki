@@ -2,12 +2,14 @@
 title: Essentials (Ess)
 parent: Frameworks
 nav_order: 1
+has_children: true
+has_toc: false
 ---
 
 # Essentials (Ess)
 
-> **Status: this supersedes the other frameworks.** [UI Kit](uilib/), [ModNet](modnet), and the
-> [Contract Framework](contract-framework/) — plus the standalone Layer Framework — are now absorbed as
+> **Status: this supersedes the other frameworks.** [UI Kit](../uilib/), [ModNet](../modnet), and the
+> [Contract Framework](../contract-framework/) — plus the standalone Layer Framework — are now absorbed as
 > native `Ess.*` code (`Ess.UI`, `Ess.Net`, `Ess.Contract`, `Ess.Layers`). Their pages remain as historical
 > reference for the standalone predecessors, but new mods should build on `Ess`: it's one drop-in file, and
 > the old standalones are no longer maintained or deployed. See [Migrating](#migrating-from-the-old-frameworks)
@@ -17,7 +19,7 @@ nav_order: 1
 around every hard-won pattern this project has found, so a new modder doesn't rediscover them by crashing
 the game first. It wraps the traps this wiki documents the hard way: the 32-bit-float RNG
 degeneration, the tail-call crash when you override engine logic, the leak-prone
-`Add.../Remove...` handle pairs, the [`FlashWidget` corner-coordinate bug](uilib/), the freshly-spawned
+`Add.../Remove...` handle pairs, the [`FlashWidget` corner-coordinate bug](../uilib/), the freshly-spawned
 model whose bones read nil for ~0.3s — each is a footgun somewhere else on this wiki, and each is a
 one-liner here.
 
@@ -49,7 +51,7 @@ the bind-to-a-key demos under `scripts/OnKey/`, and the recipe catalog) — extr
 Most namespaces expose one or more of three parallel tiers. Reach for the highest one that fits:
 
 - **`Ess.Easy.*`** — guardrails. Intent-named presets (`Ess.Easy.Mark.enemy(guid)`), smallest surface, hard
-  to misconfigure. Where a beginner starts.
+  to misconfigure. Where a beginner starts — see the dedicated [Ess.Easy](easy) drilldown.
 - **`Ess.*`** (unqualified, "Core") — named parameters and sensible defaults, with full control when you want
   to override one.
 - **`Ess.Raw.*`** — the primitives the other two are assembled from, for composing something Ess didn't
@@ -61,7 +63,7 @@ Relations, Triggers, Sandbox, Impulse). Simple ones (RNG, Time, Table) are singl
 ### Instant one-liners
 
 For a newcomer whose whole thought is "I want X to happen," these hide the import and the namespace — each is
-one guessable call:
+one guessable call. The full catalog lives on the [Ess.Easy](easy) page; a taste:
 
 | Verb | Does |
 |---|---|
@@ -77,63 +79,28 @@ All use confirmed template names and real engine functions. `Ess.Easy.Console.op
 
 ## What's inside
 
-The full per-call reference lives in the framework's own
-[`CAPABILITIES.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/CAPABILITIES.md) (the
-map of the finished building) and [`FEATURE_SHEET.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/FEATURE_SHEET.md)
-(the *why*). Here's the surface, grouped by what you reach for:
+Each row below is its own drilldown page — read [Ess.Easy](easy) first if you're new, then the Core-tier
+page for whatever you're building. The framework's own
+[`CAPABILITIES.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/CAPABILITIES.md) and
+[`FEATURE_SHEET.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/FEATURE_SHEET.md) (the
+*why*, and the full build history) remain the canonical upstream reference these pages are checked against.
 
-**Core primitives** — `Ess.Safe` (the pcall-and-log idiom, once), `Ess.Table.compact` (rebuild a nil-holed
-array), `Ess.Math` (geometry in the engine's yaw convention — `angleTo`, `pointAhead`, `dist2D/3D`),
-`Ess.Guid`/`Ess.Name`, `Ess.Log`, `Ess.State` (reload-safe `_G` state, field-merged), `Ess.SaveVar`
-(namespaced persistence), and **`Ess.RNG`** — an engine-safe generator that sidesteps the confirmed
-32-bit-float trap where the obvious big-multiplier LCG silently degenerates to a constant.
-
-**Identity & world query** — `Ess.Player` (character/slot/camera/pose/teleport without the 8-getter sprawl),
-`Ess.Object` (the everyday spawn / transform / life / label / physics namespace, every call `pcall`-guarded),
-`Ess.Vehicle` (seats, riders, AI heli delivery), `Ess.Probe` (nearby-object collection that **excludes the
-player by default** — a real footgun fixed at the source), and `Ess.Impulse` (mass-scaled launch / boost /
-knockback).
-
-**Timing & input** — `Ess.Time` (all wall-clock timing, survives world-pause: cooldowns, per-frame delta,
-time-scale/slow-mo), `Ess.Loop` (the one shared reload-safe heartbeat — never hand-roll a self-rescheduling
-`Event.TimerRelative` again), `Ess.Input` (the only correct key-polling shape), `Ess.TextConsole` (a typed
-console needing no `.gfx`).
-
-**Tracking & cleanup** — `Ess.Track`, one registry for every leak-prone Add/Remove pair (events, spawns,
-markers, radar/PDA blips, quality refs, disposers, context actions); register as you go, then `:closeAll()`.
-`Ess.Save` is the single shared save-gate that suppresses saves for the duration of an ephemeral mode.
-
-**Combat & markers** — `Ess.Human` (weapons / ammo / actions), and the tiered `Ess.Mark` — radar, PDA,
-ground ring, and floating icon are each an independent opt, so one call covers any combination.
-
-**Camera, bones & spatial** — `Ess.Camera` (shake / fade / FOV, plus a full cinematic take-over that bakes in
-the confirmed "anchor prop + `Blend 0`" recipes), `Ess.Bones` (attach an FX to a named bone, wait out the
-fresh-spawn readiness delay, read a turret's aim axis), `Ess.Points` (arena spawn selection), and
-**`Ess.Cinematic`** — a declarative cutscene timeline (camera cuts/dollies/orbits, spawns, AI orders,
-narration, fades, music) that always restores control and is ESC-skippable.
-
-**Audio & HUD** — `Ess.Sound` (cue / ambience / volume) and `Ess.Hud` (native hint / banner / objective-tray
-/ self-clearing radio subtitle).
-
-**UI kit** — `Ess.UI`, the nine-widget kit ported natively from [UI Kit](uilib/): `Menu`, `List`, `Panel`,
-`Bar`, `Toast`, `Confirm`, `Input`, `Chat`, `Board`, all on one input/focus/heartbeat engine. Its menu
-builder and `ctx:` helpers are kept byte-for-byte backward-compatible, so existing menu scripts port
-unchanged — see [Porting a menu script](https://github.com/loganw234/mercs2-lua-essentials/blob/master/samples/PORTING_MENUS.md)
-if you have one.
-
-**Encounter toolkit** — the gameplay-scripting machinery extracted from the Contract Framework, usable
-without a running contract, all tiered: `Ess.AIOrders` (11 behaviors — move/patrol/defend/attack/hold/face/
-follow/flee/enter/deploy/animate), `Ess.Relations` (faction stances with snapshot/restore), `Ess.Triggers`
-(a full condition vocabulary + isolated logic-gate scopes), `Ess.Sandbox` + `Ess.Layers` (save-clean
-`vz_state_*` manipulation for arenas).
-
-**Missions & networking** — `Ess.Contract`, the full save-safe ephemeral-mission engine (16 objective types,
-plus the relations/support/AI-order/trigger subsystems), and `Ess.Net`, the co-op data-sync layer (auto-syncing
-shared tables, named messages, authority model).
-
-**Meta** — `Ess.Override.wrap` changes engine logic **without** the tail-call crash by making the crashing
-shape (`return orig(...)`) structurally impossible to write; `.mergeIntoLiveTable` appends into a table the
-game already reads from (the wardrobe-unlock pattern).
+| Page | Namespaces | What it covers |
+|---|---|---|
+| [Core Primitives](core) | `Safe`, `Table`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. |
+| [Identity & World Query](identity-query) | `Player`, `Object`, `Vehicle`, `Probe`, `Human`, `Impulse` | Character/camera/teleport, the everyday spawn/transform/health/label namespace, seats and riders, nearby-object collection, and mass-scaled launch/knockback. |
+| [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. |
+| [Tracking & Cleanup](tracking) | `Track`, `Event`, `Save` | One registry for every leak-prone Add/Remove pair, a logging `Event.Create` wrapper, and the shared save-suppression gate. |
+| [Markers](mark) | `Mark` (`Raw`/Core/`Easy`) | Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets. |
+| [UI Kit](ui) | `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog` | The nine-widget kit, native port of [UI Kit](../uilib/), on one input/focus/heartbeat engine. |
+| [Camera, Bones & Spatial](camera-bones) | `Camera`, `Bones`, `Points` | Shake/fade/FOV, the full cinematic camera take-over, the confirmed bone/hardpoint recipes, arena spawn-point selection. |
+| [Sound & HUD](sound-hud) | `Sound`, `Hud` | Cue/ambience/volume, native hint/banner/objective-tray/radio-subtitle popups. |
+| [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. |
+| [Cinematic](cinematic) | `Cinematic` | A declarative cutscene timeline (cuts/dollies/orbits, spawns, AI orders, narration, fades, music) — always restores control, always ESC-skippable. |
+| [Networking](net) | `Net` | Co-op data sync, native port of [ModNet](../modnet): auto-syncing shared tables, named messages, authority model. |
+| [Contract Engine](contract) | `Contract` | The full save-safe ephemeral-mission engine, native port of the [Contract Framework](../contract-framework/): 16 objective types plus relations/support/AI-order/trigger subsystems. |
+| [Meta / Override](override) | `Override` | Change engine logic without the tail-call crash — the crashing shape is made structurally impossible to write. |
+| **[Ess.Easy](easy)** | Every `Ess.Easy.*` namespace | The full beginner-tier one-liner surface in one place — spawning, unlocks, world tweaks, fun, and every other namespace's Easy preset. |
 
 ## A few worked examples
 
@@ -178,13 +145,13 @@ close, and `Ess.UI.Menu` is byte-for-byte compatible:
 
 | Standalone (deprecated) | Now | Notes |
 |---|---|---|
-| [`uilib.lua`](uilib/) (`_G.UI`) | `Ess.UI` | Same nine widgets, same menu builder and `ctx:` helpers. |
-| [`ModNet.lua`](modnet) | `Ess.Net` | Shared tables, named messages, authority model. |
-| [`ContractFramework.lua`](contract-framework/) | `Ess.Contract` | Same objective builders + support/trigger/relations/AI-order subsystems, now built on the standalone `Ess.AIOrders`/`Ess.Relations`/`Ess.Triggers`. |
-| Layer Framework | `Ess.Layers` (usually via `Ess.Sandbox`) | Save-clean `vz_state_*` manipulation. |
+| [`uilib.lua`](../uilib/) (`_G.UI`) | [`Ess.UI`](ui) | Same nine widgets, same menu builder and `ctx:` helpers. |
+| [`ModNet.lua`](../modnet) | [`Ess.Net`](net) | Shared tables, named messages, authority model. |
+| [`ContractFramework.lua`](../contract-framework/) | [`Ess.Contract`](contract) | Same objective builders + support/trigger/relations/AI-order subsystems, now built on the standalone `Ess.AIOrders`/`Ess.Relations`/`Ess.Triggers`. |
+| Layer Framework | `Ess.Layers` (usually via `Ess.Sandbox`) — see [Encounter Toolkit](encounter-toolkit) | Save-clean `vz_state_*` manipulation. |
 
 You no longer deploy `uilib.lua` / `ModNet.lua` / `ContractFramework.lua` / `LayerFw.lua` alongside your mod —
-just `1_Ess.lua`. [WaveDefense](wave-defense) is the one exception that stays its own file (a gamemode, not a
+just `1_Ess.lua`. [WaveDefense](../wave-defense) is the one exception that stays its own file (a gamemode, not a
 framework); it will eventually *consume* `Ess.*` rather than be absorbed.
 
 ## Samples & the smoke test
@@ -216,10 +183,10 @@ confirmations. Two honest limits, both external rather than untested logic:
 
 ## See also
 
-- [Frameworks](frameworks) — the index this page belongs to.
-- [UI Kit](uilib/), [ModNet](modnet), [Contract Framework](contract-framework/) — the standalone
+- [Frameworks](../frameworks) — the index this page belongs to.
+- [UI Kit](../uilib/), [ModNet](../modnet), [Contract Framework](../contract-framework/) — the standalone
   predecessors, kept as historical reference.
-- [WaveDefense](wave-defense) — the worked example that glues the pieces together; the one framework file Ess
+- [WaveDefense](../wave-defense) — the worked example that glues the pieces together; the one framework file Ess
   doesn't absorb.
-- [Building ForgeMenu](deep-dives/forge-menu) and [Custom Contracts, a Save-Safe Approach](deep-dives/custom-contract)
+- [Building ForgeMenu](../deep-dives/forge-menu) and [Custom Contracts, a Save-Safe Approach](../deep-dives/custom-contract)
   — the deep dives whose reasoning `Ess.UI` and `Ess.Contract` are built on.

@@ -8,7 +8,7 @@ has_toc: false
 
 # UI Kit
 
-> **Deprecated — superseded by [Essentials (Ess)](../ess).** `uilib.lua` is absorbed there as native
+> **Deprecated — superseded by [Essentials (Ess)](../ess/).** `uilib.lua` is absorbed there as native
 > `Ess.UI` — the same nine widgets, the same backward-compatible menu builder — shipped in one drop-in
 > `1_Ess.lua`. This page stays as historical reference for the standalone predecessor; new mods should
 > build on Ess.

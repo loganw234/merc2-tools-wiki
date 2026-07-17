@@ -6,7 +6,7 @@ nav_order: 4
 
 # ModNet
 
-> **Deprecated — superseded by [Essentials (Ess)](ess).** `ModNet.lua` is absorbed there as native
+> **Deprecated — superseded by [Essentials (Ess)](ess/).** `ModNet.lua` is absorbed there as native
 > `Ess.Net`, shipped in one drop-in `1_Ess.lua`. This page stays as historical reference for the standalone
 > predecessor; new mods should build on Ess.
 

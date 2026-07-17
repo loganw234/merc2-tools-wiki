@@ -8,7 +8,7 @@ has_toc: false
 
 # Contract Framework
 
-> **Deprecated — superseded by [Essentials (Ess)](../ess).** This system is absorbed there as native
+> **Deprecated — superseded by [Essentials (Ess)](../ess/).** This system is absorbed there as native
 > `Ess.Contract` — the same objective builders plus the support / trigger / relations / AI-order
 > subsystems — shipped in one drop-in `1_Ess.lua`. This page and its children stay as historical reference
 > for the standalone predecessor; new mods should build on Ess.
