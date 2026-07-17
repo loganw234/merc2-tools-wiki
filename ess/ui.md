@@ -1,10 +1,10 @@
 ---
-title: UI Kit
+title: Ess.UI
 parent: Essentials (Ess)
 nav_order: 6
 ---
 
-# UI Kit
+# Ess.UI
 
 ## Overview
 

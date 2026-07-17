@@ -92,7 +92,7 @@ page for whatever you're building. The framework's own
 | [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. |
 | [Tracking & Cleanup](tracking) | `Track`, `Event`, `Save` | One registry for every leak-prone Add/Remove pair, a logging `Event.Create` wrapper, and the shared save-suppression gate. |
 | [Markers](mark) | `Mark` (`Raw`/Core/`Easy`) | Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets. |
-| [UI Kit](ui) | `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog` | The nine-widget kit, native port of [UI Kit](../uilib/), on one input/focus/heartbeat engine. |
+| [Ess.UI](ui) | `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog` | The nine-widget kit, native port of [UI Kit](../uilib/), on one input/focus/heartbeat engine. |
 | [Camera, Bones & Spatial](camera-bones) | `Camera`, `Bones`, `Points` | Shake/fade/FOV, the full cinematic camera take-over, the confirmed bone/hardpoint recipes, arena spawn-point selection. |
 | [Sound & HUD](sound-hud) | `Sound`, `Hud` | Cue/ambience/volume, native hint/banner/objective-tray/radio-subtitle popups. |
 | [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. |
