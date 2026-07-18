@@ -1,7 +1,7 @@
 ---
 title: ModNet
-parent: Frameworks
-nav_order: 4
+parent: Deprecated Frameworks
+nav_order: 3
 ---
 
 # ModNet

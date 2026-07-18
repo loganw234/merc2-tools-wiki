@@ -83,7 +83,7 @@ All 8 factions that exist in `_tFactions`:
 
 `Civ`, `Pmc`, and `Vza` are the three **non-dynamic** factions — `bDynamic` (a static, source-level flag,
 not the runtime `bAttitudeMutable` flag) is `false` for all three, meaning
-[`SetAttitudeMutable`](#setattitudemutablesabbrev-brestorefromsave) can never turn on relation-tracking
+[`SetAttitudeMutable`](#setattitudemutable-sabbrev-brestorefromsave) can never turn on relation-tracking
 for them at all, by design — see the [`MrxCheatBootstrap`](mrxcheatbootstrap) page's `SetRelation`
 caveat for the full mechanism this gates. `Pmc` is presumably excluded because it's the player's own
 faction; `Civ`/`Vza` (civilians/the setting's neutral wildlife-adjacent faction) apparently aren't meant
@@ -107,7 +107,7 @@ The core relation model lives in three module constants plus the `_tAttitudes` t
 | 3 | `Friendly` | `[33, 100]` | `1.0` | 0,127,255 (blue) |
 
 So the `>= 33` relation is the "Friendly" cutoff, `< -33` is "Hostile", and the shop charges 1.5× at Neutral
-vs 1.0× at Friendly (via [`GetPriceScale`](#getpricescalesubjectabbrev-sobjectabbrev), which is what
+vs 1.0× at Friendly (via [`GetPriceScale`](#getpricescale-ssubjectabbrev-sobjectabbrev), which is what
 [`MrxShop._GetPriceScale`](mrxshop) calls). Editing these ranges/prices re-tunes the whole reputation economy.
 
 ## Functions
@@ -866,10 +866,10 @@ on, only for `obj == "Pmc"`); `Event.Post("CollateralDamage", {uKiller})`; `Even
 ## Notes for modders
 
 - **Changing player reputation with a faction** goes through
-  [`SetRelation`](#setrelationsubjectabbrev-sobjectabbrev-nrelation-binitialize) /
-  [`ChangeRelation`](#changerelationsubjectabbrev-sobjectabbrev-nrelation) with `sObjectAbbrev == "Pmc"`. Both
+  [`SetRelation`](#setrelation-ssubjectabbrev-sobjectabbrev-nrelation-binitialize) /
+  [`ChangeRelation`](#changerelation-ssubjectabbrev-sobjectabbrev-nrelation) with `sObjectAbbrev == "Pmc"`. Both
   **silently no-op** if the subject faction isn't currently mutable — call
-  [`SetAttitudeMutable(sAbbrev)`](#setattitudemutablesabbrev-brestorefromsave) first. Only the five `bDynamic`
+  [`SetAttitudeMutable(sAbbrev)`](#setattitudemutable-sabbrev-brestorefromsave) first. Only the five `bDynamic`
   factions (`All`/`Chi`/`Gur`/`Oil`/`Pir`) can be made mutable at all; `Civ`/`Pmc`/`Vza` never can. Full worked
   example: [`MrxCheatBootstrap`](mrxcheatbootstrap).
 - **Rebalance the reputation economy** by editing the `_tAttitudes` bands/prices/colors and the `_knRelation*`

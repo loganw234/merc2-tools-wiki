@@ -69,7 +69,7 @@ The **credit/debit reason keys** are also pre-seeded (localization strings): cre
 `[Generic.Contracts]`, `[Generic.Wagers]`, `[Generic.Collectibles]`, `[Generic.Pickups]`; debits include
 `[Generic.CopterRepair]`, `[Generic.Collateral]`, `[Generic.Bribes]`, `[Generic.Wagers]`, `[Generic.Medevacs]`,
 `[Generic.ShopItems]`, `[Garage.replacefionacar]`, `[Generic.SupportDesignators.Satellite]`. These are the same
-`sReason` strings [`MrxPmc.AddCashQty`](mrxpmc#addcashqtynamt-bmateriel-sreason-bsuppressdisplay) forwards here.
+`sReason` strings [`MrxPmc.AddCashQty`](mrxpmc#addcashqty-namt-bmateriel-sreason-bsuppressdisplay) forwards here.
 
 ## Functions
 

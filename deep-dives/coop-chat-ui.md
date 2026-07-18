@@ -99,7 +99,7 @@ call this function on it directly — no patch, no touching the buggy constructo
 source reading alone would conclude these are just numbers, not widget classes/functions at all. This is
 the same "decompiled source doesn't reflect final runtime shape" pattern documented elsewhere on this
 wiki (`MrxSupportData.tSupportData` starts empty in source, populated at runtime; see
-[Snippets](../snippets#dump-any-tables-contents-to-the-log)) — the live, running game's actual `MrxGui`
+[Snippets](../snippets#dump-any-table-s-contents-to-the-log)) — the live, running game's actual `MrxGui`
 table clearly holds real values these `= 0` placeholders don't show, confirmed by this script actually
 working against it.
 

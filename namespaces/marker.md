@@ -25,7 +25,7 @@ the ~230 decompiled `.lua` scripts, we can show a real argument pattern. Where i
 that corpus, we only know the name — arguments, return values, and behavior for those are unconfirmed.
 
 `AddBlip` is the one function on this page backed by an actual **live in-game test**, not just source
-call-site evidence — see [Snippets: put a marker/blip on an object](../snippets#put-a-markerblip-on-an-object)
+call-site evidence — see [Snippets: put a marker/blip on an object](../snippets#put-a-marker-blip-on-an-object)
 for the tested call, the caveat about the trailing numeric arguments not being individually confirmed, and a
 note about blip visibility at ground level. It is cross-linked here rather than re-derived.
 
@@ -35,7 +35,7 @@ note about blip visibility at ground level. It is cross-linked here rather than 
 |---|---|---|
 | `Add` | `uMarker = Marker.Add(nOffsetX, nOffsetY, nOffsetZ, uGuid, nR, nG, nB, nRadius)` | Confirmed in real scripts, e.g. `tTargetData.uMarker = Marker.Add(0, 2, 0, uGuid, r, g, b, 0.05)` (`mrxtaskobjectivedeliver.lua`) — an offset vector, then a target `uGuid`, then RGB color and a radius-looking final value. Returns a marker handle later passed to `Remove`. |
 | `Add3D` | `uMarker = Marker.Add3D(uGuid, sIconName, nR, nG, nB [, nWidth])` | Confirmed in real scripts, e.g. `Marker.Add3D(uGuid, "global_tripwirefinish", r, g, b)` and `Marker.Add3D(uGuid, "global_airring", r, g, b, fWidth)` (`mrxtaskrace.lua`) — a `uGuid`, an icon/model name string, RGB color, and an optional trailing width value (only seen on the `"global_airring"` call). |
-| `AddBlip` | `uMarker = Marker.AddBlip(uGuid, sTextureName, nSize, nR, nG, nB, nAlpha, ...)` | **Confirmed working by live testing** — see [Snippets](../snippets#put-a-markerblip-on-an-object). Also used extensively in real scripts, e.g. `Marker.AddBlip(uGuid, tFactionData.sMarkerTexture, 32, 255, 255, 255, 255, 2, nil, nil, 32, nil, true)` (`mrxfactionmanager.lua`) — a longer argument list than the snippet's tested call, with `nil` gaps, meaning the full parameter set (beyond texture/size/RGBA) is still not individually confirmed. |
+| `AddBlip` | `uMarker = Marker.AddBlip(uGuid, sTextureName, nSize, nR, nG, nB, nAlpha, ...)` | **Confirmed working by live testing** — see [Snippets](../snippets#put-a-marker-blip-on-an-object). Also used extensively in real scripts, e.g. `Marker.AddBlip(uGuid, tFactionData.sMarkerTexture, 32, 255, 255, 255, 255, 2, nil, nil, 32, nil, true)` (`mrxfactionmanager.lua`) — a longer argument list than the snippet's tested call, with `nil` gaps, meaning the full parameter set (beyond texture/size/RGBA) is still not individually confirmed. |
 | `AddDisc` | `uMarker = Marker.AddDisc(uGuidOrLocation, nRadius, nR, nG, nB, nThickness)` | Confirmed in real scripts, e.g. `Marker.AddDisc(Pg.GetGuidByName("PmcCon013_Loc"), nRadius, 255, 200, 0, 0.25)` (`pmccon013.lua`) and `Marker.AddDisc(uGuid, 0.5, disc_r, disc_g, disc_b, 0.1)` (`wifpmcinterior.lua`, `mrxhq.lua`). One call site passes a location vector directly instead of a `uGuid`: `Marker.AddDisc(tConfig.vDestLoc, tConfig.fDist, r, g, b, 0.02)` (`mrxtaskobjectivedeliver.lua`), so the first argument accepts either form. Draws a flat colored ring/disc on the ground. |
 | `AddTripwire` | `uMarker = Marker.AddTripwire(nX, nY, nZ, nWidth, nYaw, nR, nG, nB)` | Confirmed in real scripts, e.g. `Marker.AddTripwire(x0, y0, z0, fWidth, yaw0, r, g, b)` (`mrxtaskrace.lua`) — raw world coordinates plus width, yaw, and RGB color, used for race-gate finish lines (paired with `Add3D` for the visual finish-line icon at the same location). |
 | `HaltPulse` | `Marker.HaltPulse(uGuid)` | Confirmed in real scripts, e.g. `Marker.HaltPulse(uGuid)` (`mrxfactionmanager.lua`), called when tearing down a reporting-display marker to stop a previously-started `Pulse`. |
@@ -49,7 +49,7 @@ note about blip visibility at ground level. It is cross-linked here rather than 
 
 ## Notes for modders
 
-- Start with [Snippets: put a marker/blip on an object](../snippets#put-a-markerblip-on-an-object) — it's the
+- Start with [Snippets: put a marker/blip on an object](../snippets#put-a-marker-blip-on-an-object) — it's the
   one call on this page confirmed by live in-game testing, and the recommended template for adding your own
   minimap blip to an object.
 - Every `Add*` function returns a marker handle (not a `uGuid`) that must be kept and later passed to

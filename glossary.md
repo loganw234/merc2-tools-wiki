@@ -9,6 +9,7 @@ nav_order: 1
 Terms used throughout this wiki that either aren't standard Lua vocabulary or mean something specific
 in this game's engine.
 
+<a id="uguid"></a>
 **`uGuid`**
 : A unique handle identifying one live world-object instance at runtime (a spawned crate, vehicle,
 character, etc.). Most engine calls that operate on "an object" take a `uGuid` as their first argument.
@@ -19,6 +20,7 @@ Not stable across game sessions — it's a runtime handle, not a permanent ID.
 `Crate`. There's no `require` — every module is just a global table the engine loads and wires up via
 `inherit`/`import`.
 
+<a id="engine-namespace"></a>
 **engine namespace**
 : A built-in table like `Object`, `Event`, `Player`, `Marker`, `Sound` — these are provided by the
 engine itself, not defined by any `.lua` module in this corpus. You call into them
@@ -31,6 +33,7 @@ outside a module's own file.
 : Declared at the top of a module, makes it prototype-inherit from another module's table. See the
 [Resident Modules](resident/) landing page for the full explanation with examples.
 
+<a id="importname"></a>
 **`import("Name")`**
 : Pulls another module in as a callable namespace, without inheriting from it. **Important, confirmed by
 live testing:** this only populates *the importing file's own environment*. A `resident/` module that
@@ -62,6 +65,7 @@ its underlying object dies. Not arbitrary names — see the lifecycle table on
 : Subscribe to (or unsubscribe from) an engine event — a timer firing, an object leaving hibernation, a
 winch state changing, etc. `Event.Create` returns a handle you pass to `Event.Delete` later.
 
+<a id="keyval"></a>
 **`KEYVAL`**
 : A convention (not a language feature) for `scripts/OnKey/` scripts: put `local KEYVAL = "insert"` (or
 any key name) somewhere in the script's first 10 lines, and the script loader reads it as that script's
@@ -77,10 +81,11 @@ table in [Getting Started](getting-started)).
 would use. Numbers can lose precision you wouldn't expect from "normal" Lua — see
 [Getting Started](getting-started) for details.
 
+<a id="loaderprintf"></a>
 **`Loader.Printf`**
 : lua-bridge's own debug-print function, writing to its dedicated `lua_loader_printf.log` instead of the
 base game's noisy shared log. Use this, not the engine's `Debug.Printf`, for your own debug output — see
-[Getting Started](getting-started#loaderprintf--debug-output-that-doesnt-get-lost).
+[Getting Started](getting-started#loader-printf-debug-output-that-doesn-t-get-lost).
 
 **`MrxPmc`**
 : A **resident module** (`resident/mrxpmc.lua`), not an engine namespace — despite reading like one.

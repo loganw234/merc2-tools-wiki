@@ -43,7 +43,7 @@ shape as their confirmed siblings — that presumption is not verified and shoul
 
 | Function | Signature (best-known) | Notes |
 |---|---|---|
-| `SetText` | `Hud.Tutorial:SetText({vPlayer=uGuid, sText=sMessage})` | **Confirmed** in `resident/mrxtutorialmanager.lua`'s `ShowMessage`/`HideMessage` functions: `Hud.Tutorial:SetText({vPlayer = Player.GetLocalPlayer(), sText = sMessage})` shows a message, and calling it again with `sText = nil` clears it. This is the function underneath the already-documented, live-tested `MrxTutorialManager.ShowMessage` — see [Snippets: Show a custom HUD message](../snippets#show-a-custom-hud-message) for the recommended, higher-level way to trigger it rather than calling `Hud.Tutorial` directly. |
+| `SetText` | `Hud.Tutorial:SetText({vPlayer=uGuid, sText=sMessage})` | **Confirmed** in `resident/mrxtutorialmanager.lua`'s `ShowMessage`/`HideMessage` functions: `Hud.Tutorial:SetText({vPlayer = Player.GetLocalPlayer(), sText = sMessage})` shows a message, and calling it again with `sText = nil` clears it. This is the function underneath the already-documented, live-tested `MrxTutorialManager.ShowMessage` — see [Snippets: Show a custom HUD message](../snippets#show-a-custom-hud-message-with-icon-and-sound) for the recommended, higher-level way to trigger it rather than calling `Hud.Tutorial` directly. |
 | `ShowTutorialForObject` | `Hud.Tutorial:ShowTutorialForObject({...})` | No call site checked in this pass — presumed similar table-argument shape to the confirmed `SetText` above. |
 | `ShowTutorialOnscreen` | `Hud.Tutorial:ShowTutorialOnscreen({...})` | No call site checked in this pass — presumed similar table-argument shape to the confirmed `SetText` above. |
 

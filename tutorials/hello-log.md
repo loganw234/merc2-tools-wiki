@@ -65,7 +65,7 @@ line. Get in the habit now — by [Tutorial 4](two-clocks) you'll have two scrip
 
 ## Where this comes from
 
-- [Getting Started: `Loader.Printf`](../getting-started#loaderprintf-debug-output-that-doesnt-get-lost) —
+- [Getting Started: `Loader.Printf`](../getting-started#loader-printf-debug-output-that-doesn-t-get-lost) —
   why this exists instead of the engine's own `Debug.Printf`.
 - [Glossary: `Loader.Printf`](../glossary#loaderprintf) / [`KEYVAL`](../glossary#keyval)
 

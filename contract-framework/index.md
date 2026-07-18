@@ -1,7 +1,7 @@
 ---
 title: Contract Framework
-parent: Frameworks
-nav_order: 2
+parent: Deprecated Frameworks
+nav_order: 1
 has_children: true
 has_toc: false
 ---

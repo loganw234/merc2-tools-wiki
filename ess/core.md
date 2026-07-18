@@ -331,6 +331,8 @@ generator would.
 | `:int` | `gen:int(n) -> integer in [1, n]` | |
 | `:chance` | `gen:chance(p) -> bool` | `true` with probability `p` (0..1); omit `p` for a coin flip. |
 | `:pick` | `gen:pick(list, weightKey) -> element of list` | Weighted by each entry's `[weightKey]` field (default `"w"`), falling back to weight 1 for entries missing it. Collapses an accumulator-loop weighted-pick that `WaveDefense.lua` had written three separate times (same logic, copy-pasted) into one implementation. |
+| `:shuffle` | `gen:shuffle(list) -> list` | In-place Fisher–Yates shuffle of the array part (mutates and returns the same list, for chaining) — the engine-safe way to randomize order, since a random-comparator `table.sort` is biased and can even error on some Lua builds. |
+| `:pickN` | `gen:pickN(list, n) -> {...}` | `n` distinct random elements (sample without replacement), order randomized. `n >= #list` returns a shuffled copy of the whole list; `n <= 0` returns `{}`. Never mutates `list`. |
 
 Real usage, from the shipped `random_selection` recipe:
 

@@ -1,7 +1,7 @@
 ---
 title: UI Kit
-parent: Frameworks
-nav_order: 3
+parent: Deprecated Frameworks
+nav_order: 2
 has_children: true
 has_toc: false
 ---

@@ -54,7 +54,7 @@ end
 This single `nCost <= MrxPmc.GetCashQty()` comparison is the whole "can the player buy this?" check — there is
 no separate free-item flag. Zeroing an item's `nCashCost`/`nCost` (in `MrxSupportData`/`WifEquipmentData`) makes
 `nCost` evaluate to `0`, which always passes the gate, i.e. makes the item free. Note the debit goes through
-[`MrxPmc.AddCashQty`](mrxpmc#addcashqtynamt-bmateriel-sreason-bsuppressdisplay) (HUD-updating), not
+[`MrxPmc.AddCashQty`](mrxpmc#addcashqty-namt-bmateriel-sreason-bsuppressdisplay) (HUD-updating), not
 `Player.SetCash`.
 
 ### `_AddPurchasedSupportItem(sId)`

@@ -14,7 +14,7 @@ counter, no completion — and `Ess.Contract` — a whole save-safe mission engi
 overkill for "show a goal and know when it's met." This layer is a stateful counted goal that paints
 `"label   3/5"` on the HUD objective line, ticks up as you advance it, and fires a callback at target —
 built entirely out of pieces `Ess` already exposes elsewhere (`Ess.Hud.objective` for the line, `Ess.On` for
-wiring completion to a world event, `Ess.Loop`/`Ess.Time` underneath the ticking). No new engine calls.
+wiring completion to a world event, `Ess.Loop` underneath the ticking). No new engine calls.
 
 Two Core-tier pieces, then the beginner-tier bundles built on them:
 

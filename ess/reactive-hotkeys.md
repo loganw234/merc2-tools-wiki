@@ -85,7 +85,7 @@ an `[OnKey]` re-run: pressing an already-bound `OnKey` script's key again does *
 file, so a consumer script's own `Ess.Keys` bindings persist fine between its own repeated keypresses — only
 an actual level/world reload clears them.
 
-**Caveat — shared input buffer (straight from the source comment):** `Ess.Keys` reads the exact same
+**Caveat — shared input buffer (paraphrasing the source comment):** `Ess.Keys` reads the exact same
 edge-triggered key buffer a focused [`Ess.UI.Menu`](ui#ess-ui-menu) widget reads. Running `Ess.Keys` and a
 focused `Ess.UI.Menu` on the same keys at the same time means they'll contend for the same edges — use one
 or the other, or make sure they bind distinct keys.

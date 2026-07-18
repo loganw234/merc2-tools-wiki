@@ -183,7 +183,7 @@ menu:toggle()
 
 ## Gotchas
 
-- **The world stays unpaused** — see [above](#why-the-world-doesnt-pause). Pick a toggle key that isn't one
+- **The world stays unpaused** — see [above](#why-the-world-doesn-t-pause). Pick a toggle key that isn't one
   of your navigation keys (arrows/Enter/Backspace by default), since those keep doing their normal in-game
   thing while the menu is up.
 - **Give distinct menus distinct titles**, or pass an explicit `{ id = "..." }` — the `id` is what keys a

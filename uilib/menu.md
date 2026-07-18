@@ -83,6 +83,7 @@ helpers that pop one of the kit's other modal widgets directly from inside a men
 | `ctx:ask(prompt, onSubmit, onCancel)` | Pops a [`UI.Input`](confirm-and-input) typed prompt. |
 | `ctx:spawn(template [, dist])` | Spawns at your feet or `dist` metres ahead; returns the guid. |
 
+<a id="ctxspawn-rejects-a-blank-template-before-it-ever-reaches-the-engine"></a>
 **`ctx:spawn` rejects a blank template before it ever reaches the engine.** `Pg.Spawn("")` is a **hard
 native crash** (an empty template name resolves to a null asset in the engine's own C++), and `pcall`
 **cannot catch it** — `pcall` only catches Lua-level errors, and a native crash never raises one. If your

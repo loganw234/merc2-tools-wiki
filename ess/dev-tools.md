@@ -43,7 +43,7 @@ The panel repaints four lines every `interval` seconds, each sourced from an alr
 | Line | Example | Built from |
 |---|---|---|
 | Position | `pos: (120.4, 5.0, -88.2)  yaw 45` | `Ess.Player.pose(i)` |
-| Aim | `aim: Veyron VZ d=12.3` (or `aim: (nothing)`) | `Ess.Player.targetUnderReticle(i)` + `Ess.Name` + `Ess.Probe.getFaction` + `Ess.Object.distance` |
+| Aim | `aim: Veyron  VZ  d=12.3` (or `aim: (nothing)`) | `Ess.Player.targetUnderReticle(i)` + `Ess.Name` + `Ess.Probe.getFaction` + `Ess.Object.distance` |
 | Vehicle + health | `on foot   health: 85 / 100` (or `vehicle: <name>`) | `Ess.Player.inVehicle(i)` + `Ess.Object.health` (plus a direct `Object.GetMaxHealth` read) |
 | Nearby | `near(40): 6 hum  2 veh` | `Ess.Probe.nearby(x, y, z, radius, "humans"/"vehicles")`, called once per kind |
 
@@ -121,7 +121,7 @@ confirmed via live testing.
 
 ## Other new OnKey demos built on these pieces
 
-The same Unreleased batch ships several complete `OnKey` demo scripts that *compose* `Ess.Mark`/`Ess.On`/
+The same Unreleased batch ships five complete `OnKey` demo scripts that *compose* `Ess.Mark`/`Ess.On`/
 `Ess.Object` (and the rest of the framework) into something playable, without introducing any new `Ess` API
 of their own — one line each, not a deep dive:
 
@@ -143,6 +143,11 @@ of their own — one line each, not a deep dive:
   header comment calls it a **first-pass draft** that still needs an in-game pass (no WASD freecam yet — you
   author by positioning your character — and photo mode only hides player markers, since there's no native
   full-HUD-hide call). Stated plainly per its own header, not upgraded here.
+Two more samples sit alongside them in the same folder but are **not** part of this Unreleased batch —
+neither appears in the CHANGELOG, both still use the old generic `KEYVAL = "free"` pick-a-key convention
+instead of the new batch's dedicated F-keys, and `TrailerHitch`'s own header already declares itself
+confirmed live (a live-test status that predates, and is unrelated to, everything else on this page):
+
 - **CollectibleFinder** (unbound — pick a free key) — an `Ess` reimplementation of a community
   proximity-marker script: marks `SpareParts` collectible boxes via `Ess.Mark` as you approach and auto-clears
   each marker on pickup via `Ess.On.death`.

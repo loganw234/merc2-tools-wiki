@@ -27,8 +27,9 @@ browsable, searchable list of everything below (plus a handful of standout Core-
 | Call | Does |
 |---|---|
 | `Ess.Easy.Console.open()` | Browse the full registry, grouped by namespace, in a list+detail board. |
+| `Ess.Easy.Console.play()` | Opens the interactive Playground: drill into a category, run a curated demo function live, and cycle its parameters to see exactly what each one does in-game. Also reachable from the pinned `[ Playground... ]` row inside the board itself. See [Debug & Dev Tools](dev-tools) for the full writeup. |
 | `Ess.Easy.Console.search()` | Opens a typed prompt; filters the registry by substring match against name/usage/description and reopens the board with just the matches. Also reachable from the pinned `[ Search... ]` row inside the board itself. |
-| `Ess.Easy.Console.close()` | Closes both the board and the search prompt if either is open. |
+| `Ess.Easy.Console.close()` | Closes whichever of the board, the Playground, and the search prompt are currently open. |
 
 Picking a row logs its exact usage string to `lua_loader_printf.log` and toasts a confirmation — a quick
 way to get a call's exact spelling without alt-tabbing. The registry itself is intentionally curated to
@@ -300,9 +301,23 @@ Ess.Easy.Contract.destroy("Raid the Depot", {
 }, { reward = { cash = 20000, fuel = 60 } })
 ```
 
+## Debug — `Ess.Easy.Debug`
+
+A live on-screen dev panel for mod authors — position, aim target, vehicle/health, nearby counts — built on
+[`Ess.UI.Panel`](ui#ess-ui-panel). See [Debug & Dev Tools](dev-tools) for the full writeup. **Unreleased** —
+construction verified offline, not yet in-game smoke-run.
+
+| Call | Does |
+|---|---|
+| `Ess.Easy.Debug.overlay(opts)` | Toggles the panel on/off (call again to hide); returns the panel, or `nil` when toggled off. `opts` (all optional): `x`, `y` (screen position), `interval` (refresh seconds, default 0.2), `radius` (nearby-scan radius, default 40), `i` (player index). |
+| `Ess.Easy.Debug.hide()` | Forces it off. |
+| `Ess.Easy.Debug.isOn()` | Returns whether it's currently on. |
+
 ## See also
 
 - [Essentials (Ess)](index) — the framework index, including the three-tier model this page is the top of.
 - Every section above links sideways to its own Core-tier drilldown page for the full parameter set, the
   Raw-tier primitives, and anything the one-liner deliberately doesn't expose.
+- [Debug & Dev Tools](dev-tools) — `Ess.Easy.Debug`'s live dev overlay and `Ess.Easy.Console.play()`'s
+  interactive playground, in full.
 - `Ess.Easy.Console.open()` — the same content as this page, live and searchable, in-game.

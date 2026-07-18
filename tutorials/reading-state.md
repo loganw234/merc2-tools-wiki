@@ -7,7 +7,7 @@ nav_order: 3
 # Tutorial 3: Reading Before Writing
 
 > Built from `Player.GetCash()`/`Player.GetLocalCharacter()`/`Object.GetPosition`, calls already used and
-> confirmed elsewhere on this wiki (see [Your First Menu](../first-menu#whats-a-uguid-and-how-do-you-get-your-own))
+> confirmed elsewhere on this wiki (see [Your First Menu](../first-menu#what-s-a-uguid-and-how-do-you-get-your-own))
 > — combined here with Tutorials 1 and 2's `Loader.Printf`/`ShowMessage` as the vehicle for showing what
 > comes back.
 
@@ -82,7 +82,7 @@ actually keep by how many names they put on the left of the `=`.
 
 ## Where this comes from
 
-- [Your First Menu: What's a `uGuid`](../first-menu#whats-a-uguid-and-how-do-you-get-your-own) —
+- [Your First Menu: What's a `uGuid`](../first-menu#what-s-a-uguid-and-how-do-you-get-your-own) —
   `Player.GetLocalCharacter()` introduced and explained.
 - [Glossary: `uGuid`](../glossary#uguid)
 
