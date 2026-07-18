@@ -1,7 +1,7 @@
 ---
 title: Ess.Easy
 parent: Essentials (Ess)
-nav_order: 14
+nav_order: 18
 ---
 
 # Ess.Easy
@@ -59,11 +59,31 @@ One-line "make something cool appear near me," all routed through [`Ess.Object.s
 | `Ess.Easy.Spawn.airstrike(sRound)` | Calls a shell down on your own head — the classic sandbox gag. Real `Airstrike.SpawnOrdnance` call, impact-fused, 250 units up with downward velocity. Default `"Artillery Shell"`; also `"Gunship Shell"`, `"Cluster Bomb Projectile"`, `"Cruise Missile Projectile"`, `"Bomb"`. **Real, lethal ordnance.** |
 | `Ess.Easy.Spawn.fx(sTemplate, x, y, z)` | A particle/FX at a world location — a plain [`Ess.Object.spawn`](identity-query#ess-object). |
 | `Ess.Easy.Spawn.fxOn(sTemplate, uGuid, sBone)` | An FX on an object. With `sBone`, it's **glued** to that bone via [`Ess.Bones.attachFX`](camera-bones#ess-bones) and follows the object as it animates; without one, it's a one-shot at the object's current position. Remove a bone-bound one with `Ess.Bones.detachFX(uGuid, handle)`. Only real character/vehicle bone names bind — see [Ess.Bones](camera-bones#ess-bones) for where those come from. |
+| `Ess.Easy.Spawn.enemies(nCount, opts)` | Drops `nCount` (default 3) hostiles a short distance in front of you and — unless `opts.attack` is `false` — immediately orders them to attack `opts.target` (default: you) via [`Ess.Easy.AIOrders.attack`](#ai-orders-ess-easy-aiorders): an instant firefight in one line. `opts`: `template` (default `"VZ Soldier"`), `dist` (14, how far ahead), `spread` (3, spacing between spawn slots), `attack` (default `true`), `target`. Returns the spawned guids so you can order/track them further. |
 | [`Ess.Object.spawn(sTemplate, x, y, z, yaw)`](identity-query#ess-object) | Not actually `Ess.Easy` — this is the plain Core-tier call every preset above is built on — but it's the natural next thing a beginner on this page reaches for the moment they want a template that isn't one of the curated presets above (there are thousands: vehicles, characters, props, anything with a spawn template). Blank-template crash guard included; returns the new guid, or `nil` if the template name was wrong. [`Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)`](identity-query#ess-object) is the "in front of the player" version every preset above actually uses (`nDist` default 18, `nHeight` default 0) — it hides the yaw/trig math a beginner has no way to know. |
 
 Confirmed FX/particle templates beyond the explosion family: `"fx_Explosion_Huge"`,
 `"global_particle_explosion_c4"`, `"global_particle_env_smokeplume_distance_tall"`. One-shot FX
 self-destruct on their own; ambient ones (a smoke plume) persist until you `Ess.Object.remove` them.
+
+The real confirmed recipe (`samples/recipes/instant_firefight.lua`) is exactly one line — the attack order
+happens automatically inside `enemies()`, no separate `Ess.Easy.AIOrders.attack` call needed:
+
+```lua
+Ess.Easy.Spawn.enemies(4)   -- 4 hostiles ahead, already ordered to attack you
+```
+
+## Support call-ins — `Ess.Easy.Airstrike`
+
+One-tap presets over [`Ess.Support`](support)'s call-in primitives (shell/artillery/airstrike/bombingrun/
+gunship/reinforce) — a jet flyby plus a few artillery shells, aimed at a point, your reticle target, or your
+own position. See [Support & Call-ins](support) for the underlying mechanics this composes.
+
+| Call | Does |
+|---|---|
+| `Ess.Easy.Airstrike.at(x, y, z)` | A jet flyby plus 4 artillery shells (10-unit scatter radius) on a world point — the one-tap barrage. |
+| `Ess.Easy.Airstrike.onTarget(i)` | Same barrage, centered on whatever player `i` (default 0) currently has under their reticle. No-ops if nothing's targeted. |
+| `Ess.Easy.Airstrike.onMe(i)` | Same barrage, centered on player `i`'s own position — the "call it in on yourself" gag. |
 
 ## Vehicles — `Ess.Easy.Vehicle`
 
@@ -243,6 +263,21 @@ my arena/minigame" case, over [`Ess.Sandbox.begin`](encounter-toolkit#sandbox).
 |---|---|
 | `Ess.Easy.Cinematic.play(steps, onDone)` | The zero-opts entry into [`Ess.Cinematic.play`](cinematic) — an ordered list of camera/spawn/say/fly/fade steps, skippable with ESC. |
 | `Ess.Easy.Cinematic.shot(at, lookAt, seconds)` | Builds one static camera step (`{type="camera", at=, lookAt=, hold=seconds}`) — storyboard sugar so a hand-authored steps list reads as `{ shot(a,b,4), shot(c,d,3), ... }`. `seconds` defaults to 3. |
+
+## Objectives & quests — `Ess.Easy.Objective` / `.Quest`
+
+One-line goal tracking over [`Ess.Objective`/`Ess.Quest`](objectives) — a stateful HUD goal (or an ordered
+sequence of them) already wired to a world event, no manual event glue on your side. See
+[Objectives & Quests](objectives) for the underlying classes and step-definition shapes.
+
+| Call | Does |
+|---|---|
+| `Ess.Easy.Objective(label, target, onComplete)` | A manual counted goal on the HUD objective line — advance it yourself with `:advance()`. Callable table, not a `.new{}` constructor. |
+| `Ess.Easy.Objective.reach(x, y, z, r, label, onDone)` | Completes the instant the player steps within `r` (default 8) of a point; drops a "go here" ground ring. |
+| `Ess.Easy.Objective.destroy(uGuid, label, onDone)` | Completes when that object dies; marks it on radar/PDA/world. |
+| `Ess.Easy.Objective.clear(x, y, z, r, faction, label, onDone)` | Completes once every `faction` unit in the radius (default 40) is dead — shows "N left" on the HUD, polled once a second. |
+| `Ess.Easy.Objective.survive(seconds, label, onDone, onFail)` | A live countdown goal; fails if the player dies before `seconds` elapses. |
+| `Ess.Easy.Quest(steps, onComplete)` | A whole linear mission in one table — an ordered list of `reach`/`destroy`/`clear`/manual steps, each auto-wired and self-marking. |
 
 ## Missions — `Ess.Easy.Contract`
 

@@ -39,6 +39,8 @@ wants it — not worth wrapping.
 | `setInputEnabled` | `Ess.Player.setInputEnabled(bOn, i)` | Freeze (`false`)/restore (`true`) gameplay input via `Player.SetInputEnabled` on the player slot. Confirmed to leave the keyboard-event stream a Lua UI reads (`Loader.PopKeyEvents`) intact — it gates game control only, so a chat box can still type while the world is frozen underneath it. |
 | `rumble` | `Ess.Player.rumble(i, fLength)` | Controller haptic feedback via `Pg.Rumble`. `fLength` defaults to 0.2 (real call sites use ~0.15s). |
 | `teleport` | `Ess.Player.teleport(x, y, z, yaw, onDone)` | Warps **all** connected heroes to one spot (co-op safe) via the confirmed `MrxUtil.TeleportHeroesToLocations` idiom — deliberately *not* raw `Object.SetPosition`, which is unreliable on characters. `onDone` fires once the warp completes. For the co-op case where each hero needs a *different* spot, drop to `MrxUtil.TeleportHeroesToLocations` directly with a per-hero location list. |
+| `inVehicle` | `Ess.Player.inVehicle(i) -> uVehicleGuid \| nil` | The vehicle the player is in right now (driver or passenger), `nil` on foot — just `Ess.Object.vehicleOf` on the player's character, surfaced here because "am I driving?" comes up constantly (gating a boost/horn, a car-only menu, a "get out first" prompt). Written and internally consistent, not yet confirmed via live testing. |
+| `onFoot` | `Ess.Player.onFoot(i) -> bool` | The complement: `true` exactly when `inVehicle(i)` returns `nil`. Same confirmation status as `inVehicle`. |
 
 Two caveats worth knowing before you rely on this namespace:
 

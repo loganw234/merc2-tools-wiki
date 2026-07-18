@@ -134,9 +134,17 @@ local stop = Ess.Easy.Camera.orbit(car, { radius = 10, height = 4, speed = 45 })
 stop()   -- or Ess.Camera.panicRevert() as the fire-blind escape hatch
 ```
 
+**Follow-damping (0.2.1):** the two per-tick moving-camera modes — `orbit` and `watch(opts.chase = true)` —
+ease toward their ideal position each tick via [Ess.Vec](core#ess-vec)'s `lerp`, rather than snapping
+straight to it, by default. This low-passes the per-tick position quantization that made following a fast
+subject (a heli at speed, a hard-launched car) jitter — **confirmed live** against both of those cases.
+`opts.smooth` defaults to `true`; pass `false` for the old exact-snap behavior. `opts.smoothFactor` (0..1,
+default `0.2`) tunes how hard it damps — higher is snappier/less lag, lower is glassier/more lag. The static
+(non-chase) `watch` shot is unaffected — it has no per-tick position to smooth in the first place.
+
 Full option lists (`at`/`height`/`look`/`bone`/`chase`/`angle`/`dist`/`chaseHeight`/`radius`/`speed`/
-`startAngle`) and the moving-vehicle look-at caveat — `SetLookAt`'s object-track works on *character*
-bones, not vehicle hardpoints, so tracking a heli means pointing the look at its pilot
+`startAngle`/`smooth`/`smoothFactor`) and the moving-vehicle look-at caveat — `SetLookAt`'s object-track
+works on *character* bones, not vehicle hardpoints, so tracking a heli means pointing the look at its pilot
 (`opts = { look = pilotGuid, bone = "Bone_Chest" }`), not the vehicle itself — are covered on
 [Ess.Easy](easy).
 

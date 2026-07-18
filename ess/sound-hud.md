@@ -54,7 +54,7 @@ popup chrome. See [Hud](../namespaces/hud) for the raw sub-namespaces underneath
 | `hint` | `Ess.Hud.hint(sMsg, sId, bBroadcast)` | The native tutorial-style hint popup (icon + sound); stays up until hidden. |
 | `hideHint` | `Ess.Hud.hideHint(sId, bBroadcast)` | Clears a hint shown with a matching `sId`. |
 | `banner` | `Ess.Hud.banner(sMsg)` | A clean, icon-free, centered text banner. |
-| `objective` | `Ess.Hud.objective(sText)` | Sets the persistent objective-tray line; `nil` clears it. |
+| `objective` | `Ess.Hud.objective(sText, nSlot=1)` | Sets the objective-tray line at `nSlot`; `nil` `sText` clears that slot. |
 | `radio` | `Ess.Hud.radio(sText, nHold)` | A transient radio-chatter subtitle, self-clearing after `nHold` s (default 5). |
 
 **`hint(sMsg, sId, bBroadcast)`** wraps `MrxTutorialManager.ShowMessage` — the same "you're swimming" /
@@ -78,9 +78,13 @@ icon and no gold header — just `vText` centered on screen, confirmed by live t
 values (`contact`/`support`/`stockpile`/etc., already used by `Ess.Contract`'s own fanfare) are untouched
 by this.
 
-**`objective(sText)`** drives `Hud.ObjectiveTray` slot 1 (`SetSlotToText`/`ClearSlot`) — exactly what
+**`objective(sText, nSlot=1)`** drives `Hud.ObjectiveTray` (`SetSlotToText`/`ClearSlot`) — exactly what
 `Ess.Contract` drives its own objective line with, promoted here so any mission/mod can set the HUD
-objective without reaching into Contract or re-deriving the shape. `nil` clears it.
+objective without reaching into Contract or re-deriving the shape. `nSlot` defaults to 1 (the "current
+objective" line, unchanged from before); it's a new, backward-compatible parameter that exists so a
+goal-tracking system built on a different tray slot can show its own line without fighting a running
+Contract for slot 1. `nil` `sText` clears that slot. Written and internally consistent, not yet confirmed
+via live testing.
 
 **`radio(sText, nHold)`** uses `Hud.ObjectiveTray` slot 3 as a transient "radio chatter" subtitle — the
 game's own one-off mission-chatter line, and the natural fit for cutscene dialogue/subtitles. It

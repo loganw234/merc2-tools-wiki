@@ -100,6 +100,10 @@ page for whatever you're building. The framework's own
 | [Networking](net) | `Net` | Co-op data sync, native port of [ModNet](../modnet): auto-syncing shared tables, named messages, authority model. |
 | [Contract Engine](contract) | `Contract` | The full save-safe ephemeral-mission engine, native port of the [Contract Framework](../contract-framework/): 16 objective types plus relations/support/AI-order/trigger subsystems. |
 | [Meta / Override](override) | `Override` | Change engine logic without the tail-call crash — the crashing shape is made structurally impossible to write. |
+| [Support & Call-ins](support) | `Support`, `Easy.Airstrike` | Combat call-ins (shell/artillery/airstrike/bombing run/gunship/reinforce) lifted out of `Ess.Contract` so they're callable anywhere, fire-and-forget. **Unreleased** — composed from already-confirmed native calls, wrapper layer not yet independently smoke-run. |
+| [Reactive Hooks & Hotkeys](reactive-hotkeys) | `On`, `Keys` | Intent-named reactive world hooks (death/area/health/hurt/vehicle/tick) and a multi-hotkey panel for one `OnKey` script. **Unreleased** — execute-verified offline, not yet in-game smoke-run. |
+| [Objectives & Quests](objectives) | `Objective`, `Quest`, `Easy.Objective`, `Easy.Quest` | The middle tier between a bare `Ess.Hud.objective` line and a whole `Ess.Contract` — single goals and multi-step chains with reload-safe `id`-based construction. **Unreleased** — state machine execute-verified offline, not yet in-game smoke-run. |
+| [Debug & Dev Tools](dev-tools) | `Easy.Debug`, `Easy.Console.play` | A live on-screen debug overlay (position, reticle target, health, nearby counts) and an in-game "run any Easy call and cycle its params" playground. **Unreleased** — construction/dispatch verified offline, on-screen rendering not yet in-game smoke-run. |
 | **[Ess.Easy](easy)** | Every `Ess.Easy.*` namespace | The full beginner-tier one-liner surface in one place — spawning, unlocks, world tweaks, fun, and every other namespace's Easy preset. |
 
 ## A few worked examples
