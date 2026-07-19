@@ -50,6 +50,9 @@ RUNNING CODE — Console (interactive) plus 3 script-file hooks. Full detail: /g
   wire protocol to learn, a bigger step for a newcomer than just editing a file and pressing a key.
 - scripts/OnBoot/*.lua — runs once, earliest possible (bridge captures Lua state).
 - scripts/OnLoad/*.lua — runs once per level load (GlobalExit-Complete milestone).
+- A browser-based Lua IDE (ide.mercs2.tools) and a live player-position map (map.mercs2.tools) also exist,
+  both connecting live to a running game over lua-bridge's WebSocket transport — useful for a human
+  collaborator to test/inspect state visually. Not something your own generated code needs to call into.
 
 Minimal OnKey skeleton:
     local KEYVAL = "insert"  -- must be in the first 10 lines
@@ -113,6 +116,9 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
   `local n = Loader.LoadVar("MyMod_progress") or 0`. Flat namespace shared by every script — prefix keys
   with your own script's name (MyMod_progress, not progress) to avoid colliding with another mod's data.
 - Tcp.Send(host, port, msg) — fire-and-forget, localhost-only by design.
+- Loader.WsSend(msg) — broadcasts to any connected browser client over a WebSocket transport sharing the
+  console's own port, on a channel separate from the log file; safe no-op with zero clients connected.
+  Full detail: /lua-bridge-api/websocket
 - Full math.* stdlib (sin, cos, tan, asin/acos/atan/atan2, sinh/cosh/tanh, sqrt, log, log10, fmod, ldexp,
   modf, frexp, random, randomseed, pi, huge) plus assert(v, msg) — polyfills, additive on top of the
   engine's own math.floor/abs/max/min/etc. assert's error correctly points at whatever called it, not at
@@ -124,22 +130,36 @@ LUA-BRIDGE ADDITIONS (not part of the game itself). Full detail: /lua-bridge-api
   individually confirmed either way on this wiki. Check `type(os) == "table"` (etc.) before relying on
   something that "should" be there; don't assume stock-Lua-5.1 completeness beyond what's listed here.
 
-UI KIT (mod-authored library, not part of the game or lua-bridge). Full detail: /uilib/
-- uilib.lua (_G.UI) -- nine widgets sharing one input/focus/heartbeat engine: UI.Menu (declarative nested
-  menus), UI.List, UI.Panel, UI.Bar, UI.Toast, UI.Confirm, UI.Input, UI.Chat, UI.Board. Reach for this
-  before hand-rolling a FlashWidget or nesting MrxMultiPageMenu yourself.
-    local menu = UI.Menu{ title = "MY MENU", key = "F8" }
+ESSENTIALS (Ess) -- mod-authored framework, the recommended starting point for any new mod (not part of
+the game or lua-bridge itself). Full detail: /ess/
+- Deploy: 1_Ess.lua -> scripts/OnLoad/ with a low lua_loader.ini number (e.g. =5); also drop
+  data/vz-patch.wad into data/ if you'll use Ess.UI (skippable otherwise). Guard consumers:
+  `if not _G.Ess then Loader.Printf("load Ess first") return end`.
+- Three tiers, reach for the highest that fits: `Ess.Easy.*` (intent-named one-liners) -> `Ess.*` (Core:
+  named params/sensible defaults) -> `Ess.Raw.*` (the primitives underneath, for composing something Ess
+  didn't anticipate). Not every namespace carries all three. `Ess.Easy.Console.open()` browses the whole
+  Easy.* surface in-game, searchable.
+    Ess.Easy.Vehicle.summon("UH1 Transport")
+    Ess.Easy.Spawn.explosion() / .crate() / .weapon() / .airstrike()
+- Namespace groups: Core (Log/Safe/Table/Str/Color/Vec/Math/Guid/Name/State/SaveVar/RNG), Identity & World
+  Query (Player/Object/Vehicle/Probe/Human/Impulse), Timing & Input (Time/Loop/Input/TextConsole), Tracking
+  (Track/Event/Save), Mark (radar/PDA/ring/icon), UI (Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board),
+  Camera/Bones/Points, Sound/Hud, Encounter Toolkit (AIOrders/Relations/Triggers/Sandbox/Layers), Cinematic,
+  Net, Contract, Override (safe function replacement, no tail-call crash), Support (combat call-ins), On
+  (reactive world hooks: death/area/health/hurt/vehicle/tick), Keys (multi-hotkey panel), Objective/Quest,
+  Easy.Debug (dev overlay).
+- Absorbs four previously-standalone mod-authored frameworks as native code: uilib.lua -> Ess.UI,
+  ModNet.lua -> Ess.Net, ContractFramework.lua -> Ess.Contract, LayerFw.lua -> Ess.Layers. The first three
+  still exist as standalone .lua files and still work (see /deprecated-frameworks/) if you encounter
+  existing code using `_G.UI`/`_G.ModNet`/`_G.Contract` directly; Layer Framework was folded in without ever
+  getting its own standalone wiki page. New work should start on Ess instead — the two APIs are kept
+  close, e.g. `Ess.UI.Menu` is byte-for-byte compatible with the old `UI.Menu` (one caveat: `Menu` inherits
+  `Ess.UI.List`'s new wraparound cursor, so Down past the last entry now jumps to the top — `UI.Menu` never
+  did that):
+    local menu = Ess.UI.Menu{ title = "MY MENU", key = "F8" }
     menu:entry("Do a thing", function(ctx) ctx:hint("done") end)
     menu:category("Group", function(c) c:entry("Nested", function(ctx) ... end) end)  -- nests freely
     menu:toggle()  -- put at the end of your OnKey file
-  ctx: ctx.x/y/z/yaw, ctx.char/player, ctx:spawn(template[,dist]), ctx:hint(msg), ctx:close(),
-  ctx:confirm(text,onYes,onNo), ctx:ask(prompt,onSubmit,onCancel) -- pops another kit widget mid-action.
-- Deploy: uilib.lua -> scripts/OnLoad/ with a low lua_loader.ini number (e.g. =5). Guard consumers:
-  `if not (_G.UI and UI.Menu) then return end`.
-- Demos (both current, cover different widgets): menudemo.lua (F3) = UI.Menu end to end -- nesting,
-  ctx:spawn, :switch, popping Confirm/Input/Board/Chat from inside a menu action. uidemo.lua (Delete) =
-  the other eight widgets directly -- a List drill-down (no UI.Menu), Panel-as-log, Bar, Toast, Confirm,
-  Input.
 
 CODE SAMPLES — reusable shapes, copy the pattern not necessarily the exact values
 

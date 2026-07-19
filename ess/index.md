@@ -87,7 +87,7 @@ page for whatever you're building. The framework's own
 
 | Page | Namespaces | What it covers |
 |---|---|---|
-| [Core Primitives](core) | `Safe`, `Table`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. |
+| [Core Primitives](core) | `Safe`, `Table`, `Str`, `Color`, `Vec`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, string/color/vector/geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. |
 | [Identity & World Query](identity-query) | `Player`, `Object`, `Vehicle`, `Probe`, `Human`, `Impulse` | Character/camera/teleport, the everyday spawn/transform/health/label namespace, seats and riders, nearby-object collection, and mass-scaled launch/knockback. |
 | [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. |
 | [Tracking & Cleanup](tracking) | `Track`, `Event`, `Save` | One registry for every leak-prone Add/Remove pair, a logging `Event.Create` wrapper, and the shared save-suppression gate. |
