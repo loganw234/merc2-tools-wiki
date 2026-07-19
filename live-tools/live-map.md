@@ -10,9 +10,10 @@ nav_order: 2
 
 `mercs2-webmap` is an interactive top-down map of the Mercenaries 2 world, built on Leaflet with
 `CRS.Simple` (a plain coordinate plane, not geo-projected) over the retail world map image. Live at
-**https://map.mercs2.tools/** (confirmed reachable). Like the [Lua Web IDE](web-ide), it's a single
-standalone HTML file — no build step to use it, no server, no external requests — hosted on GitHub Pages,
-downloadable, or served by the game's own `lua-bridge` at `http://127.0.0.1:27050/`.
+**https://map.mercs2.tools/** (confirmed reachable); source at
+[github.com/loganw234/mercs2-webmap](https://github.com/loganw234/mercs2-webmap). Like the
+[Lua Web IDE](web-ide), it's a single standalone HTML file — no build step to use it, no server, no external
+requests — hosted on GitHub Pages or downloaded and opened straight off disk.
 
 ## Layers, and why they're generic
 

@@ -11,10 +11,10 @@ nav_order: 1
 `mercs2-lua-web-ide` is a real, browser-based Lua IDE for Mercenaries 2 modding — not an offline-only code
 editor. Write a script, hit **Run**, and it executes inside your actual **running game**, with results and
 the live game log streaming straight back to the page. Live at **https://ide.mercs2.tools/** (confirmed
-reachable). It ships as a single self-contained `dist/index.html` — editor, API reference, examples, and
-the WebSocket client all inlined — so it works hosted on GitHub Pages, downloaded and opened off disk, or
-served directly by the bridge itself at `http://127.0.0.1:27050/`. No install and no build step to *use* it;
-only *running* code against the game needs the bridge.
+reachable); source at [github.com/loganw234/mercs2-lua-web-ide](https://github.com/loganw234/mercs2-lua-web-ide).
+It ships as a single self-contained `dist/index.html` — editor, API reference, examples, and the WebSocket
+client all inlined — so it works hosted on GitHub Pages or downloaded and opened straight off disk. No
+install and no build step to *use* it; only *running* code against the game needs the bridge.
 
 ## Editor and autocomplete
 

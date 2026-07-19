@@ -31,4 +31,7 @@ and the bridge DLL to actually execute code or track a position live.
   working in-game teleport button once connected.
 
 Both are dual-mode: everything that doesn't need the game (browsing, editing, loading a layer) works with no
-connection at all, and both are hosted, downloadable, and servable directly by the bridge itself.
+connection at all, and both are hosted on their own domain and downloadable as a single file.
+
+Source: [mercs2-lua-web-ide](https://github.com/loganw234/mercs2-lua-web-ide) ·
+[mercs2-webmap](https://github.com/loganw234/mercs2-webmap).
