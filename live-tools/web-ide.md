@@ -19,7 +19,7 @@ only *running* code against the game needs the bridge.
 ## Editor and autocomplete
 
 The editor is CodeMirror 6 (vendored, zero external requests): Lua syntax highlighting, undo/redo, find &
-replace, bracket matching, auto-indent, and folding. Autocomplete is two-layered:
+replace, bracket matching, auto-indent, and folding. Autocomplete is three-layered:
 
 - **`Ess.*`-aware completion** — generated from `mercs2-lua-essentials`'s own `CAPABILITIES.md`
   (`tools/gen_api.py`), covering ~69 `Ess` namespaces / ~430 calls, tier-badged Easy/Core/Raw, with
@@ -28,8 +28,29 @@ replace, bracket matching, auto-indent, and folding. Autocomplete is two-layered
   (`tools/scrape_natives.py`) for every function *called but never defined* anywhere in it: 40 namespaces,
   767 calls, each with a real call site from the game's own scripts and its observed argument count. See
   [Engine Namespaces](../namespaces/) for this wiki's own documentation of that same native surface.
+- **Template-name completion** — typing inside an open `"`/`'` offers every confirmed spawnable template
+  name (`20_editor.js`'s `templateCompletions`, fed from `src/data/templates.json`). See "Template names"
+  below for where that list comes from and its other two homes.
 
 Accepted completions insert as tab-through snippet placeholders, not bare text.
+
+Hovering any `Ess.*` or native token shows a tooltip (`CM.hoverTooltip`, `20_editor.js` ~line 195) with its
+signature, tier, and doc string — it reuses the same lookup data the autocomplete above and the API-reference
+sidebar (further down this page) already load, rather than fetching or building a second copy.
+
+### Template names
+
+`tools/gen_templates.py` mines two real, hand-curated spawn-menu scripts — `AllInOneSpawnMenu.lua` and the
+`CommonSpawnMenu.lua` embedded in the [OnKey sample scripts](../sample-scripts-onkey) page — plus this
+wiki's own [Spawn Reference](../spawn-reference/) pages (for the Skins/FX names those two menus don't cover
+at all) into `src/data/templates.json`: **667 confirmed names** as of 2026-07-18, split Vehicles 515 /
+Weapons 50 / Skins 4 / FX 31 / Other 67. Per the generated file's own credit line, the two source spawn
+menus are the hand-found and maintained work of community members **@Ferdilanz** and **@Cosmic76Guardian**.
+
+That data feeds three places: the in-string autocomplete above, an info-level linter nudge (see Lint pass,
+below) when a spawn-like call gets a string it doesn't recognize, and its own sidebar tab — **Templates**
+(`src/app/52_templates.js`) — browsable by category, filterable by search, click a name to insert it quoted
+at the caret.
 
 ## Lint pass
 
@@ -46,6 +67,10 @@ checker tuned for first-script mistakes runs:
   red, error-styled warning ("This loop never ends and will FREEZE the game...") because scripts run on the
   game's own thread, but it's a strong visual warning, not a send-blocking gate the way an actual syntax
   error is.
+- An info-level nudge (`25_lint.js`) when a spawn-like call — `Pg.Spawn`, `Ess.Object.spawn`,
+  `Ess.Object.spawnAhead`, `Ess.Easy.Vehicle.summon` — gets a string literal that isn't in the 667-name
+  template list above: "double-check the spelling, or browse the Templates tab." Same soft, non-blocking
+  treatment as the rest of this list.
 
 ## Running code
 
@@ -59,12 +84,75 @@ via a small depth-capped (3), item-capped (40), cycle-safe serializer embedded d
 chunk, sitting alongside a one-line REPL under the output (bare expressions auto-wrap in `return`, so
 `Ess.VERSION` just works).
 
+### Grabbing a live guid
+
+A header button, **"Grab what I'm aiming at"** (`src/app/60_ui.js`, ~lines 53-67), runs
+`Ess.Player.targetUnderReticle(0)` plus `Ess.Probe.describeSafe` against the connected game and inserts a
+ready-to-use `Sys.StringToGuid(...)` call at the caret, flashing the target's description.
+
+That call shape matters for a reason worth stating plainly, as general knowledge and not just an
+implementation detail: **a guid is Lua userdata, not a number.** Calling `tostring()` on one gives an
+opaque, non-reusable string (something like `userdata: 0012B69E`) — it can't be typed back into a script or
+compared across runs. The real, portable round trip is `Ess.Name(uGuid)` (a `pcall`-wrapped
+`Sys.GuidToString`) to get a stable hex string like `"0x0012B69E"` out, and `Sys.StringToGuid(s)` to turn
+that string back into the identical handle going back in. `src/app/46_inspector.js`'s own source comment
+(lines 8-14) states this was tested against a real in-game target — matching `Ess.Object.health` values
+read before and after the round trip. Both the grab-target button here and the Object Inspector below deal
+exclusively in that hex-string form.
+
+### Watch panel and Object Inspector
+
+Two ways to keep an eye on live game state without re-running code by hand:
+
+- **Watch** (`src/app/45_watch.js`) — a third output tab alongside Results and the log. Pin any expression
+  (`Ess.Player.pose(0)`, `Ess.Loop.isRunning("demo")`); each pinned row re-polls every 2 seconds over the
+  same `IDE.bridge.run` path the REPL uses, has its own kill switch, and the pinned expressions themselves
+  (not their last values) persist in `localStorage` across reloads.
+- **Object Inspector** (`src/app/46_inspector.js`) — its own sidebar tab, not a Watch row. Feed it a guid by
+  grabbing your target, typing or pasting a hex guid, or clicking 🔍 on a Results row, and it takes over the
+  sidebar with a live, 2-second-polled view — name, position, health, max health, faction, alive, and
+  `Ess.Probe.describeSafe` — all in one compound round trip per poll.
+
+### Ess-version drift warning
+
+On every successful connect, `src/app/76_versioncheck.js` asks the live game `return Ess.VERSION` and
+compares it to the `Ess.VERSION` the bundled API/autocomplete data was generated against (stamped in at
+build time by `tools/gen_api.py`). A mismatch shows one dismissible line, not a blocker; dismissing
+remembers that exact (reference, game) version pair, so a future mismatch on either side reopens it.
+
+### Reading results and the log
+
+- A **runtime-error explainer** (`src/app/40_console.js`) pattern-matches common Lua runtime errors —
+  `attempt to index/call a nil value`, `bad argument #N`, arithmetic/concat/compare on nil, and similar —
+  into a plain-English second line shown under the red result, so a beginner's first crash comes with a
+  guess at "why," not just the raw engine message.
+- **Log highlight rules** (`src/app/40_console.js`): built-in tints for `PASS`/`FAIL`/`error`/`[recipe]`,
+  plus a small popover for user-defined pattern → color rules (plain text or `/regex/flags`, persisted in
+  `localStorage`, checked before the built-ins so a user rule can override one).
+
 ## Script library and examples
 
 Named scripts persist in the browser's `localStorage`, with rename, duplicate, delete, `.lua` import/export,
 and shareable links — a share link decodes into a **new** script on load, so opening one never clobbers
 anyone's existing work. A 45-item Examples gallery (8 categories) is generated straight from the Ess repo's
 smoke-tested `samples/recipes/`; one click opens any example as a new script.
+
+Share links carry more than a bare script now: the **Share** button (`src/app/60_ui.js`) runs the payload
+(script name + code) through a real vendored `lz-string` (`CM.LZString.compressToEncodedURIComponent`) into
+a `#z=` link — several times more script fits in a URL, and the name travels along with it. The old `#s=`
+format (plain `encodeURIComponent`, code only, no name) still parses forever as a permanent fallback, so no
+link minted before this shipped ever breaks.
+
+**Library backup and restore** (`IDE.store.exportAll`/`.importAll`, `src/app/15_store.js`, wired to two
+Scripts-panel actions) exports the whole library as one JSON file and restores from one. Restore is always
+additive: imported scripts land as brand-new entries with fresh ids and name-deduplication, exactly like a
+fresh "+ New" would — it can never silently overwrite anything already in the library.
+
+**Deploy as OnKey** (`src/app/55_scripts.js`, ~lines 88-121) wraps the open script in the same
+guard/state/action shape every `Ess` OnKey mod uses (`samples/OnKey/StarterMod.lua`'s own pattern) — an
+`Ess`-loaded guard first, an `Ess.State(...)` scratch table, then the script unchanged below — names the
+file after the script, and downloads it with a `lua_loader.ini` binding comment baked in, ready to drop
+into `scripts/OnKey/`.
 
 ## API reference
 
@@ -86,6 +174,32 @@ return "stopped " .. n .. " loop(s), time scale restored"
 — iterating [`Ess.Loop`](../ess/timing-input#ess-loop)'s internal registry to stop every registered loop and
 restore the time scale, for the "my script went wild" moment.
 
+## Interactive first-script tutorial
+
+A floating, non-blocking guided panel (`src/app/78_tutorial.js`) walks a brand-new user through their first
+real script, one step at a time: connect, type `return Ess.VERSION` themselves, read their own position
+(`Ess.Player.pose(0)`), teleport to a live-captured street outside the PMC HQ (a fresh player starts inside
+the HQ lobby, where a summoned car has nowhere to go), summon a taxi and meet the teardown pattern
+(`Ess.State` plus "remove last run's taxi unless you're in it" — the teardown block visibly grows a line
+every time the script learns to create something new), find a fare (the nearest *living* civilian, not just
+the first match — civilians wander, so an empty scan is treated as normal rather than an error), hold them,
+mark the pickup and drop a "go here" ring, two "your turn" steps where the learner edits the search radius
+and the drop-off distance themselves, and finally deploy as OnKey.
+
+It's one script, built additively in place inside its own dedicated "Tutorial: Taxi Fare" library entry
+(guarded so wandering to another script mid-tutorial can never get it clobbered). Every step advances off a
+real signal from the bridge — a `"ran"` event carrying the code and its result, `"status"`/`"deployed"` for
+the two ends — never a bare "Next" button, and a per-step `need` marker means an unrelated REPL run can't
+accidentally advance or fail a step. The two "your turn" steps verify the edit by inspecting the code that
+actually ran, and later steps are templated on the learner's own values (radius, drop-off distance) rather
+than reverting them. Progress persists across a reload (the 🎓 button becomes "Resume tutorial"), and the
+finish panel hands out two small graduation challenges instead of just closing.
+
+The repo's own `ROADMAP.md` states all the Lua in the tutorial was "live-verified against a running game
+(incl. the 'Civ' faction string)"; the same entry notes the whole flow is also walked end-to-end in
+`tools/vendor/smoke.js` — but on simulated bridge signals, not a live game (see Status, below, for what that
+distinction means here).
+
 ## A from-scratch rebuild
 
 This is a from-scratch rebuild of an earlier bundled prototype IDE that shipped inside
@@ -96,9 +210,24 @@ one to use going forward.
 
 The live-execution path — actually running code against a real game process over the WebSocket — has
 complete, non-trivial client code: reconnect with exponential backoff (capped at 3s), ack/result correlation
-by nonce tag, and an 8s timeout that never hangs. But there is no recorded evidence in either this repo or
-`lua-bridge`'s own history of an actual successful live round-trip against a real running game. Treat it as
-**written and internally consistent, not yet confirmed via live testing.**
+by nonce tag, and an 8s timeout that never hangs.
+
+The repository's own `ROADMAP.md` goes further than "should work," though: it contains several specific,
+first-person claims of live-game verification. A few, quoted directly: the whole Tier-1 batch (templates,
+hover docs, grab-target, watch panel, backup/restore, log highlighting, share-link compression) is recorded
+as "built, smoke-tested, and browser-verified in one session"; the Object Inspector's guid-handling fix is
+recorded as "confirmed live against a running game," matching `Ess.Object.health` values before and after
+the `Ess.Name`/`Sys.StringToGuid` round trip; and the tutorial's Lua is recorded as "live-verified against a
+running game (incl. the 'Civ' faction string)."
+
+That's developer testimony recorded in the repo, not a captured log or transcript this wiki has inspected —
+a meaningfully stronger evidentiary position than "purely theoretical," short of this wiki independently
+confirming a live round trip itself. Worth keeping distinct: `tools/vendor/smoke.js` is an automated but
+explicitly **simulated** test — it boots the built `dist/index.html` in `jsdom` and stubs `window.WebSocket`
+with a fake that never opens (it only ever fires `onclose`, 5ms after construction). Passing it proves the
+page's own code boots and its modules behave correctly against canned/simulated signals; it is not evidence
+of a real WebSocket round trip to a running game. `ROADMAP.md` itself treats "smoke-tested" and
+"browser-verified" as two separate, named things for exactly this reason, and this page does the same.
 
 ## See also
 

@@ -143,12 +143,26 @@ v0.4.1 also clears `g_outBuf` at raw-TCP accept-time as a second layer against e
 
 Both v0.4.0 and v0.4.1's `CHANGELOG.md` entries are plain "Added"/"Changed"/"Fixed" sections — neither
 carries a "Verification" section (the kind v0.3.0's entry has, citing stress-suite pass counts and measured
-`IsKeyDown` throughput). So: this is **written and internally consistent on read, with no recorded
-live-client verification** — no logged handshake against a real browser, no logged full
-request-then-result round trip — as of this writing. Treat it accordingly; don't describe it as "confirmed
-working" until that testing happens and gets recorded. There is also no sample `.lua` script anywhere in
-this repo that exercises `Loader.WsSend` — the only referenced client is a JS reference client
-(`tools/ess-bridge.js`) that lives in a separate repository, not this one.
+`IsKeyDown` throughput), and that's still true as of this writing.
+
+That said, real live-client evidence for the transport does now exist — just not recorded in lua-bridge's
+own docs. Two commit messages in `mercs2-lua-essentials` describe testing it directly against a running
+game: adding `tools/dashboard.html` (a standalone WS bridge test page — send Lua, read the log/`ws` feeds
+live) was recorded as confirmed working ("version/math/char/rng returns, Toast/banner in-game, `Loader.Printf`
+feed, and runtime-error surfacing all working"), and a same-day follow-up adding `tools/bonemon.html` (a live
+bone-position stress test streaming ~80 xyz values over the hidden channel) states it was "confirmed live...
+`GetHardpointPosition` returns animated character bone positions, and the WS push path takes ~0 perf hit at
+100Hz/60ups." `mercs2-lua-web-ide`'s own `ROADMAP.md` separately claims its own live-execution path was
+"browser-verified" against a running game.
+
+None of this is a captured log/transcript — it's developer testimony recorded in commit messages and a
+roadmap note, checked into git but never written up as a dedicated verification report in *any* of the
+three repos. Treat the transport as having real, if informally recorded, live-test evidence behind it —
+attributed to those client repos above — rather than either "definitely untested" or a from-this-page
+"confirmed working" banner, which would overstate what's actually on record here. There is still no sample
+`.lua` script in *this* repo that exercises `Loader.WsSend` directly — the reference clients that do
+(`tools/dashboard.html`, `tools/bonemon.html`, `tools/ess-bridge.js`) live in the separate
+`mercs2-lua-essentials` repo.
 
 ## See also
 

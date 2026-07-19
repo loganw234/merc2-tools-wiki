@@ -105,7 +105,19 @@ engine — a confusing duplicate surface. Use these instead of remembering which
 | `Ess.Guid` | `Ess.Guid(name) -> uGuid \| nil` | `pcall`-wrapped `Pg.GetGuidByName`. |
 | `Ess.Name` | `Ess.Name(uGuid) -> sHash \| nil` | `pcall`-wrapped `Sys.GuidToString` — **confirmed to throw outright on at least one real object**, hence the wrap. |
 
-Note this is distinct from `Ess.Object.displayName(uGuid)` (covered on [Identity & World
+`Ess` has no wrapper for the inverse direction — reach for the raw native, [`Sys.StringToGuid`](../namespaces/sys),
+directly.
+
+**A `uGuid` is Lua `userdata`, not a number or a string** — worth stating plainly since it trips people up.
+`tostring(uGuid)` gives an opaque, non-reusable `"userdata: 0x...."` that cannot be turned back into a
+working guid; there is no Lua literal syntax for userdata, so a guid can never be hand-written into a
+script. The only confirmed, portable way to carry a guid across a round trip (e.g. out of a game session and
+back into one, or between two systems that can't share a live reference) is through its string form:
+`Ess.Name(uGuid)` out to a `"0x0012B69E"`-style string, and `Sys.StringToGuid("0x0012B69E")` back to an
+identical, working handle — confirmed live (per `mercs2-lua-web-ide`'s object-inspector work) by reading the
+same object's health through both the original guid and the round-tripped one and getting the same value.
+
+Note `Ess.Name` is distinct from `Ess.Object.displayName(uGuid)` (covered on [Identity & World
 Query](identity-query)), which returns the localized, human-readable name — `Ess.Name` returns the guid's
 hash string.
 

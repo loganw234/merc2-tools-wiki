@@ -98,6 +98,14 @@ You don't need to hand-roll this — use `tools/lua_console.py` (interactive) or
 (scriptable) from the parent project. But it's worth knowing the wire format if you're writing your own
 tooling (e.g. driving the game from a build script or a bot).
 
+If you're working in the `Ess`/lua-bridge ecosystem specifically, `mercs2-lua-essentials/tools/lua_repl.py`
+is a separate, newer script with the same name but a more reliable design: rather than trusting whatever
+comes back immediately on the raw socket (which can be one execution behind — it flushes chunk N's result
+on the *next* connection), it treats `lua_loader_printf.log` as the authoritative result channel, tags each
+chunk with a random nonce, and polls the log for that tag. It also adds `--probe` (bridge up/down) and
+`--wait-log TEXT` (block until a string like `"[Ess]"` appears, to confirm `OnLoad` actually ran). See that
+repo's own `tools/README.md` for the full flag list.
+
 **Reading the response:**
 
 | Prefix | Meaning |
