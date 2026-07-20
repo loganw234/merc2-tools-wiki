@@ -120,6 +120,11 @@ nav_order: 3
 
 ---
 
+## License
+
+[MIT](LICENSE) — matching the rest of the Mercenaries 2 tooling. Reuse it, quote it, fork it; just keep the
+copyright notice. By contributing you agree your contribution is licensed the same way.
+
 ## Disclaimer
 
 This is an unofficial, non-commercial community fan project. It is **not affiliated with, associated with,
