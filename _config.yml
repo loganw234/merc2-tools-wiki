@@ -27,10 +27,19 @@ nav_sort: case_insensitive
 
 footer_content: "Community-maintained. Not affiliated with Pandemic Studios / EA."
 
-# Aux nav links (top-right). Fill in real URLs once the wiki + lua-bridge repos are public.
-# aux_links:
-#   "lua-bridge on GitHub":
-#     - "https://github.com/<you>/lua-bridge"
+# Aux nav links (top-right).
+aux_links:
+  "Wiki on GitHub":
+    - "https://github.com/loganw234/merc2-tools-wiki"
+aux_links_new_tab: true
+
+# "Edit this page on GitHub" at the foot of every page. This is the main path for drive-by
+# corrections now the repo is public -- a reader can fix a typo without cloning anything.
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/loganw234/merc2-tools-wiki"
+gh_edit_branch: "main"
+gh_edit_view_mode: "edit"
 
 callouts:
   note:
