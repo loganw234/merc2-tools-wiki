@@ -214,11 +214,20 @@ def fn_name(cell: str) -> str:
 
 
 def build_curated(filename: str) -> str:
+    """A hand-written pack section.
+
+    HTML comments are stripped: they carry maintainer instructions (e.g. how to
+    resolve the [VERIFY] tags in 05_game.md) that the model should never see.
+    The [VERIFY] tags themselves DO ship -- they mark claims not sourced from a
+    wiki page, and flagging that uncertainty to the model is the same contract
+    as the [UNVERIFIED] markers on resident pages.
+    """
     path = PACK_SRC / filename
     if not path.exists():
         raise SystemExit("missing curated section: %s" % path)
     _, body = read_page(path)
-    return body.strip()
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    return re.sub(r"\n{3,}", "\n\n", body).strip()
 
 
 def qualify(sig: str, name: str, title: str) -> str:
@@ -391,6 +400,39 @@ def build_luabridge() -> str:
     return header + "\n" + _verbatim_pages("lua-bridge-api", char_cap=9000)
 
 
+def build_world() -> str:
+    """World and story context from vz/.
+
+    The rest of the pack is pure API reference: it uses words like PMC (469
+    times), outpost (477) and faction (252) as identifiers while never once
+    explaining what any of them MEAN. A model reading that has to infer the
+    domain from general knowledge -- which is exactly how "PMC" got read as a
+    generic private-military faction and `"PMC Soldier"` got invented.
+
+    These pages are the wiki's own description of the actual game world, so
+    intent ("I want troops under my command") can be mapped onto the right
+    mechanics instead of guessed at.
+    """
+    header = (
+        "What the game world actually contains -- factions, story contracts,\n"
+        "characters, HQ and economy data. Use this to understand what a user\n"
+        "MEANS, then answer with the API sections above. These pages describe\n"
+        "the shipped game; they are not a modding API.\n"
+    )
+    wanted = [p for p in md_pages("vz")
+              if p.name.startswith("cat-")
+              or p.stem in {"wifbios", "wifbriefingdata", "wifhqdata",
+                            "wifmissiondata", "wifstarterdata", "wiffreeplay"}]
+    out: list[str] = []
+    for path in wanted:
+        fm, body = read_page(path)
+        title = fm.get("title", path.stem)
+        text = MD_LINK_RE.sub(r"\1", body)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        out.append(f"### {title}\n{truncate(text, 5200)}")
+    return header + "\n" + "\n\n".join(out)
+
+
 def build_tutorials() -> str:
     return _verbatim_pages("tutorials", char_cap=2400)
 
@@ -509,13 +551,16 @@ def build_toplevel() -> str:
 # grew enough to need re-tuning, not that we are 50 tokens past a round number.
 SECTIONS = [
     ("system",     "OPERATING INSTRUCTIONS",        lambda: build_curated("00_system.md"),  4_000),
+    ("game",       "WHAT THIS GAME IS",             lambda: build_curated("05_game.md"),    4_000),
+    ("guide",      "GAME OVERVIEW (SECONDARY SOURCE)", lambda: build_curated("06_guide.md"), 7_000),
     ("gotchas",    "ENGINE FACTS AND GOTCHAS",      lambda: build_curated("10_gotchas.md"), 5_000),
     ("namespaces", "ENGINE NAMESPACE REFERENCE",    build_namespaces,                      36_000),
-    ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             24_000),
+    ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             28_000),
     ("resident",   "RESIDENT MODULE INDEX",         build_resident,                        31_000),
     ("luabridge",  "LUA-BRIDGE API",                build_luabridge,                        8_000),
     ("spawn",      "SPAWN REFERENCE LISTS",         build_spawn,                           20_000),
     ("templates",  "AUTHORITATIVE TEMPLATE NAMES",  build_templates,                       45_000),
+    ("world",      "GAME WORLD AND STORY CONTEXT",  build_world,                           20_000),
     ("tutorials",  "TUTORIALS",                     build_tutorials,                        8_000),
     ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        60_000),
     ("idioms",     "CANONICAL CODE PATTERNS",       lambda: build_curated("90_idioms.md"),  4_000),
@@ -546,6 +591,10 @@ CANARIES = [
     "_pmcoutpost_beerA",                      # hash-lookup template names
     "Ess.Vehicle.riders",                     # Ess signature tables
     "Loader.Printf",                          # lua-bridge section
+    "PMC is the player's own outfit",         # curated game primer (05_game.md)
+    "Solano",                                 # vz/ world + story context
+    "Venezuelan Army",                        # faction code<->fiction mapping
+    "Misha Milanich",                         # curated guide section (06_guide.md)
 ]
 
 

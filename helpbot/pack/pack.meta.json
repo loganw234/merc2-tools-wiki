@@ -1,7 +1,7 @@
 {
-  "sha256": "dce4efa89b2941ed2f6ef9688da03cb47b02640e5d26e2e75ad545cd7c8b5ba1",
-  "chars": 809194,
-  "est_tokens": 202298,
+  "sha256": "f6e6f97e32dac4018a2036004ab56835bd9e275cd3831a6af92629484cf3d423",
+  "chars": 889643,
+  "est_tokens": 222410,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -11,6 +11,22 @@
       "chars": 7719,
       "est_tokens": 1929,
       "budget": 4000,
+      "over_budget": false
+    },
+    {
+      "id": "game",
+      "title": "WHAT THIS GAME IS",
+      "chars": 6422,
+      "est_tokens": 1605,
+      "budget": 4000,
+      "over_budget": false
+    },
+    {
+      "id": "guide",
+      "title": "GAME OVERVIEW (SECONDARY SOURCE)",
+      "chars": 21202,
+      "est_tokens": 5300,
+      "budget": 7000,
       "over_budget": false
     },
     {
@@ -34,8 +50,8 @@
       "title": "ESSENTIALS (Ess) FRAMEWORK",
       "chars": 100972,
       "est_tokens": 25243,
-      "budget": 24000,
-      "over_budget": true
+      "budget": 28000,
+      "over_budget": false
     },
     {
       "id": "resident",
@@ -67,6 +83,14 @@
       "chars": 162581,
       "est_tokens": 40645,
       "budget": 45000,
+      "over_budget": false
+    },
+    {
+      "id": "world",
+      "title": "GAME WORLD AND STORY CONTEXT",
+      "chars": 52825,
+      "est_tokens": 13206,
+      "budget": 20000,
       "over_budget": false
     },
     {
