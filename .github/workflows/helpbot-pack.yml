@@ -17,6 +17,7 @@ on:
       - "tutorials/**"
       - "spawn-reference/**"
       - "helpbot/**"
+      - "assistant.md"
   push:
     branches: [main]
     paths:
@@ -27,6 +28,7 @@ on:
       - "tutorials/**"
       - "spawn-reference/**"
       - "helpbot/**"
+      - "assistant.md"
 
 jobs:
   check-pack:
@@ -38,6 +40,21 @@ jobs:
           python-version: "3.12"
       - name: Verify the committed pack matches the wiki
         run: python helpbot/build_pack.py --check
+
+      # The theme's layout minifies the served HTML onto one line. A single //
+      # comment in the chat script then comments out everything after it, and
+      # the page silently does nothing -- no console error, no visual clue.
+      # Parse-check the script in exactly the form the browser receives.
+      - name: Chat script survives HTML minification
+        run: |
+          python - > /tmp/chat_min.js <<'PY'
+          import pathlib, re
+          t = pathlib.Path("assistant.md").read_text(encoding="utf-8")
+          body = t[t.index("<script>") + 8 : t.index("</script>")]
+          print(re.sub(r"\s*\n\s*", " ", body).strip())
+          PY
+          node --check /tmp/chat_min.js
+          echo "[ok] chat script parses after newline stripping"
       - name: Report pack size
         if: always()
         run: |

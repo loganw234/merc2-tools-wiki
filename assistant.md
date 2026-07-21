@@ -38,47 +38,71 @@ general knowledge about Lua.
 
 {% raw %}
 <style>
+/* Theme-agnostic on purpose. This just-the-docs build compiles its Sass to
+   static values and exposes NO CSS custom properties (--sidebar-color et al
+   all resolve to nothing), so `var(--x, light-fallback)` silently pinned every
+   surface to a light colour and looked broken in dark mode. Translucent greys
+   layered over whatever the page background happens to be work in both. */
 #assistant-app { margin-top: 1.5rem; }
+
 #chat-log {
-  border: 1px solid var(--border-color, #e6e6e6);
-  border-radius: 6px; padding: 0; min-height: 120px; max-height: 60vh;
+  border: 1px solid rgba(128,128,128,.35);
+  border-radius: 6px; padding: 0; min-height: 130px; max-height: 60vh;
   overflow-y: auto; margin-bottom: .75rem;
 }
-#chat-log:empty { display: none; }
-.msg { padding: .85rem 1rem; border-bottom: 1px solid var(--border-color, #eee); }
+/* Keep the panel visible when there is nothing in it -- hiding it entirely
+   made the page look like it had no chat window at all. */
+#chat-log:empty::before {
+  content: "Answers will appear here. Ask a question below to start.";
+  display: block; padding: 1.6rem 1rem; font-size: .9rem; opacity: .55;
+}
+
+.msg { padding: .85rem 1rem; border-bottom: 1px solid rgba(128,128,128,.25); }
 .msg:last-child { border-bottom: 0; }
 .msg .who { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
-  opacity: .6; margin-bottom: .3rem; }
-.msg.user { background: var(--sidebar-color, #f5f6fa); }
+  opacity: .55; margin-bottom: .35rem; }
+.msg.user { background: rgba(128,128,128,.09); }
 .msg .body p { margin: 0 0 .6rem; }
 .msg .body p:last-child { margin-bottom: 0; }
 .msg .body pre { margin: .5rem 0; padding: .7rem .85rem; overflow-x: auto;
-  background: var(--code-background-color, #f5f6fa); border-radius: 4px;
-  border: 1px solid var(--border-color, #e6e6e6); }
+  background: rgba(128,128,128,.13); border-radius: 4px;
+  border: 1px solid rgba(128,128,128,.28); }
 .msg .body code { font-size: .85em; }
 .msg .body pre code { background: none; padding: 0; }
+
 #chat-form textarea { width: 100%; box-sizing: border-box; font-family: inherit;
-  font-size: .95rem; padding: .6rem; border-radius: 6px;
-  border: 1px solid var(--border-color, #ccc); resize: vertical; }
+  font-size: .95rem; padding: .6rem; border-radius: 6px; color: inherit;
+  background: rgba(128,128,128,.07);
+  border: 1px solid rgba(128,128,128,.35); resize: vertical; }
+
 .chat-row { display: flex; align-items: center; gap: .6rem; margin-top: .5rem; flex-wrap: wrap; }
+
 #chat-form button { padding: .45rem 1.1rem; border-radius: 6px; cursor: pointer;
-  border: 1px solid var(--border-color, #ccc); background: var(--sidebar-color, #f5f6fa);
-  font-size: .9rem; }
-#chat-send { background: #2b6cb0; color: #fff; border-color: #2b6cb0; font-weight: 600; }
+  border: 1px solid rgba(128,128,128,.4); background: rgba(128,128,128,.12);
+  color: inherit; font-size: .9rem; }
+/* Must out-specify `#chat-form button` above (0,1,0,1). Written as plain
+   `#chat-send` (0,1,0,0) it LOST, so the primary button kept the grey
+   background but still took color:#fff -- white text on near-white. */
+#chat-form button#chat-send {
+  background: #2b6cb0; color: #fff; border-color: #2b6cb0; font-weight: 600;
+}
+#chat-form button#chat-send:hover { background: #245a94; }
 #chat-form button[disabled] { opacity: .5; cursor: not-allowed; }
+
 #chat-hint { font-size: .78rem; opacity: .6; }
-#chat-status { font-size: .85rem; min-height: 1.2em; margin-bottom: .5rem; opacity: .75; }
-#chat-status.error { color: #c53030; opacity: 1; }
+#chat-status { font-size: .85rem; min-height: 1.2em; margin-bottom: .5rem; opacity: .8; }
+#chat-status.error { color: #e05252; opacity: 1; }
 .cursor::after { content: "\258B"; opacity: .5; }
 #turnstile-holder { margin-top: .75rem; }
+#turnstile-holder:empty { margin-top: 0; }
 </style>
 
 <script>
 (function () {
-  // ---- configuration -------------------------------------------------
-  // Both values are public by design: the site key is meant to be readable in
-  // page source, and the Worker URL is the endpoint the page calls. The Turnstile
-  // *secret* and the provider key live in Worker secrets, never here.
+  /* ---- configuration ------------------------------------------------- */
+  /* Both values are public by design: the site key is meant to be readable in */
+  /* page source, and the Worker URL is the endpoint the page calls. The Turnstile */
+  /* *secret* and the provider key live in Worker secrets, never here. */
   var WORKER_URL       = "https://mercs2-wiki-assistant.loganw423.workers.dev";
   var TURNSTILE_SITEKEY = "0x4AAAAAAD6JJPjdx7gnHwnf";
 
@@ -89,8 +113,8 @@ general knowledge about Lua.
   var resetBtn= document.getElementById("chat-reset");
   var status  = document.getElementById("chat-status");
 
-  var history = [];      // [{role, content}] -- sent to the Worker each turn
-  var session = null;    // signed token from POST /session
+  var history = [];  /* [{role, content}] -- sent to the Worker each turn */
+  var session = null;  /* signed token from POST /session */
   var busy = false;
   var widgetId = null;
 
@@ -105,9 +129,9 @@ general knowledge about Lua.
     sendBtn.textContent = b ? "Thinking…" : "Ask";
   }
 
-  // ---- rendering -----------------------------------------------------
-  // Model output is untrusted text. Everything is escaped before it ever
-  // touches innerHTML; the only markup we then re-introduce is our own.
+  /* ---- rendering ----------------------------------------------------- */
+  /* Model output is untrusted text. Everything is escaped before it ever */
+  /* touches innerHTML; the only markup we then re-introduce is our own. */
   function escapeHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
@@ -117,7 +141,7 @@ general knowledge about Lua.
     var parts = text.split("```");
     for (var i = 0; i < parts.length; i++) {
       if (i % 2 === 1) {
-        // fenced block: drop an optional language tag on the first line
+        /* fenced block: drop an optional language tag on the first line */
         var block = parts[i].replace(/^[a-zA-Z0-9_-]*\n/, "");
         out += "<pre><code>" + escapeHtml(block) + "</code></pre>";
       } else {
@@ -148,7 +172,7 @@ general knowledge about Lua.
     return body;
   }
 
-  // ---- turnstile / session -------------------------------------------
+  /* ---- turnstile / session ------------------------------------------- */
   function getTurnstileToken() {
     return new Promise(function (resolve, reject) {
       if (typeof turnstile === "undefined") {
@@ -181,7 +205,7 @@ general knowledge about Lua.
     return session.token;
   }
 
-  // ---- send ----------------------------------------------------------
+  /* ---- send ---------------------------------------------------------- */
   async function send(question) {
     setBusy(true);
     addMessage("user", "You").textContent = question;
@@ -201,11 +225,11 @@ general knowledge about Lua.
 
       if (!res.ok) {
         var err = await res.json().catch(function () { return {}; });
-        if (res.status === 401) session = null;   // expired -> re-verify next time
+        if (res.status === 401) session = null;  /* expired -> re-verify next time */
         throw new Error(err.message || "Request failed (" + res.status + ").");
       }
 
-      // Server-sent events: frames are "data: {json}\n\n", terminated by [DONE].
+      /* Server-sent events: frames are "data: {json}\n\n", terminated by [DONE]. */
       var reader = res.body.getReader();
       var decoder = new TextDecoder();
       var buffer = "";
@@ -240,7 +264,7 @@ general knowledge about Lua.
     } catch (e) {
       body.textContent = "";
       body.parentNode.remove();
-      history.pop();                       // don't poison the next turn
+      history.pop();  /* don't poison the next turn */
       setStatus(e.message || String(e), true);
     } finally {
       body.classList.remove("cursor");

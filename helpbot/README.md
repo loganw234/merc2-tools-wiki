@@ -116,6 +116,25 @@ the site key is public, the secret is not).
    DeepSeek is prepaid, so keeping a small balance *is* a hard cap — use that deliberately
    rather than topping it up to a large number.
 
+## Editing assistant.md — the theme minifies the page
+
+**Never use `//` comments in the chat page's `<script>` block. Use `/* */`.**
+
+The remote just-the-docs layout collapses the served HTML onto a single line
+(the live page is ~90 KB across 2 lines). Once newlines are gone, the first `//`
+comment comments out the entire remainder of the script — so the page renders
+perfectly and silently does nothing. There is no console error and no visual clue;
+the only symptom is that clicking Ask has no effect.
+
+The same applies to anything else that depends on newlines: no `//` comments, and
+don't rely on automatic semicolon insertion. CSS is unaffected (it ignores
+newlines), and `/* */` comments survive in both.
+
+`.github/workflows/helpbot-pack.yml` guards this: it extracts the script from
+`assistant.md`, strips newlines the way the theme does, and runs `node --check`
+on the result. That is the form the browser actually receives, so it is the form
+worth testing.
+
 ## Abuse controls
 
 | Control | Where | Notes |
