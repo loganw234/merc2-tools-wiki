@@ -1558,6 +1558,8 @@ say that the wiki page is not yet verified.
 For anything beyond a signature, name the module and tell the user to open
 its page at https://wiki.mercs2.tools/resident/<module-in-lowercase>
 
+Init: Init(), OnActivate(uGuid, args), OnDeactivate(uGuid, args)
+Multi: Multi(tObjects), Scatter(sObject, nNumber, nOffset, nTime, nDistance, nHeight)
 Airplane: OnActivate(uGuid, uRuntimeOwner, iArg)
 AirstrikeAtomsphereBombrun: OnActivate(guid), _GraphicsAto(guid)
 AirstrikeAtomsphereCarpetbomb: OnActivate(guid), _GraphicsAto(guid)
@@ -1598,7 +1600,6 @@ Hero: Init(), Deinit(), OnActivate(uGuid), Activate(uGuid), OnDeath(uGuid), OnDe
 HijackContractManager: SetActiveContract(oContract), CompleteActiveContract(), CancelActiveContract()
 HomingMissile: OnActivate(uGuid, uRuntimeOwner, iArg), SetBlipped(oSelf), ClearBlipped(oSelf), _HomingLaunched(oWidget, tData)
 Inheritable: OnActivate(uGuid, uRuntimeOwner, iArg), Awake(uGuid, iArg), Create(oPrototype, uGuid, iArg), OnDeactivate(uGuid), OnDeath(uGuid), Delete(oSelf), GetFromGuid(uGuid)
-Init: Init(), OnActivate(uGuid, args), OnDeactivate(uGuid, args)
 IslandFortress: Init(), Deinit(), OnDeactivate(uGuid, args), OnStateChange(uGuid, uiNodeHashName, uiStateHashName), KillNode(uGuid, sNodeName), KillNodeSet(uGuid, tTable)
 Jammer: OnActivate(uGuid, iArg), OnDeactivate(uGuid)` — defined twice, second wins, SetupActivationEvents(uGuid), OnUse(uGuid), AlarmActivated(uGuid), SetupDeactivationEvents(uGuid), AlarmDeactivated(uGuid), OnDeath(uGuid)
 Laptop: OnActivate(uGuid, uRuntimeOwner, nStock), Awake(uGuid, nStock), Delete(oSelf), OnDeath(uGuid), PickupMunitions(oInstance)
@@ -1760,7 +1761,6 @@ MrxUtil: CallWithOptionalArgs(fFunction, tArgs), SetDefault(vVar, vDefaultValue)
 MrxUtilShell: CallWithOptionalArgs(fFunction, tArgs), ProcessCallbackTable(tCallbacks, tAdditionalArgs)
 MrxVerifyManager: LoadSingleton(tSaveData), SaveSingleton(), Activated(), AddTarget(sTargetName, sStatus), UpdateTarget(sTargetName, sStatus), _CheckJusticeAchievement(), CheckTechnoVikingAchievement(), _FindFactionFromName(sName), BuildGuidList(), FindTargetFromGuid(uGuid), AddCallback(sTargetName, fCallback, tArgs), UpdateStats(), GetStatus(sTargetName), GetKilled(), GetCaptured(), CountCompleted(tTargets), GetCompletedTotal(), Per-faction total/completed getters, GetTotal(), SetKilledIfNotSet(sTargetName), SetSolanoVerified()
 MrxVoSequence: Start(vSequence, bCinematic, nPriority, bSendNetEvent), _ExecuteStage(nStage), Stop(bFadeSound, bIssueDanglingCallbacks, nPriorityFilter), Cleanup(bFadeSound), Reset(), _CallSequenceCallbacks(tFormattedSequence), IsSequenceInProgress()
-Multi: Multi(tObjects), Scatter(sObject, nNumber, nOffset, nTime, nDistance, nHeight)
 Munitions: OnActivate(uGuid, uRuntimeOwner, nStock), Awake(uGuid, nStock), OnDeactivate(uGuid), HideTutorialMessage(uGuid), SetAllowBlippedVO(bAllow), PlayBlippedVO(nStock), Near(self), Far(self), AddContextAction(self), CanActionTarget(uGuid, uHero, nStock), Actioned(self, uHero), ActionTarget(uGuid), HumanControlled(self, uCharacter), Delete(self), OnDeath(uGuid), IsCash(nStock), IsFuel(nStock), IsSupport(nStock), SetMunitionsTaggable(bTaggable), AreMunitionsTaggable(), RefreshMunitions(), SaveSingleton(), LoadSingleton(tSaveData), PickupAllMunitions(), PickupMunitions(uGuid), GetTaggedMunition(), IsMunitionTagged(uMunition), ClientTagAndBlip(uGuid), GetMunitionsCount(), NetEventCallback(nType, tArgs), OnPlayerJoined()
 Oilrig: Init(), Deinit(), OnDeactivate(uGuid, args), OnStateChange(uiGuid, uiNodeHashName, uiStateHashName), _CleanupOilrigEvents(uiGuid), _FinishDestruction(uiGuid), _DestroyBuildingA(uOilrig), _DestroyBuildingB(uOilrig), _DestroyBuildingC(uOilrig), _DestroyBuildingD(uOilrig), _DestroyOilrigSequence(uOilrig, uNodeHashName), _ProcessNextEvent(uiGuid, tEventTable, iIndex), _DestroyLinkedGuid(uParent, sLinkName)
 OpenTankHatch: OnActivate(guid, args)

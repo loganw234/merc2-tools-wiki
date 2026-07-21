@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Build the wiki assistant's context pack.
 
 Reads the wiki content in this repo and emits a single byte-stable text file that
@@ -85,6 +85,21 @@ def truncate(s: str, limit: int) -> str:
     return cut + "..."
 
 
+def md_pages(folder: str) -> list[Path]:
+    """Every .md in a wiki folder, in a platform-independent order.
+
+    Do NOT use `sorted(dir.glob("*.md"))`. Sorting Path objects compares
+    case-INsensitively on Windows and case-SENSITIVELY on Linux, so
+    resident/Init.md and resident/Multi.md (the only capitalised pages in the
+    corpus) land in different positions on a dev machine than in CI. That
+    yields a byte-different pack, which breaks `--check` and -- far worse --
+    silently breaks the provider's prefix cache, since the cache only hits on
+    an exact match. Sorting by the plain filename string is identical on every
+    platform because Python compares strings by code point.
+    """
+    return sorted((WIKI / folder).glob("*.md"), key=lambda p: p.name)
+
+
 def section_body(body: str, heading: str) -> str:
     """Slice out one '## Heading' section, up to the next same-level heading."""
     pat = re.compile(r"^##\s+" + re.escape(heading) + r"\s*$", re.MULTILINE)
@@ -139,7 +154,7 @@ def _signature_pages(folder: str, note_limit: int, skip: set[str] | None = None)
     | `Fn` | `signature` | notes |. Used for wiki/namespaces and wiki/ess."""
     skip = skip or {"index.md"}
     out: list[str] = []
-    for path in sorted((WIKI / folder).glob("*.md")):
+    for path in md_pages(folder):
         if path.name in skip:
             continue
         fm, body = read_page(path)
@@ -194,7 +209,7 @@ def build_ess() -> str:
         "    Ess.Raw.*   (primitives, for composing what Ess did not anticipate)\n"
     )
     out: list[str] = []
-    for path in sorted((WIKI / "ess").glob("*.md")):
+    for path in md_pages("ess"):
         fm, body = read_page(path)
         title = fm.get("title", path.stem)
         lines = [f"### {title}"]
@@ -232,7 +247,7 @@ def build_resident() -> str:
         "its page at https://wiki.mercs2.tools/resident/<module-in-lowercase>\n"
     )
     out: list[str] = []
-    for path in sorted((WIKI / "resident").glob("*.md")):
+    for path in md_pages("resident"):
         if path.name == "index.md":
             continue
         fm, body = read_page(path)
@@ -258,7 +273,7 @@ def _verbatim_pages(folder: str, char_cap: int) -> str:
     """Small high-traffic folders: keep near-verbatim, just de-linked and
     whitespace-collapsed."""
     out: list[str] = []
-    for path in sorted((WIKI / folder).glob("*.md")):
+    for path in md_pages(folder):
         fm, body = read_page(path)
         title = fm.get("title", path.stem)
         text = MD_LINK_RE.sub(r"\1", body)
@@ -290,7 +305,7 @@ def build_spawn() -> str:
         "predictable from the in-game display name.\n"
     )
     out: list[str] = []
-    for path in sorted((WIKI / "spawn-reference").glob("*.md")):
+    for path in md_pages("spawn-reference"):
         if path.name == "index.md":
             continue
         fm, body = read_page(path)
