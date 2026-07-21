@@ -71,7 +71,7 @@ Starts a contract, by id (looked up in the registry) or by passing a definition 
   contracts. `Net.IsClient()` can read `true` in single-player too, which would silently no-op every
   accept if gated on that alone; gating on `IsMultiplayer` as well avoids that.
 - Any already-active contract is aborted first (`C.Abort()`), and `C.finished` is cleared so
-  [`Contract.Status()`](#contract-status) reflects the new contract, not the previous one's result.
+  [`Contract.Status()`](#contractstatus) reflects the new contract, not the previous one's result.
 - If `def.fResolve` is set, it runs now, before anything else.
 - If `def.start` is set, `MrxUtil.TeleportHeroesToLocations` moves the player(s) there, and the rest of
   acceptance runs in that call's completion callback — so objectives never start spawning underneath a

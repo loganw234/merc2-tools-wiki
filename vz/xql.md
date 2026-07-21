@@ -71,7 +71,7 @@ boot-state fields, no `tInstance[]`, no per-`uGuid` object pattern. Key fields, 
 
 Also holds the two literal boot-time layer manifests as module-level data:
 `_tStaticLayers` (170 entries) and `_tDefaultDynamicLayers` (246 entries) — see
-[`MrxLayerManager`'s boot-time layer manifest section](../resident/mrxlayermanager#boot-time-layer-manifest-vz-xq-l-lua)
+[`MrxLayerManager`'s boot-time layer manifest section](../resident/mrxlayermanager#boot-time-layer-manifest-vzxqllua)
 for the full lists and what they mean; this page focuses on how and when they get loaded.
 
 ## Functions

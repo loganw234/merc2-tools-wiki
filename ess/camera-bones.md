@@ -135,7 +135,7 @@ stop()   -- or Ess.Camera.panicRevert() as the fire-blind escape hatch
 ```
 
 **Follow-damping (0.2.1):** the two per-tick moving-camera modes — `orbit` and `watch(opts.chase = true)` —
-ease toward their ideal position each tick via [Ess.Vec](core#ess-vec)'s `lerp`, rather than snapping
+ease toward their ideal position each tick via [Ess.Vec](core#essvec)'s `lerp`, rather than snapping
 straight to it, by default. This low-passes the per-tick position quantization that made following a fast
 subject (a heli at speed, a hard-launched car) jitter — **confirmed live** against both of those cases.
 `opts.smooth` defaults to `true`; pass `false` for the old exact-snap behavior. `opts.smoothFactor` (0..1,
@@ -179,7 +179,7 @@ is nil-safe: calling it with a `nil` `uFx` is a no-op, not an error, so cleanup 
 guard around it.
 
 **`waitForReady(uGuid, cb, maxTries)`** exists for the deep dive's confirmed
-[fresh-spawn gotcha](../deep-dives/bone-manipulation#gotcha-a-freshly-spawned-model-isn-t-ready-for-0-3-s):
+[fresh-spawn gotcha](../deep-dives/bone-manipulation#gotcha-a-freshly-spawned-model-isnt-ready-for-03-s):
 a just-`Pg.Spawn`'d model's hardpoints read `nil` for a beat because its skeleton hasn't initialized yet.
 Rather than a fixed `Event.Create(Event.TimerRelative, {0.3}, ...)` delay, this polls `Object.GetPosition`
 every 0.1 s via `Ess.Loop` and calls `cb(uGuid)` as soon as it resolves — `maxTries` defaults to 6 (~0.6 s,
@@ -190,7 +190,7 @@ vehicle have entirely different bone names) — if you already have one exact bo
 `Object.GetHardpointPosition` on that name directly is a strictly stronger check; do that inline instead.
 
 **`aimVector(uGuid, hpBase, hpTip)`** is the deep dive's
-["Bonus: you can now read a turret's real aim direction"](../deep-dives/bone-manipulation#bonus-you-can-now-read-a-turret-s-real-aim-direction)
+["Bonus: you can now read a turret's real aim direction"](../deep-dives/bone-manipulation#bonus-you-can-now-read-a-turrets-real-aim-direction)
 recipe, generalized: the vector between two hardpoints on the same object is the aim/facing axis of
 whatever they mount. Confirmed live on the Allied Destroyer's cannon with `hpBase = "hp_seat_cannon"`
 (breech) and `hpTip = "hp_barreltip_cannon"` (muzzle) — genuinely new capability the original destroyer

@@ -83,7 +83,7 @@ Treat those as real leads worth live-testing, not documentation gaps to be paper
 | [Camera](camera) | 14 | Per-player camera control (orientation, positioning, blending, shake) — distinct from `Graphics.Camera`, see that page's naming-collision note. |
 | [Graphics](graphics) | 21 (mostly nested) | Rendering/visual tuning — atmosphere/weather, bloom, contrast, fuel-trail particles, and `Graphics.Camera` (near/far/FOV/LOD, not the same as `Camera`). |
 | [Junk](junk) | 24 | A dev/debug-tools grab-bag with a few genuinely gameplay-relevant functions (alarms, homing projectiles) mixed in. |
-| [Marker](marker) | 13 | Minimap/radar blips and world markers — `AddBlip` is already live-tested in [Snippets](../snippets#put-a-marker-blip-on-an-object). |
+| [Marker](marker) | 13 | Minimap/radar blips and world markers — `AddBlip` is already live-tested in [Snippets](../snippets#put-a-markerblip-on-an-object). |
 
 Two more namespaces below are **not** from a live `pairs()` dump — call-site evidence only, so treat their
 function counts as "at least this many," not complete:

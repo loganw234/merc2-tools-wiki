@@ -85,7 +85,7 @@ would use. Numbers can lose precision you wouldn't expect from "normal" Lua — 
 **`Loader.Printf`**
 : lua-bridge's own debug-print function, writing to its dedicated `lua_loader_printf.log` instead of the
 base game's noisy shared log. Use this, not the engine's `Debug.Printf`, for your own debug output — see
-[Getting Started](getting-started#loader-printf-debug-output-that-doesn-t-get-lost).
+[Getting Started](getting-started#loaderprintf--debug-output-that-doesnt-get-lost).
 
 **`MrxPmc`**
 : A **resident module** (`resident/mrxpmc.lua`), not an engine namespace — despite reading like one.

@@ -665,7 +665,7 @@ A few things worth knowing if you customize this:
 A pure "why not" script, built entirely on two things already documented elsewhere on this wiki:
 [`Airstrike.SpawnOrdnance`](namespaces/airstrike) (the same native every AI bomb/missile/gunship in this
 game calls to actually fire something) aimed at the sky instead of a target, and
-[`Hud.ClassyText:ShowText`](resident/mrxguiinterface#hud-classytext-showtext-targs) for the announcement
+[`Hud.ClassyText:ShowText`](resident/mrxguiinterface#hudclassytextshowtexttargs) for the announcement
 banner — the first live use of that particular function anywhere, since no shipped mission ever calls it.
 
 ```lua

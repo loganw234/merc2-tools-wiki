@@ -79,8 +79,8 @@ printable STL, a raw tensor data drop, and a terrain "almanac" summary.
 
 **Connect to game** opens a WebSocket to `ws://127.0.0.1:27050` — see
 [WebSocket Transport](../lua-bridge-api/websocket) for the wire protocol — and, on open, sends **one** setup
-Lua chunk that starts an in-game [`Ess.Loop`](../ess/timing-input#ess-loop) ticking every 0.1s. Each tick
-reads [`Ess.Player.pose(0)`](../ess/identity-query#ess-player) and pushes `x,y,z` out over the hidden
+Lua chunk that starts an in-game [`Ess.Loop`](../ess/timing-input#essloop) ticking every 0.1s. Each tick
+reads [`Ess.Player.pose(0)`](../ess/identity-query#essplayer) and pushes `x,y,z` out over the hidden
 `Loader.WsSend` channel, tagged for pose updates. This is deliberately **not** per-frame polling from the
 browser side — the old version called `run()` on a timer, which meant recompiling the whole wrapped chunk
 in the game every tick; the current version compiles once and lets the game push. A green dot tracks the
@@ -190,7 +190,7 @@ end-to-end through this page's own UI.**
   pose-streaming loop.
 - [WebSocket Transport](../lua-bridge-api/websocket) — the wire protocol the live overlay and the teleport
   actions both ride on.
-- [Ess.Loop](../ess/timing-input#ess-loop) — the heartbeat the in-game setup chunk starts to stream pose
+- [Ess.Loop](../ess/timing-input#essloop) — the heartbeat the in-game setup chunk starts to stream pose
   updates.
-- [Ess.Player](../ess/identity-query#ess-player) — `pose(0)` (streamed every tick) and `teleport(x,y,z,yaw)`
+- [Ess.Player](../ess/identity-query#essplayer) — `pose(0)` (streamed every tick) and `teleport(x,y,z,yaw)`
   (called by the Teleport-here button).

@@ -171,7 +171,7 @@ if Ess.Time and Ess.Time.restoreScale then Ess.Time.restoreScale() end
 return "stopped " .. n .. " loop(s), time scale restored"
 ```
 
-— iterating [`Ess.Loop`](../ess/timing-input#ess-loop)'s internal registry to stop every registered loop and
+— iterating [`Ess.Loop`](../ess/timing-input#essloop)'s internal registry to stop every registered loop and
 restore the time scale, for the "my script went wild" moment.
 
 ## Interactive first-script tutorial
@@ -235,7 +235,7 @@ of a real WebSocket round trip to a running game. `ROADMAP.md` itself treats "sm
   running arbitrary code.
 - [WebSocket Transport](../lua-bridge-api/websocket) — the wire protocol both tools' `Loader.WsSend`-based
   round trip rides on.
-- [Ess.Loop](../ess/timing-input#ess-loop) — the loop registry the Stop-loops button iterates.
-- [Ess.Player](../ess/identity-query#ess-player) — `pose(0)`, the same call Live Map streams every tick.
+- [Ess.Loop](../ess/timing-input#essloop) — the loop registry the Stop-loops button iterates.
+- [Ess.Player](../ess/identity-query#essplayer) — `pose(0)`, the same call Live Map streams every tick.
 - [Engine Namespaces](../namespaces/) — this wiki's own documentation of the native surface the IDE's
   second autocomplete layer scrapes.

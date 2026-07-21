@@ -22,7 +22,7 @@ log, a [`UI.Bar`](panel-bar-toast), [`UI.Toast`](panel-bar-toast)s, and both
 
 - **A drill-down built directly on `UI.List`**, without `UI.Menu`'s tree/builder abstraction — three plain
   item arrays (`ROOT`, `SUB`, `BIG`) and a `goto_menu(items, crumb)` helper that just re-points the same
-  list at whichever array is current. See [UI.List's own recipe](list#recipe-driving-a-drill-down-menu-directly-without-ui-menu)
+  list at whichever array is current. See [UI.List's own recipe](list#recipe-driving-a-drill-down-menu-directly-without-uimenu)
   for the extracted pattern.
 - **A 30-row scrolling stress test** ("Scrolling stress test", with a header inserted mid-list at row 11) —
   the easiest way to see the scrollbar thumb, the header-skipping cursor, and the eased body-resize
