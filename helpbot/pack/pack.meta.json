@@ -1,7 +1,7 @@
 {
-  "sha256": "2754b3aa9d02d8923d003ad91ce8c37c4113224dc59c27ba7638d27168beee0d",
-  "chars": 786735,
-  "est_tokens": 196683,
+  "sha256": "dce4efa89b2941ed2f6ef9688da03cb47b02640e5d26e2e75ad545cd7c8b5ba1",
+  "chars": 809194,
+  "est_tokens": 202298,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -32,10 +32,10 @@
     {
       "id": "ess",
       "title": "ESSENTIALS (Ess) FRAMEWORK",
-      "chars": 78513,
-      "est_tokens": 19628,
+      "chars": 100972,
+      "est_tokens": 25243,
       "budget": 24000,
-      "over_budget": false
+      "over_budget": true
     },
     {
       "id": "resident",

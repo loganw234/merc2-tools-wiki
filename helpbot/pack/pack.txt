@@ -1147,17 +1147,80 @@ Three tiers, reach for the highest that fits:
   `Ess.Bones.probeNames(uGuid, prefixes, suffixes) -> hits, nTried`  -- Sweep prefix × suffix candidate names.
   `Ess.Points.bucket(spawnList) -> { inf = {...}, veh = {...}, heli = {...} }`  -- Splits a point list into infantry/vehicle/heli tiers by radius.
   `Ess.Points.ideal(pts, refX, refZ, opts) -> { p, ... }`  -- Nearest-first, distance-windowed point selection around a reference. `opts = {minDist=18, maxDist=80, maxCount=24}`.
+  Ess.Bones.waitForReady(car, function(u)
+  Ess.Bones.detachFX(me, plume)
+  fov -- `Camera`
+  fade -- `Graphics.Effect` (`CameraFade`)
+  lookAtAnchor -- `Ess.Camera.lookAtAnchor(x, y, z, i) -> uAnchor \
+  staleAxisDecay -- `Ess.Camera.staleAxisDecay(axes, timeoutMs) -> tracker`
+  followHardpoint -- `Ess.Camera.followHardpoint(uGuid, hp, i, interval) -> stop()`
+  shake -- `Ess.Camera.shake(i, sPreset, uSource, nAmplitude, nDuration)`
+  stopShake -- `Ess.Camera.stopShake(i, uSource)`
+  restoreFov -- `Ess.Camera.restoreFov(i, nDuration)`
+  beginCinematic -- `Ess.Camera.beginCinematic(i, nBlend) -> ok`
+  placeCamera -- `Ess.Camera.placeCamera(x, y, z, i)`
+  blend -- `Ess.Camera.blend(i, nDur)`
+  lookAtObject -- `Ess.Camera.lookAtObject(uGuid, sBone, i)`
+  lookAtPoint -- `Ess.Camera.lookAtPoint(x, y, z, i)`
+  hold -- `Ess.Camera.hold(i)`
+  endCinematic -- `Ess.Camera.endCinematic(i)`
+  panicRevert -- `Ess.Camera.panicRevert()`
+  attachFX -- `Ess.Bones.attachFX(uGuid, bone, template) -> uFx \
+  detachFX -- `Ess.Bones.detachFX(uGuid, uFx) -> ok`
+  waitForReady -- `Ess.Bones.waitForReady(uGuid, cb, maxTries)`
+  aimVector -- `Ess.Bones.aimVector(uGuid, hpBase, hpTip) -> dx, dy, dz \
+  probeNames -- `Ess.Bones.probeNames(uGuid, prefixes, suffixes) -> hits, nTried`
+  bucket -- `Ess.Points.bucket(spawnList) -> { inf = {...}, veh = {...}, heli = {...} }`
+  ideal -- `Ess.Points.ideal(pts, refX, refZ, opts) -> { p, ... }`
 
 ### Cinematic
 `Ess.Cinematic` is a declarative **cutscene timeline** runtime: hand it an ordered list of steps — camera cuts/dollies/orbits/chases, waits, spawns, actor facing, AI orders, helicopter fly-ins, narration (banner / subtitle / hint / VO), fades, shakes, music/sound cues, teleports, faction relations — and it plays them in order, pacing each with a per-step `hold` duration. It is an **orchestrator, not new engine spelunking** — every step handler is built entirely on primitives documented elsewhere on this wiki that are already confirmed live: `Ess.Camera`'s cinematic take-over (`beginCinematic`/`placeCamera`/`lookAtObject`-auto-track/`fade`), `Ess.Object.spawn`, `Ess.AIOrders.command` (see Encounter Toolkit), `Ess.Vehicle.flyTo`, `Ess.Hud`, `Ess.Sound`/VO, and `Ess.Player.teleport`. See Camera, Bones & Spatial for the camera primitives `Cinematic` drives underneath every...
   `0x1B` (ESC)  -- The virtual-key code polled via `Ess.Input.poll()` each tick to trigger a skip.
   {% raw %}`pairs={{a,b,set}, ...}`{% endraw %}  -- Sets a faction stance for the scene via `Ess.Relations.apply`. Not auto-restored — a mission's relations are meant to persist past its intro; use `Ess.Relations` directly (holding the handle) if you need this...
   `fn=function(ctx, seq) ... end`  -- Arbitrary code — the escape hatch for anything not covered above (also the web tool's own "custom" step type).
+  Ess.Cinematic.play(steps, opts) -> seq | nil
+  Ess.Cinematic.define(id, steps, opts) -- register a reusable cutscene under a name
+  Ess.Cinematic.playNamed(id, extraOpts) -> seq | nil
+  Ess.Cinematic.isPlaying() -> bool
+  Ess.Cinematic.active() -> seq | nil
+  opts. -- Default
+  camera -- `true`
+  blend -- `0`
+  skippable -- `true`
+  skipKey -- `0x1B` (ESC)
+  startFade -- `false`
+  i -- `0`
+  onDone -- —
+  type -- Params
+  wait -- `time=` / `seconds=`
+  orbit -- `target=`, `radius=`, `height=`, `speed=`, `startAngle=`, `look=`, `bone=`
+  chase -- `target=`, `angle=`, `dist=`, `height=`, `look=`, `bone=`
+  face -- `who=`/`target=`, `at={x,y,z}` or `toward=`
+  spawn -- `template=`, `at={x,y,z}`, `yaw=`, `name=`, `group=`, `ephemeral=`, `invincible=`
+  order -- `group=`/`target=`, `behavior=`, `at=`, `points=`, `radius=`, `speed=`, `loop=`, `attackTarget=`
+  fly -- `target=`, `at={x,y,z}`, `height=`
+  say -- `text=`/`msg=`
+  subtitle -- `text=`/`msg=`, `hold=`
+  hint -- `text=`/`msg=`, `id=`
+  vo -- `lines=`/`text=`, `gap=`
+  music -- `cue=` or `stop=true`
+  sound -- `cue=`, `on=`
+  fade -- `to=0\
+  shake -- `preset=`, `amplitude=`, `duration=`
+  teleport -- `at={x,y,z}`, `yaw=`
+  relations -- {% raw %}`pairs={{a,b,set}, ...}`{% endraw %}
+  func -- `fn=function(ctx, seq) ... end`
 
 ### Contract Engine
 `Ess.Contract` (`80_contract.lua` + `81_contract_objectives.lua` + `82_contract_encounter.lua`) is the native port of the standalone Contract Framework — a save-safe, **ephemeral** custom-mission engine. The source header states the modder API is "unchanged from ContractFramework.lua, just under `Ess.Contract` now": the same `Register`/`Accept`/`Abort`/`Status` lifecycle, the same 16 objective builders, the same `def.support`/`def.triggers`/`def.relations`/`def.units`/`def.waypoints` vocabulary. See Contract Framework and its children — in particular Contract.Register & Lifecycle and Objectives Reference — for the deep-dive on all of that; this page focuses on what's the same at a glance, and calls out what's genuinely new or restructured under `Ess`. **Why it's save-safe** (unchanged from the original): the native contract system corrupts saves because it registers into...
   `true` or `{ providers = {"layers", ...}, opts = {} }`. Wraps the whole contract in an `Ess.Sandbox` for its duration: saves are gated and a layer snapshot/restore runs automatically, begun at `Accept` (before the intro) and finished in `_finish` (complete/fail/abort). Use it for a mission that destroys a major, persistent set piece — the destruction lives only in memory and never serializes. `true` defaults to the `"layers"` provider alone.
   Inline `Ess.Cinematic` steps, `{ steps=, opts= }`, or a named-id string (`Ess.Cinematic.define`'d). Plays after heroes are placed (`def.start`) and relations are applied, before objectives begin — the objective list waits for it to finish (or be ESC-skipped). Fully guarded: if the cinematic can't start, the mission begins directly instead of hanging with no objectives running. A mid-mission cutscene is a `support` entry instead (`effect = "cinematic"`), not this field.
+  Ess.Contract.Accept("my_contract")
+  Ess.Easy.Contract.destroy(sTitle, tSpawns, tOpts) -> sId
+  Ess.Easy.Contract.reach(sTitle, at, radius, tOpts) -> sId
+  def.sandbox -- `true` or `{ providers = {"layers", ...}, opts = {} }`. Wraps the whole contract in an `Ess.Sandbox` for its duration: saves are gated and a layer...
+  def.cinematic -- Inline `Ess.Cinematic` steps, `{ steps=, opts= }`, or a named-id string (`Ess.Cinematic.define`'d). Plays after heroes are placed (`def.start`) and...
+  Builder -- Type
 
 ### Core Primitives
 This page covers the bottom of the Ess stack: the pieces every other namespace is built out of, rather than the ones you'd reach for to move an object or spawn a vehicle. Seven source files: `00_core.lua` (`Ess.Log`, `Ess.Safe`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `22_state.lua` (`Ess.State`, `Ess.SaveVar`), and `53_rng.lua` (`Ess.RNG`). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework depends on it. `Ess.Str`, `Ess.Color`, and `Ess.Vec` are pure Lua — no engine calls, no dependencies on the rest of `Ess` — so unlike most of this framework they can be (and are) execute-verified offline, without the game running, via `tools/checkpure.py` (a lupa-embedded-Lua test harness that...
@@ -1234,6 +1297,85 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   `gen:pick(list, weightKey) -> element of list`  -- Weighted by each entry's `[weightKey]` field (default `"w"`), falling back to weight 1 for entries missing it. Collapses an accumulator-loop weighted-pick that `WaveDefense.lua` had written three separate times (same...
   `gen:shuffle(list) -> list`  -- In-place Fisher–Yates shuffle of the array part (mutates and returns the same list, for chaining) — the engine-safe way to randomize order, since a random-comparator `table.sort` is biased and can even error on some Lua...
   `gen:pickN(list, n) -> {...}`  -- `n` distinct random elements (sample without replacement), order randomized. `n >= #list` returns a shuffled copy of the whole list; `n <= 0` returns `{}`. Never mutates `list`.
+  Ess.Log(msg)
+  Ess.Table.compact(t) -> t
+  Ess.Object.setPos(u, Ess.Vec.toward(px, py, pz, tx, ty, tz, 5)) -- move it 5 units toward the target
+  Ess.Object.impulse(u, Ess.Vec.scale(dx, dy, dz, 8000))
+  Ess.State(name, defaults) -> persistent table
+  call -- `Ess.Safe.call(fn, ...) -> ok, a, b, c, d`
+  quiet -- `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d`
+  string -- `Ess.Safe.string(ok, val, fallback) -> s`
+  template -- `Ess.Safe.template(sTemplate) -> bool`
+  keys -- `Ess.Table.keys(t) -> { k, ... }`
+  values -- `Ess.Table.values(t) -> { v, ... }`
+  count -- `Ess.Table.count(t) -> n`
+  isEmpty -- `Ess.Table.isEmpty(t) -> bool`
+  contains -- `Ess.Table.contains(t, val) -> bool`
+  indexOf -- `Ess.Table.indexOf(t, val) -> i \
+  map -- `Ess.Table.map(t, fn) -> { ... }`
+  filter -- `Ess.Table.filter(t, fn) -> { ... }`
+  find -- `Ess.Table.find(t, fn) -> v, i \
+  reduce -- `Ess.Table.reduce(t, fn, init) -> acc`
+  slice -- `Ess.Table.slice(t, i, j) -> { ... }`
+  reverse -- `Ess.Table.reverse(t) -> { ... }`
+  copy -- `Ess.Table.copy(t) -> { ... }`
+  merge -- `Ess.Table.merge(dst, src) -> dst`
+  Ess.Guid -- `Ess.Guid(name) -> uGuid \
+  Ess.Name -- `Ess.Name(uGuid) -> sHash \
+  trim -- `Ess.Str.trim(s) -> s`
+  startsWith -- `Ess.Str.startsWith(s, prefix) -> bool`
+  endsWith -- `Ess.Str.endsWith(s, suffix) -> bool`
+  split -- `Ess.Str.split(s, sep) -> { piece, ... }`
+  join -- `Ess.Str.join(list, sep) -> s`
+  padLeft -- `Ess.Str.padLeft(s, width, ch) -> s`
+  padRight -- `Ess.Str.padRight(s, width, ch) -> s`
+  capitalize -- `Ess.Str.capitalize(s) -> s`
+  title -- `Ess.Str.title(s) -> s`
+  lines -- `Ess.Str.lines(s) -> { line, ... }`
+  truncate -- `Ess.Str.truncate(s, n [, ellipsis]) -> s`
+  hex -- `Ess.Color.hex(s) -> r, g, b \
+  hsv -- `Ess.Color.hsv(h, s, v) -> r, g, b`
+  lerp -- `Ess.Color.lerp(c1, c2, t) -> r, g, b`
+  of -- `Ess.Color.of(name) -> r, g, b \
+  length -- `Ess.Vec.length(x, y, z) -> n`
+  normalize -- `Ess.Vec.normalize(x, y, z) -> nx, ny, nz`
+  scale -- `Ess.Vec.scale(x, y, z, s) -> x, y, z`
+  add -- `Ess.Vec.add(x1, y1, z1, x2, y2, z2) -> x, y, z`
+  sub -- `Ess.Vec.sub(x1, y1, z1, x2, y2, z2) -> x, y, z`
+  dot -- `Ess.Vec.dot(x1, y1, z1, x2, y2, z2) -> n`
+  dir -- `Ess.Vec.dir(fromX, fromY, fromZ, toX, toY, toZ) -> nx, ny, nz`
+  toward -- `Ess.Vec.toward(fromX, fromY, fromZ, toX, toY, toZ, dist) -> x, y, z`
+  clamp -- `Ess.Math.clamp(v, lo, hi) -> n`
+  sign -- `Ess.Math.sign(v) -> -1\
+  round -- `Ess.Math.round(v [, decimals]) -> n`
+  approach -- `Ess.Math.approach(cur, target, maxStep) -> n`
+  dist2D -- `Ess.Math.dist2D(x1, z1, x2, z2) -> n`
+  dist3D -- `Ess.Math.dist3D(x1, y1, z1, x2, y2, z2) -> n`
+  angleTo -- `Ess.Math.angleTo(fromX, fromZ, toX, toZ) -> yawDegrees`
+  pointAhead -- `Ess.Math.pointAhead(x, z, yawDeg, dist) -> x2, z2`
+  normDeg -- `Ess.Math.normDeg(deg) -> n in [-180, 180)`
+  clamp01 -- `Ess.Math.clamp01(v) -> n`
+  remap -- `Ess.Math.remap(v, inLo, inHi, outLo, outHi) -> n`
+  smoothstep -- `Ess.Math.smoothstep(t) -> n`
+  lerpAngle -- `Ess.Math.lerpAngle(a, b, t) -> deg`
+  wrap -- `Ess.Math.wrap(v, lo, hi) -> n`
+  dist2DSq -- `Ess.Math.dist2DSq(x1, z1, x2, z2) -> n`
+  dist3DSq -- `Ess.Math.dist3DSq(x1, y1, z1, x2, y2, z2) -> n`
+  within2D -- `Ess.Math.within2D(x1, z1, x2, z2, r) -> bool`
+  within3D -- `Ess.Math.within3D(x1, y1, z1, x2, y2, z2, r) -> bool`
+  Method -- Signature
+  ns -- `Ess.SaveVar.ns(prefix) -> ns object`
+  :get -- `sv:get(key, default) -> v`
+  :set -- `sv:set(key, value)`
+  :flag -- `sv:flag(key) -> bool`
+  :setFlag -- `sv:setFlag(key, bOn)`
+  Ess.RNG.new -- `Ess.RNG.new(seed) -> generator`
+  :next -- `gen:next() -> n in [0, 1)`
+  :int -- `gen:int(n) -> integer in [1, n]`
+  :chance -- `gen:chance(p) -> bool`
+  :pick -- `gen:pick(list, weightKey) -> element of list`
+  :shuffle -- `gen:shuffle(list) -> list`
+  :pickN -- `gen:pickN(list, n) -> {...}`
 
 ### Debug & Dev Tools
 Two mod-author-facing tools from the same Unreleased batch, both pure composition of already-confirmed `Ess` pieces — no new engine calls introduced by either: a live on-screen dev overlay (`Ess.Easy.Debug`, from `src/97_easy_debug.lua`) and an interactive in-game function runner (`Ess.Easy.Console.play`, the new half of `src/96_console.lua`). Per the CHANGELOG's Unreleased banner, this whole batch is **not yet in-game smoke-run** — built from confirmed calls and, where pure, offline-verified; each section below states exactly how far that verification goes for that specific piece.
@@ -1247,6 +1389,21 @@ Two mod-author-facing tools from the same Unreleased batch, both pure compositio
   Reach objective ahead (~30u), Survive timer (10/20/30s), Mini mission (a 2-step `Ess.Quest`: reach then survive 15s)
   Toggle debug overlay — literally `Ess.Easy.Debug.overlay()`, the feature covered above
   Slow motion (0.2/0.35/0.5 for 3s), Camera shake, Speed boost, Dance, Victory fanfare
+  Ess.Easy.Debug.overlay(opts) -- opts (all optional):
+  Ess.Easy.Debug.hide() -- force it off
+  Ess.Easy.Debug.isOn() -> bool
+  Line -- Example
+  Position -- `pos: (120.4, 5.0, -88.2) yaw 45`
+  Aim -- `aim: Veyron VZ d=12.3` (or `aim: (nothing)`)
+  Nearby -- `near(40): 6 hum 2 veh`
+  Group -- Demos
+  Spawn -- Explosion (grenade/C4/MOAB/huge-fx cycle), Summon a vehicle (UH1 Transport/AH1Z (Full)/Veyron), Weapon pickup (RPG/Sniper Rifle/Minigun/Grenade...
+  World -- Clear wanted level, Remove map walls, Hellscape, Reset atmosphere — all no-param, one-shot
+  Player -- Grappling hook, All rewards, Give cash (10k/100k/1M), Change skin (`pmc_hum_fiona`/`vz_hum_solano`)
+  Support -- Airstrike my target, Artillery ahead (~35u out, 6 shells)
+  Goals -- Reach objective ahead (~30u), Survive timer (10/20/30s), Mini mission (a 2-step `Ess.Quest`: reach then survive 15s)
+  Dev -- Toggle debug overlay — literally `Ess.Easy.Debug.overlay()`, the feature covered above
+  Juice -- Slow motion (0.2/0.35/0.5 for 3s), Camera shake, Speed boost, Dance, Victory fanfare
 
 ### Ess.Easy
   Browse the full registry, grouped by namespace, in a list+detail board.
@@ -1318,6 +1475,9 @@ Two mod-author-facing tools from the same Unreleased batch, both pure compositio
   Toggles the panel on/off (call again to hide); returns the panel, or `nil` when toggled off. `opts` (all optional): `x`, `y` (screen position), `interval` (refresh seconds, default 0.2), `radius` (nearby-scan radius, default 40), `i` (player index).
   Forces it off.
   Returns whether it's currently on.
+  Ess.Easy.Spawn.enemies(4) -- 4 hostiles ahead, already ordered to attack you
+  Ess.Easy.Vehicle.summon("UH1 Transport")
+  Call -- Does
 
 ### Encounter Toolkit
 `Ess.AIOrders`, `Ess.Relations`, `Ess.Triggers`, `Ess.Sandbox`, and `Ess.Layers` are the gameplay-scripting machinery that originally lived inside `ContractFramework.lua` — grouped-unit AI commands, temporary faction stances, the trigger/condition vocabulary, and save-clean ephemeral-mode isolation. All five have been extracted into standalone `Ess.*` namespaces: **none of them need a running `Ess.Contract` instance anymore.** `Ess.Contract` still uses them internally (a contract's `def.waypoints`/`def.relations`/ `def.support`/`def.triggers` are thin wrappers over exactly these namespaces), but a mod can now spawn a squad, flip two factions to war, arm a proximity trigger, or run an isolated arena minigame with no contract in play at all. The underlying design — trigger condition types, AI order behaviors, relation stances — was worked out and documented first against the standalone...
@@ -1364,6 +1524,63 @@ Two mod-author-facing tools from the same Unreleased batch, both pure compositio
   `Ess.Layers.isActive()`  -- `true` while a mode is open.
   `Ess.Layers.isLoaded(name)`  -- Reads `MrxLayerManager._tLoadedLayers` directly.
   `Ess.Layers.current()`  -- The live, currently-loaded dynamic-layer set, as a list.
+  Ess.AIOrders.setGroup(name, guids) -- register a named group
+  Ess.AIOrders.command(guids, behavior, opts, tracker) -> ok
+  Ess.Relations.apply(pairsList [, label]) -> handle
+  Ess.Relations.restore(handle)
+  Ess.Relations.isActive(handle) -> bool
+  Ess.Relations.getFeeling(uGuidA, uGuidB) -> n
+  Ess.Relations.setFeeling(uGuidA, uGuidB, n)
+  Ess.Raw.Triggers.arm(spec, onFire, tracker) -> cancel()
+  Ess.Triggers.arm(spec, onFire, tracker) -> cancel() -- passthrough to Ess.Raw.Triggers.arm
+  Ess.Raw.Sandbox.register(name, { apply = fn(id, opts), restore = fn(id) })
+  Ess.Raw.Sandbox.gateSaves() / .ungateSaves()
+  Ess.Sandbox.begin(id, providerNames, opts) -> ok
+  Ess.Sandbox.finish(id)
+  Ess.Sandbox.isActive(id) -> bool
+  Ess.Easy.Sandbox.arena("recipe_arena") -- isolation on, saving gated
+  pri -- `Ess.Raw.AIOrders.pri(p)`
+  actor -- `Ess.Raw.AIOrders.actor(g)`
+  goal -- `Ess.Raw.AIOrders.goal(args)`
+  haste -- `Ess.Raw.AIOrders.haste(g, speed)`
+  priorityTarget -- `Ess.Raw.AIOrders.priorityTarget(g)`
+  enable -- `Ess.Raw.AIOrders.enable(g, bOn)`
+  behavior -- Does
+  move -- `Ai.Goal{Goal="MoveToPos"}` to `opts.at` — go there and stop. `Force=true`.
+  face -- `Ai.Goal{Goal="Face"}` turning to face `opts.at` (`Position=true`) — no movement; staging/cutscene framing. `HiPri`.
+  hold -- `Ai.Anchor{AnchorRadius=0}` + `Ai.Goal{Goal="Idle"}` — stand exactly where spawned, don't give chase. `HiPri`.
+  defend -- Spawns an invisible `TinyGeometry` anchor at `opts.at` (registered on `tracker` if given), moves the group there, then `Ai.Anchor`s each member to...
+  attack -- Hunts `opts.target` (the first guid of that named group, via `Ess.AIOrders.group`) if given, else the nearest local player...
+  patrol -- Walks `opts.points` in order via chained `MoveToPos` goals — each goal's `Callback` re-issues the next point on arrival. Loops unless `opts.loop ==...
+  follow -- Re-issues a `MoveTo` toward `opts.target`'s group (or the nearest player) every `opts.interval` seconds (default 4), via a self-rescheduling...
+  flee -- A single `MoveToPos` directly away from the nearest player, `opts.distance` units (default 120) — one-shot, doesn't keep re-fleeing on a timer....
+  enter -- Boards a vehicle: resolves `opts.target` as a group name first, falling back to `Pg.GetGuidByName`, then issues `Ai.Goal{Goal="Enter", Role=opts.role...
+  deploy -- `Ai.Deploy{Role="Passenger"}` on each guid — `guids` here are expected to be the transport vehicles themselves; a transport disgorges its passengers....
+  animate -- `Human.DoAction(g, opts.action or "Cower")` — plays a canned action pose.
+  snapshot -- `Ess.Raw.Relations.snapshot(ga, gb) -> {ok, val}`
+  set -- `Ess.Raw.Relations.set(ga, gb, val) -> ok`
+  restore -- `Ess.Raw.Relations.restore(ga, gb, snap) -> ok`
+  "friend" -- `100`
+  "neutral" -- `0`
+  "enemy" -- `-100`
+  nil -- Right away, synchronously, the instant `arm` is called.
+  "once" -- Once, after a fixed delay.
+  "recurring" -- Every `interval` seconds, forever or up to `limit` times. First fire after `delay` seconds (default = `interval`).
+  Provider -- `apply(id, opts)`
+  "relations" -- If `opts.relations` is given, `Ess.Relations.apply(opts.relations, "sandbox:"..id)` — the resulting handle is stashed by sandbox id.
+  "economy" -- Reads the current campaign cash (`MrxPmc.GetCashQty`), saves it via `Ess.SaveVar`, then zeroes the wallet (`MrxPmc.AddCashQty(-cash, ...)`) — or sets...
+  "supports" -- Snapshots the HUD support quick-select menu's current items (via `MrxGuiBase.GetWidgetByNameAndOwner("Support Menu", player)`), then clears it...
+  "layers" -- `Ess.Layers.begin(id)`.
+  begin -- `Ess.Layers.begin(sId)`
+  add -- `Ess.Layers.add(vLayers, fCb)`
+  remove -- `Ess.Layers.remove(vLayers, fCb)`
+  swap -- `Ess.Layers.swap(vRemove, vAdd, fCb)`
+  expect -- `Ess.Layers.expect{present=, absent=, cb=}`
+  composite -- `Ess.Layers.composite(fCb)`
+  finish -- `Ess.Layers.finish(fCb)`
+  isActive -- `Ess.Layers.isActive()`
+  isLoaded -- `Ess.Layers.isLoaded(name)`
+  current -- `Ess.Layers.current()`
 
 ### Identity & World Query
 This page covers the Ess namespaces you reach for once you know *what* you want to touch: who the player is, what a given object is doing, what's sitting in a vehicle's seats, what's nearby, what a character is carrying, and how to shove any of it around. Six source files: `10_player.lua` (`Ess.Player`), `11_object.lua` (`Ess.Object`), `12_vehicle.lua` (`Ess.Vehicle` + an inline `Ess.Easy.Vehicle.summon`), `13_probe.lua` (`Ess.Probe`), `14_human.lua` (`Ess.Human` + an inline `Ess.Easy.Human.giveWeapon`), and `16_impulse.lua` (the full three-tier `Ess.Raw.Impulse` / `Ess.Impulse` / `Ess.Easy.Impulse`). Every function here is `uGuid`-first and `pcall`-wrapped — the whole point is that a bad or dead guid gets you `nil`/`false` back, not a hard Lua error killing the rest of your script.
@@ -1437,6 +1654,82 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Easy.Impulse.speedBoost(uGuid, strength)`  -- A forward speed boost — the Spy Hunter effect. Defaults to the vehicle you're driving. `strength` defaults to 8 (real usage: 6–8 for a strong boost); mass-scaled, so it feels the same in a bike or a tank.
   `Ess.Easy.Impulse.launch(uGuid, strength)`  -- Pops something straight up — a hop, or a big launch. `strength` defaults to 12.
   `Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength)`  -- Shoves `uGuid` directly away from `fromGuid` (default source: you) with a slight upward lift — "the blast sent them flying." World-direction, mass-scaled. `strength` defaults to 10.
+  Ess.Object.alive(g)` could otherwise be fooled by a `0`.
+  Ess.Object.faceObject(car, Ess.Player.character(0)) -- turn it to face me
+  Ess.Easy.Vehicle.summon(sTemplate, opts) -> uVeh | nil
+  Ess.Human.setInfiniteAmmo(char, true) -- and never run dry
+  Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok
+  Ess.Easy.Impulse.launch(car, 10) -- pop it up
+  character -- `Ess.Player.character(i) -> uCharGuid \
+  slot -- `Ess.Player.slot(i) -> uPlayerGuid \
+  camera -- `Ess.Player.camera(i) -> uCameraGuid \
+  giveCash -- `Ess.Player.giveCash(n)`
+  giveFuel -- `Ess.Player.giveFuel(n)`
+  pose -- `Ess.Player.pose(i) -> x, y, z, yaw, uChar, uPlayerSlot`
+  targetUnderReticle -- `Ess.Player.targetUnderReticle(i) -> uGuid \
+  removeBoundaries -- `Ess.Player.removeBoundaries() -> nCleared`
+  setInputEnabled -- `Ess.Player.setInputEnabled(bOn, i)`
+  rumble -- `Ess.Player.rumble(i, fLength)`
+  teleport -- `Ess.Player.teleport(x, y, z, yaw, onDone)`
+  inVehicle -- `Ess.Player.inVehicle(i) -> uVehicleGuid \
+  onFoot -- `Ess.Player.onFoot(i) -> bool`
+  pos -- `Ess.Object.pos(uGuid) -> x, y, z \
+  setPos -- `Ess.Object.setPos(uGuid, x, y, z)`
+  yaw -- `Ess.Object.yaw(uGuid) -> n \
+  faceToward -- `Ess.Object.faceToward(uGuid, x, y, z)`
+  faceObject -- `Ess.Object.faceObject(uGuid, uTarget)`
+  distance -- `Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY) -> n \
+  health -- `Ess.Object.health(uGuid) -> n \
+  maxHealth -- `Ess.Object.maxHealth(uGuid) -> n \
+  heal -- `Ess.Object.heal(uGuid)`
+  damage -- `Ess.Object.damage(uGuid, nAmount) -> nNewHealth \
+  kill -- `Ess.Object.kill(uGuid)` / `Ess.Object.remove(uGuid)`
+  revive -- `Ess.Object.revive(uGuid, nDelay)`
+  alive -- `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool`
+  setInvincible -- `Ess.Object.setInvincible(uGuid, bOn, sReason)`
+  visible -- `Ess.Object.visible(uGuid) -> bool` / `Ess.Object.setVisible(uGuid, bOn)`
+  hasLabel -- `Ess.Object.hasLabel(uGuid, sLabel) -> bool`, `.addLabel(uGuid, sLabel)`, `.removeLabel(uGuid, sLabel)`
+  displayName -- `Ess.Object.displayName(uGuid) -> s`
+  playerControlled -- `Ess.Object.playerControlled(uGuid) -> bool`
+  enablePhysics -- `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)`
+  impulse -- `Ess.Object.impulse(uGuid, x, y, z, bLocal)`
+  spawn -- `Ess.Object.spawn(sTemplate, x, y, z, yaw) -> uGuid \
+  spawnAhead -- `Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i) -> uGuid \
+  vehicleOf -- `Ess.Object.vehicleOf(uChar) -> uVehicleGuid \
+  pollVehicleChange -- `Ess.Object.pollVehicleChange(uChar, onChange, interval) -> stop()`
+  driver -- `Ess.Vehicle.driver(uVeh) -> uCharGuid \
+  riders -- `Ess.Vehicle.riders(uVeh) -> { uCharGuid, ... }`
+  seatOf -- `Ess.Vehicle.seatOf(uChar) -> sSeat \
+  enterBestSeat -- `Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok`
+  enterSeatExcluding -- `Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed`
+  exit -- `Ess.Vehicle.exit(uVeh, uChar) -> ok`
+  flyTo -- `Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()`
+  orbitFlight -- `Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts) -> totalSeconds`
+  followGhost -- `Ess.Vehicle.followGhost(template, x, y, z) -> ghost \
+  nearby -- `Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }`
+  nearest -- `Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist \
+  getFaction -- `Ess.Probe.getFaction(uGuid) -> sAbbrev \
+  describeSafe -- `Ess.Probe.describeSafe(uGuid) -> sDescription`
+  equipWeapon -- `Ess.Human.equipWeapon(uChar, uWeapon) -> ok`
+  dropWeapon -- `Ess.Human.dropWeapon(uChar, uWeapon) -> ok`
+  primaryWeapon -- `Ess.Human.primaryWeapon(uChar) -> uGuid \
+  allWeapons -- `Ess.Human.allWeapons(uChar) -> { uGuid, ... }`
+  setAllWeapons -- `Ess.Human.setAllWeapons(uChar, tWeaponGuids) -> ok`
+  reloadAll -- `Ess.Human.reloadAll(uChar)`
+  doAction -- `Ess.Human.doAction(uChar, sActionName)`
+  disableWeapons -- `Ess.Human.disableWeapons(uChar)` / `.enableWeapons(uChar)`
+  knockdown -- `Ess.Human.knockdown(uChar, nDuration)`
+  ammo -- `Ess.Human.ammo(uWeapon) -> n` / `.setAmmo(uWeapon, n)` / `.maxAmmo(uWeapon) -> n`
+  refillAmmo -- `Ess.Human.refillAmmo(uWeapon)`
+  setInfiniteAmmo -- `Ess.Human.setInfiniteAmmo(uChar, bOn)`
+  apply -- `Ess.Raw.Impulse.apply(uGuid, x, y, z, bLocal)`
+  applyAtPoint -- `Ess.Raw.Impulse.applyAtPoint(uGuid, ix, iy, iz, px, py, pz, bLocal)`
+  mass -- `Ess.Raw.Impulse.mass(uGuid) -> n \
+  push -- `Ess.Impulse.push(uGuid, opts)`
+  spin -- `Ess.Impulse.spin(uGuid, opts)`
+  speedBoost -- `Ess.Easy.Impulse.speedBoost(uGuid, strength)`
+  launch -- `Ess.Easy.Impulse.launch(uGuid, strength)`
+  knockback -- `Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength)`
 
 ### Essentials (Ess)
   `Mark` (`Raw`/Core/`Easy`)  -- Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets.
@@ -1449,6 +1742,18 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Net`  -- Shared tables, named messages, authority model.
   `Ess.Contract`  -- Same objective builders + support/trigger/relations/AI-order subsystems, now built on the standalone `Ess.AIOrders`/`Ess.Relations`/`Ess.Triggers`.
   `Ess.Layers` (usually via `Ess.Sandbox`) — see Encounter Toolkit  -- Save-clean `vz_state_*` manipulation.
+  Ess.UI.Menu("MY TOOLS")
+  Ess.Contract.Accept("raid")
+  Verb -- Does
+  Page -- Namespaces
+  Markers -- `Mark` (`Raw`/Core/`Easy`)
+  Ess.UI -- `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog`
+  Cinematic -- `Cinematic`
+  Networking -- `Net`
+  Ess.Easy -- Every `Ess.Easy.*` namespace
+  uilib.lua -- `Ess.UI`
+  ModNet.lua -- `Ess.Net`
+  ContractFramework.lua -- `Ess.Contract`
 
 ### Markers
 `Ess.Mark` is, per its own source header, "the motivating example for the whole tiered design." There are four independent ways to draw attention to something on this engine — a round-radar objective, a PDA map blip, a floating in-world icon, and a ground ring — each with its own `Add.../Remove...` pair and its own argument shape. The real lesson the framework's source draws from two existing call sites (the Contract Framework marks all three surfaces unconditionally; WaveDefense deliberately marks radar+PDA only, skipping the world icon so not every enemy clutters the world with a floating icon) is that the correct primitive isn't "always mark all three" — it's **three independent opt-out toggles**, so one call covers any combination without ever having to hand-assemble a multi-surface marker from raw pieces. - **`Ess.Raw.Mark`** — the four marking surfaces as fully independent calls....
@@ -1468,6 +1773,13 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `enemy(uGuid) -> handle`  -- Radar + PDA, no floating world icon. Kind `"action"`.
   `objective(uGuid) -> handle`  -- All three surfaces (radar, PDA, floating icon). Kind `"action"`.
   `zone(x, y, z, r) -> handle \  -- nil`
+  Ess.Mark.clear(mObj)
+  kind -- Radar texture
+  destroy -- `objective_destroy`
+  verify -- `objective_verify`
+  defend -- `objective_defend`
+  action -- `objective_action`
+  destination -- `objective_deliverable`
 
 ### Networking
 `Ess.Net` (`70_net.lua` + `71_net_wire.lua`) is the native port of `ModNet.lua` (`_G.ModNet`) — the co-op data-sync layer built on `Net.SendCustomEvent`. The wire protocol itself (serialization, chunking/reassembly, the last-writer-wins synced-state channel, the ready-gate handshake) is called out in the source comments as a "FAITHFUL, byte-for-byte port" of confirmed-working production co-op code — see ModNet for the deep mechanics writeup (the TLV serialization tags, LWW tie-breaking, the heartbeat's three jobs) this page doesn't repeat. What's genuinely new is the scaffolding around it: - The callback hijack now goes through the general-purpose `Ess.Net.hijackCallback` (below), built on `Ess.Override.wrap`, instead of a second hand-rolled copy of the same recipe. - The heartbeat runs on `Ess.Loop` instead of a raw self-rescheduling `Event.Create`. - Every wire packet now carries a...
@@ -1477,6 +1789,23 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   None — claims every packet on `M.EV`  -- Every packet carries `M.MAGIC`; unmarked traffic on the same event id passes straight through
   Raw self-rescheduling `Event.Create`  -- `Ess.Loop.start("Ess.Net.heartbeat", ...)` — always returns `true` (never idles); `Ess.Loop`'s own generation guard supersedes any previous instance cleanly on a reload
   2 header slots (mid/seq/total, sender+channel)  -- 3 header slots (adds the magic marker)
+  Ess.Net.Set("k", v) -- shortcut: same idea, default namespace ("_")
+  Ess.Net.Get("k")
+  Ess.Net.Track("hp", function() return myHp end) -- push a local var out on a heartbeat
+  Ess.Net.On("chat", function(sender, text) ... end) -- sender = 0/1 player id
+  Ess.Net.Send("chat", "hello") -- any value: str/num/bool/table
+  Ess.Net.OnRaw("ch", function(sender, nums) ... end)
+  Ess.Net.SendRaw("ch", { 1, 2, 3 })
+  Ess.Net.Me() -- this machine's player id (0/1)
+  Ess.Net.IsCoop() -- in a live co-op session?
+  Ess.Net.IsHost() -- true only on the host/authority, in co-op
+  Ess.Net.IsAuthority() -- SP OR co-op host = "should I run the sim?"
+  Ess.Net.hijackCallback(moduleTable, name, isMinePredicate, onMine) -> ok
+  Ess.Net.EV -- `5`
+  Ess.Net.MAGIC -- `5066564` (`"MOD"` / `0x4D4F44`)
+  Ess.Net.SLOTS -- `5`
+  Ess.Net.HB -- `2.0`
+  Heartbeat -- Raw self-rescheduling `Event.Create`
 
 ### Objectives & Quests
 `Ess.Objective` and `Ess.Quest` (`src/59_objective.lua`) are the middle tier between two things `Ess` already had and nothing in between: `Ess.Hud.objective("Kill 5 enemies")` — a bare text line, no state, no counter, no completion — and `Ess.Contract` — a whole save-safe mission engine with 16 objective types, overkill for "show a goal and know when it's met." This layer is a stateful counted goal that paints `"label 3/5"` on the HUD objective line, ticks up as you advance it, and fires a callback at target — built entirely out of pieces `Ess` already exposes elsewhere (`Ess.Hud.objective` for the line, `Ess.On` for wiring completion to a world event, `Ess.Loop` underneath the ticking). No new engine calls. Two Core-tier pieces, then the beginner-tier bundles built on them: - **`Ess.Objective`** — one counted goal: create it, `:advance()` it, it paints the HUD line and calls...
@@ -1498,9 +1827,44 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Easy.Objective.destroy(guid, label, onDone) -> obj`  -- Completes when the object at `guid` dies. Marks it on radar + PDA + world icon (`Ess.Easy.Mark.objective`) and wires `Ess.On.death`. Default label `"Destroy the target"`.
   `Ess.Easy.Objective.clear(x, y, z, r=40, faction, label, onDone) -> obj`  -- Completes once every matching unit in the zone is dead. Default label `"Clear the area"`.
   `Ess.Easy.Objective.survive(seconds, label, onDone, onFail) -> obj`  -- A live countdown; completes after `seconds`, fails if the local player dies first. Default label `"Survive"`.
+  Ess.Easy.Triggers.after(20, function() pcall(function() quest:cancel() end) end)
+  Ess.Log("[recipe] a_quick_mission: quest advanced to step 2/2 ('Return to safety') on the HUD")
+  Option -- Default
+  label -- `"Objective"`
+  target -- `1`
+  slot -- `1`
+  show -- `true`
+  onComplete -- —
+  onProgress -- —
+  onFail -- —
+  id -- —
+  Method -- Signature
+  :advance -- `obj:advance(n=1) -> obj`
+  :set -- `obj:set(n) -> obj`
+  :progress -- `obj:progress() -> count, target`
+  :isDone -- `obj:isDone() -> bool`
+  :label -- `obj:label(s) -> obj`
+  :complete -- `obj:complete() -> obj`
+  :fail -- `obj:fail() -> obj`
+  :cancel -- `obj:cancel() -> obj`
+  :hide -- `obj:hide() -> obj`
+  :show -- `obj:show() -> obj`
+  steps -- `{}`
+  showCounter -- `true`
+  onStep -- —
+  :skip -- `quest:skip() -> quest`
+  :current -- `quest:current() -> obj \
+  :step -- `quest:step() -> i, total`
+  Call -- Signature
+  .reach -- `Ess.Easy.Objective.reach(x, y, z, r=8, label, onDone) -> obj`
+  .destroy -- `Ess.Easy.Objective.destroy(guid, label, onDone) -> obj`
+  .clear -- `Ess.Easy.Objective.clear(x, y, z, r=40, faction, label, onDone) -> obj`
+  .survive -- `Ess.Easy.Objective.survive(seconds, label, onDone, onFail) -> obj`
 
 ### Meta: Override
 `Ess.Override` (`90_override.lua`) is a direct productization of Deep Dive: Safely Overriding a Function — the two confirmed-safe ways to change a piece of the game's own logic, packaged as reusable one-liners instead of a pattern you have to remember and hand-apply every time. It doesn't re-derive the *why*; read the deep dive for the full story (the wardrobe-unlock case, the three wrong turns, the confirmed screenshot). This page documents the two functions it packages.
+  Ess.Override.wrap(target, name, newFn) -> ok
+  Ess.Override.mergeIntoLiveTable(t, key, data) -> ok
 
 ### Reactive Hooks & Hotkeys
 Two namespaces for the other half of scripting a mod — not making something happen, but responding to what the world (or the player's keyboard) does: - **`Ess.On`** — intent-named reactive hooks (`death`, `enterArea`, `healthBelow`, `playerHurt`, …) so a mod can react to the world without wiring a raw `Event.*` call or standing up a whole `Ess.Contract`. Every hook returns a `stop()` function. - **`Ess.Keys`** — lets one script own a whole panel of hotkeys. `lua_loader.ini`'s `[OnKey]` binds exactly one key to one script; `Ess.Keys` is how that single script then dispatches several keys to several actions internally. Both are new in the **Unreleased** batch (`CHANGELOG.md`). Per that section's own heading, the whole batch is **"Not yet in-game smoke-run"** — built from confirmed underlying calls and, for these two namespaces, execute-verified offline (`Ess.On`: "the area/health/hurt...
@@ -1529,6 +1893,17 @@ Two namespaces for the other half of scripting a mod — not making something ha
   `Ess.Hud.banner(sMsg)`  -- A clean, icon-free, centered text banner.
   `Ess.Hud.objective(sText, nSlot=1)`  -- Sets the objective-tray line at `nSlot`; `nil` `sText` clears that slot.
   `Ess.Hud.radio(sText, nHold)`  -- A transient radio-chatter subtitle, self-clearing after `nHold` s (default 5).
+  Ess.Hud.objective("Objective: reach the LZ") -- the persistent objective-tray line (the current task)
+  cue -- `Ess.Sound.cue(uGuidOrNil, sCueName)`
+  stop -- `Ess.Sound.stop(uGuidOrNil, sCueName)`
+  ambience -- `Ess.Sound.ambience(sStreamName)`
+  stopAmbience -- `Ess.Sound.stopAmbience(sStreamName)`
+  volume -- `Ess.Sound.volume(nLevel, nFadeTime)`
+  hint -- `Ess.Hud.hint(sMsg, sId, bBroadcast)`
+  hideHint -- `Ess.Hud.hideHint(sId, bBroadcast)`
+  banner -- `Ess.Hud.banner(sMsg)`
+  objective -- `Ess.Hud.objective(sText, nSlot=1)`
+  radio -- `Ess.Hud.radio(sText, nHold)`
 
 ### Support & Call-ins
 `Ess.Support` (`58_support.lua`) lifts the combat call-ins — airstrikes, artillery, bombing runs, gunship runs, reinforcements — out of `Ess.Contract`'s support system (`82_contract_encounter.lua`'s `SUPPORT_EFFECTS`, documented in full on Support Effects & Triggers) so any script can fire one **anywhere, standalone, with no contract running**. `Ess.Easy.Airstrike` is a tiny beginner preset built on top of it. Every call is **fire-and-forget**: it schedules its own timed ordnance spawn(s)/flyby(s) and returns immediately. Per the source's own framing, the spawned shells and flyby vehicles are engine-managed one-shots, so there's nothing to track or tear down — none of these functions return a handle. All positions are world `(x, y, z)`. Every function takes an `opts` table (or `nil`) as the last argument; an `opts.owner` field, where present, is a **faction NAME** (`"China"`,...
@@ -1541,6 +1916,15 @@ Two namespaces for the other half of scripting a mod — not making something ha
   `Ess.Easy.Airstrike.at(x, y, z)`  -- `Ess.Support.airstrike(x, y, z)` (all defaults) immediately followed by `Ess.Support.artillery(x, y, z, { count = 4, radius = 10 })` — one flyby plus 4 shells scattered in a 20×20-unit square.
   `Ess.Easy.Airstrike.onTarget(i)`  -- Resolves `Ess.Player.targetUnderReticle(i or 0)` for the guid, then separately re-reads its position via `Ess.Object.pos(u)` (rather than using the `x, y, z` `targetUnderReticle` already returns) and calls `.at()` on it...
   `Ess.Easy.Airstrike.onMe(i)`  -- Reads the player's own position via `Ess.Player.pose(i or 0)` and calls `.at()` on it — a deliberate danger-close self-strike; the source's own comment calls it "for the brave / the cinematic."
+  shell -- `Ess.Support.shell(x, y, z, opts)`
+  artillery -- `Ess.Support.artillery(x, y, z, opts)`
+  airstrike -- `Ess.Support.airstrike(x, y, z, opts)`
+  bombingrun -- `Ess.Support.bombingrun(x, y, z, opts)`
+  gunship -- `Ess.Support.gunship(x, y, z, opts)`
+  reinforce -- `Ess.Support.reinforce(x, y, z, opts)`
+  at -- `Ess.Easy.Airstrike.at(x, y, z)`
+  onTarget -- `Ess.Easy.Airstrike.onTarget(i)`
+  onMe -- `Ess.Easy.Airstrike.onMe(i)`
 
 ### Timing & Input
 Four small namespaces that share one job: give a mod a correct, engine-safe way to measure time and read keyboard input, instead of every script hand-rolling the same fragile pattern. - **`Ess.Time`** — wall-clock timing (elapsed-time stamps and an auto-advancing per-frame clock) that survives world-pause, plus time-scale for slow-motion. - **`Ess.Loop`** — the one shared self-rescheduling heartbeat. Every repeating "do this every N seconds" loop anywhere else in Ess is built on this. - **`Ess.Input`** — the one correct keyboard-polling shape on this engine (an edge-triggered press buffer plus a held-key snapshot), a VK-to-character table, and a niche controller-hijack trick. - **`Ess.TextConsole`** — a REPL-style typed-input console built on `Ess.Input` and `Ess.Loop`, no `.gfx` asset required.
@@ -1565,6 +1949,8 @@ Four small namespaces that share one job: give a mod a correct, engine-safe way 
   `open{ prompt=, text=, max=, lockPlayer=, onSubmit=fn(text), onCancel=fn(), onChange=fn(text) }`  -- Opens the console. `prompt` defaults to `"> "`, `text` (a starting buffer) defaults to `""`, `max` defaults to `200` characters. `lockPlayer` defaults to `true` — disables player movement/actions...
   `close()`  -- Safe to call even if not open.
   `isOpen() -> bool`
+  Ess.Loop.start("recipe_do_it_later", 0.3, function()
+  Ess.Log("heartbeat ran " .. ticks .. " times, stopping")
 
 ### Tracking & Cleanup
 Three namespaces united by one problem: this engine is full of `Add.../Remove...` pairs — spawn an object, create an event, add a radar objective, add a PDA blip, add a quality ref, add to a disposer, add a context action — and **none of them has a native "clear everything I made" call**. Every one of these leaks if you forget to hand-track its return value and call the matching `Remove...` yourself. - **`Ess.Track`** — a single registry that accepts any of those handle types (or a plain teardown function) and tears the whole batch down in one call. - **`Ess.Event`** — a thin `Event.Create` wrapper that logs failures instead of silently handing back a broken handle, and can register itself with a tracker in one extra argument. - **`Ess.Save`** — a different kind of shared gate: the one place that suppresses savegames/autosaves while an ephemeral mode (like a sandboxed arena) is active,...
@@ -1584,6 +1970,7 @@ Three namespaces united by one problem: this engine is full of `Add.../Remove...
   `ungate(sHolderKey)`  -- Removes a holder — saves resume once the *last* holder is gone.
   `isGated() -> bool`  -- Are saves currently suppressed by anyone?
   `holders() -> {keys}`  -- Which holder keys are currently active, for diagnostics.
+  Method -- Signature
 
 ### Ess.UI
 This page covers `Ess.Gfx` (the raw FlashWidget primitives), `Ess.ScrollLog`, and `Ess.UI` — the native `Ess` port of **UI Kit** (`uilib.lua`'s `_G.UI`), absorbed as a full source port rather than an alias to an external `uilib.lua` deployment. Same nine widgets, same shared input/focus/heartbeat engine, same declarative `UI.Menu` builder — `Ess.UI.VERSION` is `"1.0"`, labelled in the source itself as "Ess's port of uilib v2.2." Where the port is a faithful, line-for-line carry-over this page says so and links back to UI Kit for the full design reasoning instead of re-deriving it; where the native port genuinely behaves differently, it's called out explicitly, widget by widget, and summarized below. Fits into the three tiers like this: `Ess.Gfx` **is** the Raw tier for widget work — the primitives every one of `uilib.lua`, `contracts.lua`, ForgeCam, and ForgeMenu used to hand-roll...
@@ -1628,6 +2015,29 @@ This page covers `Ess.Gfx` (the raw FlashWidget primitives), `Ess.ScrollLog`, an
   Positional-callback wrapper over `Ess.UI.Confirm`; `onNo` optional.
   Opens immediately, one flat level — no `:category` nesting or `:switch`. `entries` accepts an ordered `{ {label, fn}, ... }` array or a `{ [label] = fn }` map. Use `Ess.UI.Menu` directly for the full nested builder.
   Browses the whole `Ess.Easy.*` surface in-game, searchable — built on `Ess.UI.Board` for the list+detail view and `Ess.TextConsole` for the search box.
+  Ess.UI.Toast("Wardrobe Unlocked!")
+  Widget -- What it is
+  Ess.UI.Menu -- A ForgeMenu-style declarative drill-down: `:entry`/`:category`/`:header`/`:switch`, nests as deep as you like.
+  Ess.UI.List -- The raw scrolling list every other multi-row widget here is built on — 10 visible rows, section headers, a scrollbar, auto-resize.
+  Ess.UI.Panel -- A title bar plus up to 8 lines, body auto-resizing to fit.
+  Ess.UI.Bar -- A label plus a progress bar.
+  Ess.UI.Toast -- A transient notification, 3 stacked slots, auto-hiding.
+  Ess.UI.Confirm -- A modal yes/no dialog.
+  Ess.UI.Input -- A one-shot typed prompt.
+  Ess.UI.Chat -- A scrolling message log with an optional typed input line.
+  Ess.UI.Board -- A two-pane list-plus-details view, driving `contracts.gfx` — the same widget `Ess.Contract`'s own board UI (contract selection, intermission shops)...
+  widget -- `Ess.Gfx.widget(file, x, y, w, h) -> widget \
+  call -- `Ess.Gfx.call(widget, fn, args) -> ok`
+  onEvent -- `Ess.Gfx.onEvent(widget, name, cb) -> ok`
+  setVisible -- `Ess.Gfx.setVisible(widget, bool)`
+  warmupRerender -- `Ess.Gfx.warmupRerender(rt, ticks = 8)`
+  menuNav -- `Ess.Gfx.menuNav(widget, keys) -> stop()`
+  Call -- Adds / does
+  Y -- 150
+  new -- `Ess.ScrollLog.new(name, x, y, w, h) -> scrollLog \
+  :add -- `add(msg, duration = 1)`
+  :setVisible -- `setVisible(bool)`
+  :clearAll -- `clearAll()`
 
 ==============================================================================
 ## RESIDENT MODULE INDEX

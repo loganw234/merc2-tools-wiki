@@ -130,6 +130,56 @@ def is_header_row(cells: list[str]) -> bool:
     return first in {"function", "function(s)", "ess function(s)", "name", "constant", "field", "event"}
 
 
+def label_rows(body: str, note_limit: int) -> list[str]:
+    """Tables whose second column is PROSE, not a call.
+
+    The signature extractor only keeps rows whose second cell looks like a call,
+    which silently drops enum/behaviour tables. That is how the eleven
+    `Ess.AIOrders.command` behaviours (`enter`, `deploy`, `patrol`, ...) ended up
+    absent from the pack: the model knew the module existed but not one legal
+    behaviour name, so it invented `enterVehicle` / `disembark` / `.move`.
+
+    Same shape of hole as Controller's constants table. Capture `label -- prose`
+    for any row whose first cell is a short bare identifier.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for cells in table_rows(body):
+        if len(cells) < 2 or is_header_row(cells):
+            continue
+        label = fn_name(cells[0])
+        desc = clean_inline(cells[1])
+        # Reject only if the description IS a signature (that row belongs to the
+        # signature extractor). An incidental "(" in prose is fine -- guarding on
+        # that dropped `attack` and `animate`, whose descriptions open with an
+        # aside like "Hunts opts.target (the first guid ...".
+        if (not label or not desc or label in seen
+                or len(label) > 28 or " " in label or "(" in label
+                or re.match(r"^[A-Za-z_][A-Za-z0-9_.]*\(", desc)):
+            continue
+        seen.add(label)
+        out.append(f"  {label} -- {truncate(desc, note_limit)}")
+    return out
+
+
+def code_signatures(body: str, prefix: str) -> list[str]:
+    """API signatures written in prose/code fences rather than tables, e.g.
+    `Ess.AIOrders.command(guids, behavior, opts, tracker) -> ok`. Table-only
+    extraction misses these entirely."""
+    out: list[str] = []
+    seen: set[str] = set()
+    pat = re.compile(r"^\s*(" + re.escape(prefix) + r"[A-Za-z0-9_.]*\([^)\n]*\)[^\n]{0,60})$",
+                     re.MULTILINE)
+    for m in pat.finditer(body):
+        sig = clean_inline(m.group(1))
+        key = sig.split("(")[0]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(f"  {sig}")
+    return out
+
+
 def constant_rows(body: str, note_limit: int) -> list[str]:
     """Pages like namespaces/controller.md are `| Constant | Value | Notes |`
     tables, not function tables. The signature extractor requires a call-shaped
@@ -272,6 +322,13 @@ def build_ess() -> str:
             seen.add(name)
             note = truncate(clean_inline(cells[2]), 220) if len(cells) > 2 else ""
             lines.append(f"  {sig}" + (f"  -- {note}" if note else ""))
+        # Signatures that live in prose/code fences rather than tables, and
+        # enum/behaviour tables whose second column is prose. Without these the
+        # Ess.AIOrders dispatch API and its eleven behaviour names were invisible.
+        extra = code_signatures(body, "Ess.") + label_rows(body, 150)
+        for line in extra:
+            if line not in lines:
+                lines.append(line)
         if len(lines) > 1:
             out.append("\n".join(lines))
     return header + "\n" + "\n\n".join(out)
@@ -471,6 +528,26 @@ SECTIONS = [
 # -- completeness matters more here than compactness.
 TARGET_TOKENS = 250_000
 
+# Symbols that MUST survive extraction. Every entry here is something the
+# assistant got wrong in production because the extractor silently dropped the
+# page shape that documented it:
+#   Controller constants     -> constants table, no call-shaped column
+#   hash-lookup template names -> top-level page, never walked
+#   AIOrders behaviours      -> enum table with prose in column 2
+# A parser change that reintroduces any of these holes fails `--check`.
+CANARIES = [
+    "Ess.AIOrders.command(guids, behavior",   # dispatch signature (prose, not a table)
+    "\n  enter -- ",                          # behaviour enum rows
+    "\n  deploy -- ",
+    "\n  patrol -- ",
+    "\n  attack -- ",
+    "RPad_Up = 5",                            # Controller constants table
+    "Ai.SetFeeling(",                         # ordinary namespace signature
+    "_pmcoutpost_beerA",                      # hash-lookup template names
+    "Ess.Vehicle.riders",                     # Ess signature tables
+    "Loader.Printf",                          # lua-bridge section
+]
+
 
 def est_tokens(s: str) -> int:
     return len(s) // CHARS_PER_TOKEN
@@ -624,6 +701,15 @@ def main() -> int:
 
     out_txt = PACK_OUT / "pack.txt"
     out_meta = PACK_OUT / "pack.meta.json"
+
+    missing = [c for c in CANARIES if c not in pack]
+    if missing:
+        print("[FAIL] %d canary symbol(s) missing from the pack -- an extractor"
+              % len(missing))
+        print("       hole has reopened. Each of these caused a real wrong answer:")
+        for c in missing:
+            print("         %r" % c)
+        return 1
 
     if args.check:
         if not out_txt.exists():
