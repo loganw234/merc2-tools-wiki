@@ -1,0 +1,16 @@
+{
+  "name": "mercs2-wiki-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker backing the Mercenaries 2 modding wiki assistant.",
+  "scripts": {
+    "pack": "python ../build_pack.py --verbose",
+    "pack:check": "python ../build_pack.py --check",
+    "dev": "npm run pack && wrangler dev",
+    "deploy": "npm run pack && wrangler deploy",
+    "tail": "wrangler tail --format pretty"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

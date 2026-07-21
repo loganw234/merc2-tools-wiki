@@ -1,0 +1,53 @@
+name: helpbot pack
+
+# The assistant answers from a context pack generated out of the wiki's own
+# content. If someone edits a namespace or resident page and the pack is not
+# rebuilt, the assistant keeps answering from the old wiki. This job fails the
+# PR in that case, so "the pack is stale" can never be discovered in production.
+#
+# Regenerating: run `python helpbot/build_pack.py` and commit helpbot/pack/.
+
+on:
+  pull_request:
+    paths:
+      - "namespaces/**"
+      - "resident/**"
+      - "ess/**"
+      - "lua-bridge-api/**"
+      - "tutorials/**"
+      - "spawn-reference/**"
+      - "helpbot/**"
+  push:
+    branches: [main]
+    paths:
+      - "namespaces/**"
+      - "resident/**"
+      - "ess/**"
+      - "lua-bridge-api/**"
+      - "tutorials/**"
+      - "spawn-reference/**"
+      - "helpbot/**"
+
+jobs:
+  check-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify the committed pack matches the wiki
+        run: python helpbot/build_pack.py --check
+      - name: Report pack size
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("helpbot/pack/pack.meta.json")
+          if p.exists():
+              m = json.loads(p.read_text())
+              print(f"pack: ~{m['est_tokens']} est tokens, sha {m['sha256'][:16]}")
+              for s in m["sections"]:
+                  flag = " OVER" if s["over_budget"] else ""
+                  print(f"  {s['id']:<12} {s['est_tokens']:>7}{flag}")
+          PY

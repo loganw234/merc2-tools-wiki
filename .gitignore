@@ -5,3 +5,9 @@ _site/
 vendor/
 Gemfile.lock
 CLAUDE.md
+
+# helpbot worker tooling -- the Worker source and the generated pack ARE
+# committed; the install tree and wrangler's local state are not.
+helpbot/worker/node_modules/
+helpbot/worker/.wrangler/
+__pycache__/

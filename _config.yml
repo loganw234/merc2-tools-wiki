@@ -51,3 +51,18 @@ callouts:
 
 plugins:
   - jekyll-remote-theme
+
+# helpbot/ is the assistant's build tooling and Cloudflare Worker -- source, not
+# site content. Without this, Jekyll would publish pack_src/*.md as pages and
+# copy the ~420 KB generated pack into _site.
+# NOTE: setting `exclude` REPLACES Jekyll's default list, so the defaults are
+# restated here rather than lost.
+exclude:
+  - helpbot/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/

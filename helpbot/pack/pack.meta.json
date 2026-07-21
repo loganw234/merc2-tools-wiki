@@ -1,0 +1,81 @@
+{
+  "sha256": "f8a345f6a98da8ebf20252893dbe4b3d789848433d429df2df7f46b9fb8b5340",
+  "chars": 423702,
+  "est_tokens": 105925,
+  "target_tokens": 112000,
+  "chars_per_token_assumed": 4,
+  "sections": [
+    {
+      "id": "system",
+      "title": "OPERATING INSTRUCTIONS",
+      "chars": 5535,
+      "est_tokens": 1383,
+      "budget": 3000,
+      "over_budget": false
+    },
+    {
+      "id": "gotchas",
+      "title": "ENGINE FACTS AND GOTCHAS",
+      "chars": 6117,
+      "est_tokens": 1529,
+      "budget": 4000,
+      "over_budget": false
+    },
+    {
+      "id": "namespaces",
+      "title": "ENGINE NAMESPACE REFERENCE",
+      "chars": 128203,
+      "est_tokens": 32050,
+      "budget": 35000,
+      "over_budget": false
+    },
+    {
+      "id": "ess",
+      "title": "ESSENTIALS (Ess) FRAMEWORK",
+      "chars": 78513,
+      "est_tokens": 19628,
+      "budget": 24000,
+      "over_budget": false
+    },
+    {
+      "id": "resident",
+      "title": "RESIDENT MODULE INDEX",
+      "chars": 112522,
+      "est_tokens": 28130,
+      "budget": 31000,
+      "over_budget": false
+    },
+    {
+      "id": "luabridge",
+      "title": "LUA-BRIDGE API",
+      "chars": 27171,
+      "est_tokens": 6792,
+      "budget": 8000,
+      "over_budget": false
+    },
+    {
+      "id": "spawn",
+      "title": "SPAWN / TEMPLATE NAMES",
+      "chars": 32321,
+      "est_tokens": 8080,
+      "budget": 9000,
+      "over_budget": false
+    },
+    {
+      "id": "tutorials",
+      "title": "GETTING STARTED",
+      "chars": 29343,
+      "est_tokens": 7335,
+      "budget": 8000,
+      "over_budget": false
+    },
+    {
+      "id": "idioms",
+      "title": "CANONICAL CODE PATTERNS",
+      "chars": 3783,
+      "est_tokens": 945,
+      "budget": 4000,
+      "over_budget": false
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+name = "mercs2-wiki-assistant"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Bundle the generated context pack as a text module. It is ~420 KB of plain
+# text; Workers bundles are limited to 3 MB (free plan) after gzip, so this is
+# comfortable. Rebuild it with `python ../build_pack.py` before every deploy --
+# `npm run deploy` does that for you.
+rules = [
+  { type = "Text", globs = ["**/*.txt"], fallthrough = true }
+]
+
+[vars]
+# The exact model id -- VERIFY against https://api-docs.deepseek.com before the
+# first deploy; DeepSeek renames these between generations and a wrong id is a
+# 404 from their API, not a Worker error.
+DEEPSEEK_MODEL = "deepseek-v4-pro"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+# Only this origin may call the Worker. Must match the Pages origin exactly
+# (scheme + host, no trailing slash).
+ALLOWED_ORIGIN = "https://wiki.mercs2.tools"
+
+# Abuse limits. Deliberately generous for a real user, tight enough that a
+# script cannot run up a bill before the provider-side spend cap catches it.
+MAX_MESSAGES_PER_HOUR = "25"
+MAX_MESSAGES_PER_DAY = "80"
+
+# Per-request payload caps. Sized for real script debugging: V4 Pro has a 1M
+# token context window, so the ~105k pack uses ~10% of it and there is no reason
+# to be stingy. Rough conversions at ~4 chars/token and ~35 chars/line of Lua:
+#   100000 chars/message ~= 25k tokens ~= 2900 lines -- covers almost any single mod file
+#   240000 chars total   ~= 60k tokens -- pack + conversation still only ~165k of 1M
+#   8000 output tokens   ~= 600 lines of returned Lua plus explanation
+# Cost check: a heavy debugging conversation lands near $0.05 rather than the
+# ~$0.02 typical case. The per-IP rate limit is what bounds the daily exposure.
+MAX_TURNS = "16"
+MAX_CHARS_PER_MESSAGE = "100000"
+MAX_CHARS_TOTAL = "240000"
+MAX_OUTPUT_TOKENS = "8000"
+
+# Session tokens minted after a Turnstile pass, in seconds.
+SESSION_TTL_SECONDS = "7200"
+
+# KV namespace for rate-limit counters. Create with:
+#   npx wrangler kv namespace create RATE_LIMIT
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "0a54ec0c75f44727b141ce0316d08e7d"
+
+# Secrets (never in this file -- set with `npx wrangler secret put <NAME>`):
+#   DEEPSEEK_API_KEY    provider key, scoped to a prepaid balance
+#   TURNSTILE_SECRET    Cloudflare Turnstile secret for the site key in assistant.md
+#   SESSION_SECRET      any long random string; signs session tokens
+
+[observability]
+enabled = true

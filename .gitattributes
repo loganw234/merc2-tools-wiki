@@ -1,0 +1,12 @@
+# core.autocrlf is true on Windows checkouts, which would rewrite these files to
+# CRLF in the working tree. For helpbot/ that is not cosmetic:
+#
+# pack.txt is sent verbatim as the model's system message, and the provider's
+# prefix cache only hits on an EXACT byte match. If a Windows checkout produced
+# CRLF and CI produced LF, the two would deploy different packs, the cache would
+# stop hitting, and every request would silently bill at roughly 120x the cached
+# rate. `build_pack.py --check` would also fail spuriously against its own output.
+#
+# Pin the whole helpbot tree to LF so every machine and CI agree byte for byte.
+helpbot/** text eol=lf
+helpbot/pack/pack.txt text eol=lf
