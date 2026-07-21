@@ -1,7 +1,7 @@
 {
-  "sha256": "f6e6f97e32dac4018a2036004ab56835bd9e275cd3831a6af92629484cf3d423",
-  "chars": 889643,
-  "est_tokens": 222410,
+  "sha256": "f65ae43ef709f326c2aaf1c2e25860596bfc42418998548e9c399702177f9ab0",
+  "chars": 891483,
+  "est_tokens": 222870,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -32,8 +32,8 @@
     {
       "id": "gotchas",
       "title": "ENGINE FACTS AND GOTCHAS",
-      "chars": 7004,
-      "est_tokens": 1751,
+      "chars": 8341,
+      "est_tokens": 2085,
       "budget": 5000,
       "over_budget": false
     },
@@ -80,8 +80,8 @@
     {
       "id": "templates",
       "title": "AUTHORITATIVE TEMPLATE NAMES",
-      "chars": 162581,
-      "est_tokens": 40645,
+      "chars": 163084,
+      "est_tokens": 40771,
       "budget": 45000,
       "over_budget": false
     },

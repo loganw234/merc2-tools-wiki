@@ -521,8 +521,18 @@ def build_templates() -> str:
         "Caveats: the table also contains non-spawnable assets (decals, interior\n"
         "props, test assets), so presence here means the NAME is real, not that\n"
         "it is necessarily spawnable. Names are case- and spacing-sensitive.\n"
-        "NOTE ON FACTION TROOPS: names like '<Faction> Soldier' do NOT exist.\n"
-        "Faction-prefixed entries below are overwhelmingly buildings and props.\n"
+        "\n"
+        "SOURCE PAGE, for sending a user to browse/search it themselves:\n"
+        "  https://wiki.mercs2.tools/hash-lookup\n"
+        "That is the ONLY correct URL for this data. Do not build a URL out of\n"
+        "this section's heading -- there is no /authoritative-template-names page.\n"
+        "\n"
+        "FACTION TROOPS: troop templates DO exist for most factions, named\n"
+        "'<Faction> Soldier' and variants -- e.g. 'VZ Soldier', 'Allied Soldier',\n"
+        "'Guerilla Soldier', 'Chinese Soldier', 'OC Soldier' (Oil Company),\n"
+        "'Pirate Thug', plus Elite/Paratrooper/Female/B variants. Quote them\n"
+        "exactly from the list below. The ONE exception is PMC: it is the\n"
+        "player's own outfit and has no troop template at all.\n"
         % len(names)
     )
     return header + "\n" + ", ".join(names)

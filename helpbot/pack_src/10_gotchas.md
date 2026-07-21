@@ -79,11 +79,35 @@ than silently writing correct code, because the user has probably been bitten by
   (`_pmcoutpost_bld_hq`, `_pmcoutpost_beerA`, …). If someone wants friendly troops under
   their command, they spawn units from a faction that *has* troop templates and adjust
   attitude/relations — do not send them looking for `"PMC Soldier"`, it does not exist.
-- Faction names appearing in a template string do **not** imply a matching soldier
-  template. Check the authoritative template list before naming any unit.
+- Every *other* faction **does** have troop templates — `"VZ Soldier"`,
+  `"Allied Soldier"`, `"Guerilla Soldier"`, `"Chinese Soldier"`, `"OC Soldier"`
+  (Oil Company), `"Pirate Thug"`, plus Elite / Paratrooper / Female / B variants.
+  Quote them exactly from the authoritative template list; PMC is the only faction
+  missing one.
 - The faction system itself is engine-side. There is no documented Lua call that creates
   a new faction; relations and attitudes between existing factions are the adjustable
   part.
+
+## AI orders: Goal, Role and Deploy are three different calls
+
+Their argument tables are **not interchangeable**, and mixing them is the most
+common way generated AI code fails.
+
+- `Ai.Goal{AIGuid=, Goal=, Target=, Priority=, Mode=, Start=, Haste=, Callback=,
+  CallbackData=}` — a destination/task. Real `Goal` values seen in the corpus
+  include `"PathMove"`, `"MoveToPos"`, `"Enter"`. There is **no documented key for
+  a raw XYZ position**; do not invent `Position`.
+- `Ai.Role{AIGuid=, Role=, Target=, MinDistance=, MaxDistance=, MoveDistance=,
+  Priority=}` — a standing behaviour. **`"Follow"` is a `Role`, not a `Goal`.**
+  `Ai.Goal{Goal="Follow"}` is wrong; the confirmed follow recipe is
+  `Ai.Role{Role="Follow", Target=uTarget, ...}` (see `resident/mrxfollow.lua`).
+- `Ai.Deploy{Vehicle=, Role="Passenger", Force=}` — a transport disgorging riders.
+
+`Role` belongs to `Ai.Role` and `Ai.Deploy`. It is **not** an `Ai.Goal` key.
+
+If Ess is available, prefer `Ess.AIOrders.command(guids, behavior, opts, tracker)`
+and let it pick the right primitive. Its first argument is always a **table of
+guids** — `command({uGuid}, "follow")`, never a bare guid.
 
 ## Economy, spawning, objects
 
