@@ -406,11 +406,30 @@ def _verbatim_pages(folder: str, char_cap: int) -> str:
 
 
 def build_luabridge() -> str:
+    """Loader.* and friends.
+
+    websocket.md is excluded on purpose. It documents Loader.WsSend, which is
+    how a browser tool subscribes to a feed -- plumbing for building something
+    like this IDE, not for writing game scripts. It cost ~2.8k tokens, nearly a
+    fifth of the smallest tier, and no question the assistant is actually asked
+    needs it. Anyone building a browser client is reading the wiki page anyway.
+    """
     header = (
         "lua-bridge additions -- the ASI injection layer, NOT part of the base game.\n"
         "Loader.* only exists when lua-bridge is loaded.\n"
+        "(Loader.WsSend / the WebSocket transport is omitted here; see\n"
+        "https://wiki.mercs2.tools/lua-bridge-api/websocket if a user asks.)\n"
     )
-    return header + "\n" + _verbatim_pages("lua-bridge-api", char_cap=9000)
+    out: list[str] = []
+    for path in md_pages("lua-bridge-api"):
+        if path.name == "websocket.md":
+            continue
+        fm, body = read_page(path)
+        title = fm.get("title", path.stem)
+        text = MD_LINK_RE.sub(r"\1", body)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        out.append(f"### {title}\n{truncate(text, 9000)}")
+    return header + "\n" + "\n\n".join(out)
 
 
 def build_world() -> str:
@@ -560,7 +579,7 @@ def build_templates() -> str:
         "'Guerilla Soldier', 'Chinese Soldier', 'OC Soldier' (Oil Company),\n"
         "'Pirate Thug', plus Elite/Paratrooper/Female/B variants. Quote them\n"
         "exactly from the list below. The ONE exception is PMC: it is the\n"
-        "player's own outfit and has no troop template at all.\n"
+        "player's own outfit and has no troop template at all -- do not offer one.\n"
         % len(names)
     )
     return header + "\n" + ", ".join(names)
@@ -618,6 +637,103 @@ SECTIONS = [
     ("idioms",     "CANONICAL CODE PATTERNS",       curated("90_idioms.md")           ,  4_000),
 ]
 
+# Pack tiers. The Worker gets the full pack; smaller-context and local models
+# get a subset. Order within a tier always follows SECTIONS, so a tier is still
+# a stable prefix and still caches.
+#
+# Choosing what to drop is a real trade, not a size exercise. `templates` is the
+# only thing preventing invented spawn names and `resident` the only thing
+# preventing invented module functions -- both were live failures. So the
+# reduced tiers keep the curated rules (which are cheap and carry the hard-won
+# gotchas) and shed breadth, and every tier below `full` ships a banner telling
+# the model exactly which references it does NOT have, so it refuses instead of
+# guessing. A small pack without that banner is worse than no pack at all.
+TIERS: dict[str, list[str] | None] = {
+    # ~10k -- the honest floor, for a 16k-context model.
+    #
+    # There was briefly an 8k "tiny" tier. It is gone: 6k of pack in an 8k window
+    # leaves nothing to hold a conversation in, and shipping a tier that barely
+    # works is worse advice than saying "you need more context". 16k is the
+    # lowest window where this is genuinely usable, and this tier is sized so
+    # that ~6k remains for the actual exchange after the pack.
+    #
+    # Sizing matters more than it looks: a model whose context is smaller than
+    # the pack does not error, it TRUNCATES FROM THE FRONT -- verified on
+    # gemma2:27b (CONTEXT 8192), where a canary token at position 0 never came
+    # back. The front is the system rules and the tier banner, so an oversized
+    # pack silently deletes exactly the anti-invention instructions and leaves a
+    # model that looks configured and is not.
+    "small":  ["system", "gotchas", "idioms", "luabridge"],
+    # ~46k -- 64k context
+    "small+": ["system", "game", "gotchas", "idioms", "luabridge", "namespaces"],
+    # ~100k -- 128k context, the common cloud tier
+    "medium": ["system", "game", "gotchas", "idioms", "luabridge", "namespaces",
+               "ess", "resident"],
+    # ~159k -- 200k context
+    "large":  ["system", "game", "gotchas", "idioms", "luabridge", "namespaces",
+               "ess", "resident", "templates", "contracts"],
+    # everything
+    "full":   None,
+}
+
+# Human-readable names for what each section provides, used to build the
+# "you do not have" banner on reduced tiers.
+SECTION_MEANS = {
+    "namespaces": "engine namespace signatures (Object.*, Ai.*, Player.*, ...)",
+    "ess":        "the Essentials (Ess) framework API",
+    "resident":   "the resident module index (228 modules and their functions)",
+    "spawn":      "the spawn-reference lists",
+    "templates":  "the authoritative template-name list",
+    "contracts":  "the Contract Framework reference",
+    "world":      "game world, faction and story context",
+    "tutorials":  "the step-by-step tutorials",
+    "toplevel":   "guides, snippets and worked sample scripts",
+    "guide":      "the game overview",
+    "luabridge":  "the lua-bridge (Loader.*) API",
+}
+
+
+def tier_banner(missing: list[str]) -> str:
+    """Tell a reduced pack what it is blind to, so it refuses rather than guesses."""
+    if not missing:
+        return ""
+    lines = [
+        "REDUCED PACK -- YOU ARE MISSING REFERENCE MATERIAL.",
+        "This build omits the sections listed below to fit a smaller context window.",
+        "For anything that would need one of them you do NOT have the authoritative",
+        "data, so you must NOT answer from memory. Say which reference you would need",
+        "and send the user to the wiki page instead. Guessing a name here is the exact",
+        "failure this pack exists to prevent.",
+        "",
+        "Omitted:",
+    ]
+    for sid in missing:
+        lines.append("  - " + SECTION_MEANS.get(sid, sid))
+    if "templates" in missing:
+        lines.append("")
+        lines.append("CRITICAL: without the template list you cannot verify ANY Pg.Spawn or")
+        lines.append("Pg.GetGuidByName string. Never produce one. Point the user at")
+        lines.append("https://wiki.mercs2.tools/hash-lookup and let them copy the exact name.")
+    if "resident" in missing:
+        lines.append("")
+        lines.append("Without the resident index you cannot confirm a module function exists.")
+        lines.append("Name the module and send the user to /resident/<module> rather than")
+        lines.append("inventing a call on it.")
+    if "ess" in missing:
+        lines.append("")
+        lines.append("Without the Ess API listing you know Ess EXISTS but not what is on it.")
+        lines.append("A local 7B on this tier invented `Ess.GameUnits()`. Only use the few Ess")
+        lines.append("calls quoted verbatim in the gotchas and patterns above; for anything")
+        lines.append("else say you would need to check https://wiki.mercs2.tools/ess/ and let")
+        lines.append("the user read the real signature.")
+    if "namespaces" in missing:
+        lines.append("")
+        lines.append("Without the namespace reference you cannot confirm any engine call's")
+        lines.append("arguments. Use only calls quoted verbatim above; do not infer a")
+        lines.append("signature from a name.")
+    return "\n".join(lines)
+
+
 # Raised from 112k after a live hallucination traced to missing coverage: the
 # assistant invented spawn template names because the authoritative list (a
 # top-level page) was never in the pack. DeepSeek V4 Pro has a 1M context
@@ -655,10 +771,15 @@ def est_tokens(s: str) -> int:
     return len(s) // CHARS_PER_TOKEN
 
 
-def build() -> tuple[str, list[dict]]:
+def build(tier: str = "full") -> tuple[str, list[dict]]:
+    keep = TIERS.get(tier)
     parts: list[str] = []
     report: list[dict] = []
+    missing: list[str] = []
     for sid, title, fn, budget in SECTIONS:
+        if keep is not None and sid not in keep:
+            missing.append(sid)
+            continue
         body = fn().strip()
         block = f"{SEPARATOR}## {title}\n{'=' * 78}\n\n{body}"
         parts.append(block)
@@ -670,10 +791,12 @@ def build() -> tuple[str, list[dict]]:
             "budget": budget,
             "over_budget": est_tokens(block) > budget,
         })
+    banner = tier_banner(missing)
     pack = (
         "MERCENARIES 2 MODDING WIKI -- ASSISTANT CONTEXT PACK\n"
         "Generated from https://wiki.mercs2.tools content. Do not edit by hand;\n"
         "edit the wiki or helpbot/pack_src/ and re-run helpbot/build_pack.py.\n"
+        + (f"\nBuild tier: {tier}\n\n{banner}\n" if banner else "")
         + "".join(parts)
         + "\n"
     )
@@ -790,6 +913,8 @@ def main() -> int:
     ap.add_argument("--coverage", action="store_true",
                     help="exit 1 if a page contributes nothing or a canary symbol is wrong")
     ap.add_argument("--verbose", "-v", action="store_true", help="per-section report")
+    ap.add_argument("--tiers", action="store_true",
+                    help="also emit reduced packs for smaller-context / local models")
     args = ap.parse_args()
 
     if args.coverage:
@@ -849,6 +974,23 @@ def main() -> int:
     if total > TARGET_TOKENS:
         print("[warn] pack is %d tokens over target -- trim a section budget" %
               (total - TARGET_TOKENS))
+
+    # Reduced tiers, for smaller-context and local models (BYOK / IDE use).
+    # These are NOT canary-checked: a tier omits sections on purpose, so the
+    # canaries for omitted sections are expected to be absent. The full pack
+    # above is the one that guards extraction health.
+    if args.tiers:
+        print()
+        print("%-8s %10s %10s  %s" % ("tier", "tokens", "chars", "file"))
+        print("-" * 60)
+        for name in TIERS:
+            if name == "full":
+                continue
+            tp, _rep = build(name)
+            fp = PACK_OUT / ("pack-%s.txt" % name.replace("+", "plus"))
+            fp.write_text(tp, encoding="utf-8", newline="\n")
+            print("%-8s %10d %10d  %s"
+                  % (name, est_tokens(tp), len(tp), fp.name))
     return 0
 
 

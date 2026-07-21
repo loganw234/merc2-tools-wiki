@@ -1,15 +1,15 @@
 {
-  "sha256": "249241b0e336588c7b586790d34be70568e95076c759e9869e3eb055eed5ccd3",
-  "chars": 967254,
-  "est_tokens": 241813,
+  "sha256": "c1a0e356ed6fd243f684f1d562a0a63607f185816afdaaeb24f8742872940342",
+  "chars": 960131,
+  "est_tokens": 240032,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
     {
       "id": "system",
       "title": "OPERATING INSTRUCTIONS",
-      "chars": 9083,
-      "est_tokens": 2270,
+      "chars": 9087,
+      "est_tokens": 2271,
       "budget": 4000,
       "over_budget": false
     },
@@ -32,8 +32,8 @@
     {
       "id": "gotchas",
       "title": "ENGINE FACTS AND GOTCHAS",
-      "chars": 8934,
-      "est_tokens": 2233,
+      "chars": 10677,
+      "est_tokens": 2669,
       "budget": 5000,
       "over_budget": false
     },
@@ -64,8 +64,8 @@
     {
       "id": "luabridge",
       "title": "LUA-BRIDGE API",
-      "chars": 27171,
-      "est_tokens": 6792,
+      "chars": 18281,
+      "est_tokens": 4570,
       "budget": 8000,
       "over_budget": false
     },
@@ -80,8 +80,8 @@
     {
       "id": "templates",
       "title": "AUTHORITATIVE TEMPLATE NAMES",
-      "chars": 163084,
-      "est_tokens": 40771,
+      "chars": 163104,
+      "est_tokens": 40776,
       "budget": 45000,
       "over_budget": false
     },

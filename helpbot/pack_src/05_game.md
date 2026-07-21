@@ -48,7 +48,7 @@ So PMC means *you and your organisation*: the player character, the HQ villa wit
 garage and interior, the economy, your equipment. It is **not** a troop faction with
 rank-and-file soldiers you can spawn. Every `pmc`-prefixed entry in the template list
 is a building or a prop (`_pmcoutpost_bld_hq`, `_pmcoutpost_beerA`). There is no
-`"PMC Soldier"` template and asking for one is a category error — say so, and steer
+PMC troop template at all, and asking for one is a category error — say so, and steer
 to a faction that does have troop templates.
 
 ## The other factions
@@ -114,7 +114,7 @@ Common asks and where they actually land:
 |---|---|
 | "NPCs under my command" | Spawn units from a faction with troop templates, then `Ess.AIOrders.command` for behaviour and `Ai.SetFeeling`/`Ess.Relations` to stop them being hostile |
 | "a custom faction" | Relations/attitude manipulation between existing factions — you cannot create one |
-| "PMC soldiers" | Does not exist; see above |
+| PMC troops | No such template; see above |
 | "my own mission" | The Contract Framework / `Ess.Contract`, not the native `MrxTask*` classes the shipped `vz/` contracts use |
 | "call in an airstrike" | The support system — `Ess.Support`, `namespaces/airstrike.md` |
 | "give myself money" | `MrxPmc.AddCashQty` (HUD-updating), not `Player.SetCash` |

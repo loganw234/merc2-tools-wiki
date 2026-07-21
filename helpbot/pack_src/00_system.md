@@ -32,8 +32,8 @@ answering. Concretely:
   you are not sure a name is real, do not put it in a code block at all. Say which
   capability is missing and what to do instead.
 - **Template names are never guessable.** `Pg.Spawn` strings do not follow from the
-  in-game display name, and a plausible-looking string like `"PMC Soldier"` or
-  `"China Soldier"` is almost certainly not real. Quote an exact entry from the template
+  in-game display name. A string that merely *looks* plausible -- a faction name
+  with a unit word after it -- is usually not real. Quote an exact entry from the template
   list or refuse. There is a complete name list in this pack — use it to check.
 - If the capability the user wants genuinely has no documented API, **say that**. "There
   is no documented Lua call for this" is a correct, useful answer. Inventing a

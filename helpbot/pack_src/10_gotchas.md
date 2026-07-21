@@ -22,6 +22,35 @@ than silently writing correct code, because the user has probably been bitten by
   those existed -- that is no longer necessary. `os`/`io`/`coroutine`/`debug` presence is
   **not** confirmed; check `type(os) == "table"` before relying on any of them.
 
+## import() — what you may and may not import
+
+A local 7B model reading this pack produced `import("Pg")` and `import("Ess")`.
+Both are wrong, so here it is as examples rather than a rule:
+
+```lua
+-- WRONG: engine namespaces are ALWAYS global. Importing one errors.
+import("Pg")  import("Object")  import("Player")  import("Ai")  import("Vehicle")
+
+-- WRONG: Ess is a global table, not a module. There is no import for it.
+import("Ess")
+
+-- RIGHT: engine namespaces need nothing at all.
+local x, y, z = Object.GetPosition(Player.GetLocalCharacter())
+local uGuid = Pg.Spawn("Allied Soldier", x, y, z)
+
+-- RIGHT: Ess is guarded, never imported.
+if not _G.Ess then Loader.Printf("load Ess first") return end
+
+-- RIGHT: import() is ONLY for resident modules (src/resident/*.lua), and is
+-- file-scoped, so every file that uses one needs its own line.
+import("MrxPmc")
+MrxPmc.AddCashQty(100000)
+```
+
+The engine namespaces — never import any of these: `Object`, `Player`, `Vehicle`,
+`Ai`, `Event`, `Pg`, `Marker`, `Sound`, `Human`, `Camera`, `Airstrike`, `Weapon`,
+`Sys`, `Net`, `Gui`, `Hud`, `Controller`, `Junk`, `Graphics`.
+
 ## Silent failure modes
 
 - **An uncaught error in an OnKey/OnLoad/OnBoot script silently ends that run.** Nothing
@@ -74,11 +103,26 @@ than silently writing correct code, because the user has probably been bitten by
 ## Factions and NPCs
 
 - **PMC is the player's own faction, and it is not a troop faction.** It covers the
-  player character and a handful of story NPCs — that is all. **There are no PMC soldier
-  templates.** Every `pmc`-prefixed entry in the template list is a building or a prop
-  (`_pmcoutpost_bld_hq`, `_pmcoutpost_beerA`, …). If someone wants friendly troops under
-  their command, they spawn units from a faction that *has* troop templates and adjust
-  attitude/relations — do not send them looking for `"PMC Soldier"`, it does not exist.
+  player character and a handful of story NPCs — that is all. **There is no PMC troop
+  template of any kind.** Every `pmc`-prefixed entry in the template list is a building
+  or a prop (`_pmcoutpost_bld_hq`, `_pmcoutpost_beerA`, …).
+
+  This is the single most-asked question that has a *negative* answer, so here is the
+  answer to give, near enough verbatim. Do **not** put a PMC unit string in a code
+  block first and correct it afterwards — the reader copies the code and skips the prose.
+
+  > There is no PMC troop template — PMC is your own faction, so the game never
+  > shipped rank-and-file PMC units. Spawn from a faction that *does* have troops and
+  > make them friendly instead:
+  >
+  > ```lua
+  > local x, y, z = Object.GetPosition(Player.GetLocalCharacter())
+  > local uSoldier = Pg.Spawn("Allied Soldier", x + 5, y, z)
+  > Ai.SetFeeling(uSoldier, Player.GetLocalCharacter(), 100)
+  > ```
+
+  The first template string in your answer must be one that exists. If you catch
+  yourself about to write a PMC unit name, write the block above instead.
 - Every *other* faction **does** have troop templates — `"VZ Soldier"`,
   `"Allied Soldier"`, `"Guerilla Soldier"`, `"Chinese Soldier"`, `"OC Soldier"`
   (Oil Company), `"Pirate Thug"`, plus Elite / Paratrooper / Female / B variants.
