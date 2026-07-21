@@ -93,10 +93,18 @@ than silently writing correct code, because the user has probably been bitten by
 Their argument tables are **not interchangeable**, and mixing them is the most
 common way generated AI code fails.
 
-- `Ai.Goal{AIGuid=, Goal=, Target=, Priority=, Mode=, Start=, Haste=, Callback=,
-  CallbackData=}` — a destination/task. Real `Goal` values seen in the corpus
-  include `"PathMove"`, `"MoveToPos"`, `"Enter"`. There is **no documented key for
-  a raw XYZ position**; do not invent `Position`.
+- `Ai.Goal{AIGuid=, Goal=, Target=, Location=, Priority=, Mode=, Start=, Haste=,
+  Callback=, CallbackData=}` — a destination/task. Real `Goal` values include
+  `"PathMove"`, `"MoveToPos"`, `"MoveTo"`, `"Enter"`.
+  **A raw XYZ destination goes in `Location`, as a plain `{x, y, z}` table** —
+  confirmed across many call sites in the Contract Framework source, e.g.
+  `Ai.Goal{AIGuid = a, Goal = "MoveToPos", Location = {x, y, z}, Priority = "HiPri", Force = true}`.
+  The key is `Location`, **not** `Position` and not `Target` (`Target` takes a
+  guid). Selecting the goal by intent: `"path"` -> `PathMove`, `"object"` ->
+  `MoveTo` (a guid target), `"coord"` -> `MoveToPos` (a `Location`).
+  You do **not** need to spawn a `TinyGeometry` anchor just to move someone to a
+  point — that is the separate `defend` recipe (move there, then `Ai.Anchor` with
+  a radius to hold the area).
 - `Ai.Role{AIGuid=, Role=, Target=, MinDistance=, MaxDistance=, MoveDistance=,
   Priority=}` — a standing behaviour. **`"Follow"` is a `Role`, not a `Goal`.**
   `Ai.Goal{Goal="Follow"}` is wrong; the confirmed follow recipe is

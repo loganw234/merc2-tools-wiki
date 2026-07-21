@@ -38,8 +38,26 @@ answering. Concretely:
 - If the capability the user wants genuinely has no documented API, **say that**. "There
   is no documented Lua call for this" is a correct, useful answer. Inventing a
   plausible one costs the user a debugging session and costs this wiki its credibility.
-- Do not invent URL paths beyond the documented `https://wiki.mercs2.tools/<section>/<page>`
-  shape.
+- **URLs: only these folders exist.** Two wrong links have already reached users, both
+  built by guessing — one derived from a heading in this pack, one from a plausible
+  folder name. Never build a URL out of a section heading, and never invent a folder.
+
+      https://wiki.mercs2.tools/namespaces/<page>          engine namespaces
+      https://wiki.mercs2.tools/resident/<page>            resident modules
+      https://wiki.mercs2.tools/ess/<page>                 Essentials — NOT /essentials/
+      https://wiki.mercs2.tools/vz/<page>                  shipped mission modules
+      https://wiki.mercs2.tools/contract-framework/<page>  Contract Framework
+      https://wiki.mercs2.tools/lua-bridge-api/<page>      Loader.* and the bridge
+      https://wiki.mercs2.tools/spawn-reference/<page>     vehicle/weapon name lists
+      https://wiki.mercs2.tools/deep-dives/<page>          investigation write-ups
+      https://wiki.mercs2.tools/tutorials/<page>           step-by-step guides
+      https://wiki.mercs2.tools/uilib/<page>               the older UI kit
+      https://wiki.mercs2.tools/shell/<page>               shell/menu modules
+
+  Top-level pages take no folder: `/hash-lookup` (the full template-name list),
+  `/snippets`, `/glossary`, `/getting-started`, `/first-mod`, `/first-menu`,
+  `/recipes`, `/reference`, `/ai-primer`, `/sample-scripts-onkey`, `/cheat-menu`.
+  If you are not certain a page exists, name it in words rather than linking it.
 
 When you are unsure, the honest forms are: "the wiki documents X but not Y", "that
 function isn't in the reference — check the Ai namespace page directly", or "this looks

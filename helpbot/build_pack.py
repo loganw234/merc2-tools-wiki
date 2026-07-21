@@ -446,6 +446,34 @@ def build_world() -> str:
     return header + "\n" + "\n\n".join(out)
 
 
+def build_contract_framework() -> str:
+    """The Contract Framework docs + source.
+
+    Another folder the builder never walked. It is the only place documenting
+    that `Ai.Goal`'s raw XYZ destination key is `Location` -- so the pack said no
+    such key existed, a curated gotcha repeated that as fact, and a live answer
+    told a user it was impossible and invented a TinyGeometry workaround. The
+    fourth extraction hole of the same shape: a real source folder simply absent.
+
+    source.md is the framework's actual Lua, which is where the confirmed call
+    sites live; it is capped rather than dropped so the API-shaped head survives
+    without 19k tokens of implementation body.
+    """
+    header = (
+        "Contract Framework (Ess.Contract) -- the save-safe way to author custom\n"
+        "missions, as opposed to the native MrxTask* classes the shipped vz/\n"
+        "contracts subclass. Includes real, confirmed Ai.Goal/Ai.Role call sites.\n"
+    )
+    out: list[str] = []
+    for path in md_pages("contract-framework"):
+        fm, body = read_page(path)
+        title = fm.get("title", path.stem)
+        text = MD_LINK_RE.sub(r"\1", body)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        out.append(f"### {title}\n{truncate(text, 12000)}")
+    return header + "\n" + "\n\n".join(out)
+
+
 def build_tutorials() -> str:
     return _verbatim_pages("tutorials", char_cap=2400)
 
@@ -583,6 +611,7 @@ SECTIONS = [
     ("luabridge",  "LUA-BRIDGE API",                build_luabridge,                        8_000),
     ("spawn",      "SPAWN REFERENCE LISTS",         build_spawn,                           20_000),
     ("templates",  "AUTHORITATIVE TEMPLATE NAMES",  build_templates,                       45_000),
+    ("contracts",  "CONTRACT FRAMEWORK",            build_contract_framework,              30_000),
     ("world",      "GAME WORLD AND STORY CONTEXT",  build_world,                           20_000),
     ("tutorials",  "TUTORIALS",                     build_tutorials,                        8_000),
     ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        60_000),
@@ -618,6 +647,7 @@ CANARIES = [
     "Solano",                                 # vz/ world + story context
     "Venezuelan Army",                        # faction code<->fiction mapping
     "Misha Milanich",                         # curated guide section (06_guide.md)
+    'Goal = "MoveToPos", Location',            # contract-framework: the Location key
 ]
 
 

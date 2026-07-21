@@ -1,15 +1,15 @@
 {
-  "sha256": "f65ae43ef709f326c2aaf1c2e25860596bfc42418998548e9c399702177f9ab0",
-  "chars": 891483,
-  "est_tokens": 222870,
+  "sha256": "249241b0e336588c7b586790d34be70568e95076c759e9869e3eb055eed5ccd3",
+  "chars": 967254,
+  "est_tokens": 241813,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
     {
       "id": "system",
       "title": "OPERATING INSTRUCTIONS",
-      "chars": 7719,
-      "est_tokens": 1929,
+      "chars": 9083,
+      "est_tokens": 2270,
       "budget": 4000,
       "over_budget": false
     },
@@ -32,8 +32,8 @@
     {
       "id": "gotchas",
       "title": "ENGINE FACTS AND GOTCHAS",
-      "chars": 8341,
-      "est_tokens": 2085,
+      "chars": 8934,
+      "est_tokens": 2233,
       "budget": 5000,
       "over_budget": false
     },
@@ -83,6 +83,14 @@
       "chars": 163084,
       "est_tokens": 40771,
       "budget": 45000,
+      "over_budget": false
+    },
+    {
+      "id": "contracts",
+      "title": "CONTRACT FRAMEWORK",
+      "chars": 73814,
+      "est_tokens": 18453,
+      "budget": 30000,
       "over_budget": false
     },
     {
