@@ -1,15 +1,15 @@
 {
-  "sha256": "4c83c4bd4aaa2cfa3178cfd0e9cd12f187843962f76ca9533a09f686637b218a",
-  "chars": 423702,
-  "est_tokens": 105925,
+  "sha256": "4066e50c8184a71ca3e632e644518105f8755061e0ed49643e1e02ecb2ac5394",
+  "chars": 424275,
+  "est_tokens": 106068,
   "target_tokens": 112000,
   "chars_per_token_assumed": 4,
   "sections": [
     {
       "id": "system",
       "title": "OPERATING INSTRUCTIONS",
-      "chars": 5535,
-      "est_tokens": 1383,
+      "chars": 6108,
+      "est_tokens": 1527,
       "budget": 3000,
       "over_budget": false
     },

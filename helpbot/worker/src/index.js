@@ -149,6 +149,22 @@ async function handleChat(request, env, ctx, origin) {
 
   // 4. Upstream. Pack goes first and alone in the system slot -- see the cache
   //    invariant at the top of this file.
+  //
+  // EXTRA_BODY_JSON (optional env var): a JSON object merged into the upstream
+  // request body. Exists so provider-specific options -- notably DeepSeek's
+  // thinking-mode toggle, whose exact parameter shape should be taken from
+  // their docs rather than guessed -- can be enabled with a config change
+  // instead of a code change. Merged LAST, so it can override anything; it is
+  // operator-controlled config, not user input.
+  let extraBody = {};
+  if (env.EXTRA_BODY_JSON) {
+    try {
+      extraBody = JSON.parse(env.EXTRA_BODY_JSON);
+    } catch (e) {
+      console.error("EXTRA_BODY_JSON is not valid JSON; ignoring", String(e));
+    }
+  }
+
   const upstream = await fetch(`${env.DEEPSEEK_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -164,6 +180,7 @@ async function handleChat(request, env, ctx, origin) {
       // prefix cache is actually hitting. Without this the whole cost model is
       // unverifiable.
       stream_options: { include_usage: true },
+      ...extraBody,
     }),
   });
 

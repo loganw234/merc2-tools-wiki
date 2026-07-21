@@ -116,24 +116,36 @@ the site key is public, the secret is not).
    DeepSeek is prepaid, so keeping a small balance *is* a hard cap — use that deliberately
    rather than topping it up to a large number.
 
-## Editing assistant.md — the theme minifies the page
+## The chat page: assistant.md + assets/assistant.{js,css}
 
-**Never use `//` comments in the chat page's `<script>` block. Use `/* */`.**
+`assistant.md` is only the HTML skeleton. The app lives in `assets/assistant.js`
+and `assets/assistant.css`, which Jekyll copies verbatim.
 
-The remote just-the-docs layout collapses the served HTML onto a single line
-(the live page is ~90 KB across 2 lines). Once newlines are gone, the first `//`
-comment comments out the entire remainder of the script — so the page renders
-perfectly and silently does nothing. There is no console error and no visual clue;
-the only symptom is that clicking Ask has no effect.
+**Never put an inline `<script>` back into assistant.md** (or any wiki page).
+The remote just-the-docs layout collapses served HTML onto a single line — the
+live page is ~90 KB across 2 lines — and once newlines are gone, the first `//`
+comment comments out the entire rest of an inline script. The page renders
+perfectly and silently does nothing: no console error, no visual clue. This
+happened; it cost a debugging session. External `src=` tags are safe (static
+assets aren't minified), which is the whole reason for the current layout.
 
-The same applies to anything else that depends on newlines: no `//` comments, and
-don't rely on automatic semicolon insertion. CSS is unaffected (it ignores
-newlines), and `/* */` comments survive in both.
+CI enforces both halves: `node --check assets/assistant.js` must pass, and any
+inline `<script>` block in assistant.md fails the build.
 
-`.github/workflows/helpbot-pack.yml` guards this: it extracts the script from
-`assistant.md`, strips newlines the way the theme does, and runs `node --check`
-on the result. That is the form the browser actually receives, so it is the form
-worth testing.
+**Cache-busting:** the asset tags in assistant.md carry `?v=N`. Bump it whenever
+you change the js/css, or browsers hold the old version for up to 10 minutes
+(GitHub Pages serves `max-age=600`) — long enough to "verify" a fix that isn't
+actually loaded.
+
+### Chat UI features and their moving parts
+
+| Feature | How it works |
+|---|---|
+| File attachments | Client-side only. Files are read in the browser and appended to the message text between `--- attached file: NAME ---` markers (the system prompt documents the format for the model). Nothing is uploaded anywhere except as part of the normal chat request. Caps: 4 files, 90k chars each, text types only. |
+| Thinking display | The Worker passes the provider stream through untouched. If DeepSeek emits `delta.reasoning_content` (or inline `<think>` tags), the UI streams it into a collapsible "Thought process" pane that auto-collapses when the answer starts. If the model emits neither, the pane never appears. **To turn reasoning on**, set the `EXTRA_BODY_JSON` env var in wrangler.toml with the thinking parameter from DeepSeek's docs and redeploy — the shape is deliberately not hardcoded because it should come from their docs, not from a guess. |
+| Stop / regenerate | Stop aborts the fetch (Esc works too) and keeps the partial answer. Regenerate pops the last assistant turn and re-runs the completion — only offered on the newest answer. |
+| Persistence | Conversation is kept in `sessionStorage` (per-tab, cleared when the tab closes). "New chat" wipes it. |
+| Payload caps | Mirrored client-side from wrangler.toml (100k/message, 240k/conversation, 16 turns) so users get a friendly counter instead of a 400. Change them in both places. |
 
 ## Abuse controls
 

@@ -1,4 +1,4 @@
-name: helpbot pack
+﻿name: helpbot pack
 
 # The assistant answers from a context pack generated out of the wiki's own
 # content. If someone edits a namespace or resident page and the pack is not
@@ -18,6 +18,7 @@ on:
       - "spawn-reference/**"
       - "helpbot/**"
       - "assistant.md"
+      - "assets/**"
   push:
     branches: [main]
     paths:
@@ -29,6 +30,7 @@ on:
       - "spawn-reference/**"
       - "helpbot/**"
       - "assistant.md"
+      - "assets/**"
 
 jobs:
   check-pack:
@@ -41,20 +43,24 @@ jobs:
       - name: Verify the committed pack matches the wiki
         run: python helpbot/build_pack.py --check
 
-      # The theme's layout minifies the served HTML onto one line. A single //
-      # comment in the chat script then comments out everything after it, and
-      # the page silently does nothing -- no console error, no visual clue.
-      # Parse-check the script in exactly the form the browser receives.
-      - name: Chat script survives HTML minification
+      # The chat app lives in assets/assistant.js as a static file precisely
+      # because the theme's layout minifies HTML pages onto one line -- a
+      # single // comment in an INLINE script comments out everything after it
+      # and the page silently does nothing. Two guards:
+      #   1. the asset must parse;
+      #   2. assistant.md must never grow an inline <script> block again
+      #      (external src= tags are fine -- they are not minified content).
+      - name: Chat app asset parses
+        run: node --check assets/assistant.js
+
+      - name: No inline scripts in assistant.md
         run: |
-          python - > /tmp/chat_min.js <<'PY'
-          import pathlib, re
-          t = pathlib.Path("assistant.md").read_text(encoding="utf-8")
-          body = t[t.index("<script>") + 8 : t.index("</script>")]
-          print(re.sub(r"\s*\n\s*", " ", body).strip())
-          PY
-          node --check /tmp/chat_min.js
-          echo "[ok] chat script parses after newline stripping"
+          if grep -n '<script>' assistant.md; then
+            echo "::error::Inline <script> found in assistant.md -- the theme's HTML"
+            echo "::error::minification silently breaks inline JS. Move it to assets/assistant.js."
+            exit 1
+          fi
+          echo "[ok] no inline script blocks"
       - name: Report pack size
         if: always()
         run: |

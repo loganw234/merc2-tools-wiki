@@ -42,6 +42,12 @@ MAX_OUTPUT_TOKENS = "8000"
 # Session tokens minted after a Turnstile pass, in seconds.
 SESSION_TTL_SECONDS = "7200"
 
+# Optional: JSON merged into the upstream request body (merged last, so it can
+# override anything above). Use it to enable DeepSeek's thinking mode so the
+# chat UI can show the reasoning stream -- CHECK THE EXACT PARAMETER SHAPE at
+# https://api-docs.deepseek.com first, then uncomment. Example shape only:
+# EXTRA_BODY_JSON = '{"thinking": {"type": "enabled"}}'
+
 # KV namespace for rate-limit counters. Create with:
 #   npx wrangler kv namespace create RATE_LIMIT
 # then paste the returned id below.
