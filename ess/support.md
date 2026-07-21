@@ -20,44 +20,48 @@ one-shots, so there's nothing to track or tear down — none of these functions 
 
 All positions are world `(x, y, z)`. Every function takes an `opts` table (or `nil`) as the last argument;
 an `opts.owner` field, where present, is a **faction NAME** (`"China"`, `"Allied"`, etc.), resolved
-internally via [`Ess.Guid`](core#ess-guid--ess-name) to tag who "fired" the effect so the game attributes
+internally via [`Ess.Guid`](core#essguid--essname) to tag who "fired" the effect so the game attributes
 damage/kills correctly — omit it for unattributed. Template/ammo/vehicle strings default to the exact
 values `Ess.Contract`'s support system already uses.
 
 A few implementation details worth knowing before the per-function breakdown:
 
 - Every native call in this file is wrapped in a **bare `pcall`** — not `Ess.Safe.call`/`.quiet` (see
-  [Ess.Safe](core#ess-safe)) the way most of the rest of `Ess` is. Failures are silently swallowed, not
+  [Ess.Safe](core#esssafe)) the way most of the rest of `Ess` is. Failures are silently swallowed, not
   logged.
 - Staggered/delayed spawns go through a private `after(delay, fn)` helper — a bare
   `pcall(Event.Create, Event.TimerRelative, { delay }, fn)`, not registered on any
-  [`Ess.Track`](tracking#ess-track) tracker or built via [`Ess.Event.on`](tracking#ess-event). Consistent
+  [`Ess.Track`](tracking#esstrack) tracker or built via [`Ess.Event.on`](tracking#essevent). Consistent
   with the "nothing to clean up" framing above: these are one-shot timers with no cancel path, not
   something you'd ever need to cancel early.
-- `Ess.Support.artillery`'s scatter uses one **module-level** [`Ess.RNG`](core#ess-rng) stream
+- `Ess.Support.artillery`'s scatter uses one **module-level** [`Ess.RNG`](core#essrng) stream
   (`Ess.RNG.new()`, created once when `58_support.lua` loads, time-seeded) — shared across every
   `artillery` call for the rest of the session, not a fresh generator per call.
 
 ## Status
 
-**Not yet confirmed via live testing.** Per `CHANGELOG.md`'s `[Unreleased]` section, `Ess.Support` and
-`Ess.Easy.Airstrike` are new in the current unreleased batch, and that section is explicit: *"All additive.
-**Not yet in-game smoke-run** (built from confirmed calls + offline-verified where pure); test in a live
-game, then bump to `0.3.0` to release."* That applies to this whole namespace and to the `call_in_support`
-sample recipe (`samples/recipes/call_in_support.lua`) that exercises `airstrike`/`artillery`/`gunship` — the
-recipe's own smoke-check only asserts `type(Ess.Support.artillery) == "function"` etc. (that the API shape
-exists), not that a live game actually produced the expected shells/flybys.
+**Confirmed live as of 0.3.0.** `CHANGELOG.md`'s `[0.3.0]` entry — a dated, versioned verification record
+(the maintainer's own first-party account, not a captured log/transcript) — is explicit: *"`Ess.Support` —
+all 7 call-ins fired clean (`shell`, `artillery`, `airstrike`, `bombingrun`, `gunship`, `reinforce`,
+`Easy.Airstrike.at`), with `reinforce` separately confirmed actually delivering units."* That supersedes this
+namespace's prior `[Unreleased]`-era status ("not yet in-game smoke-run... test in a live game, then bump to
+`0.3.0` to release") — the live pass happened, and that's what 0.3.0 shipped on.
 
-This status is about the **wrapper layer only**. The natives every function here composes —
-`Airstrike.SpawnOrdnance`, `Airstrike.Flyby` (see [Airstrike](../namespaces/airstrike)), and
-`MrxCopterDrop.Create` (see [MrxCopterDrop](../resident/mrxcopterdrop)) — are independently confirmed
-elsewhere in this wiki, and the exact same call shapes were already live-verified as part of
-`Ess.Contract`'s support-effects system. But that confirmation belongs to the lower-level calls, not to this
-standalone wrapper, which is a distinct (if thin) piece of new code — do not read it as "confirmed working"
-by association.
+This confirms the **wrapper layer itself**, not just the natives underneath it. The natives every function
+here composes — `Airstrike.SpawnOrdnance`, `Airstrike.Flyby` (see [Airstrike](../namespaces/airstrike)), and
+`MrxCopterDrop.Create` (see [MrxCopterDrop](../resident/mrxcopterdrop)) — were already independently confirmed
+elsewhere in this wiki via `Ess.Contract`'s support-effects system; 0.3.0 is what extends that same live
+confirmation to this standalone wrapper, closing the "confirmed by association only" gap that used to apply
+here. That's separate from the `call_in_support` sample recipe (`samples/recipes/call_in_support.lua`)
+exercising `airstrike`/`artillery`/`gunship` — its own automated smoke-check still only asserts
+`type(Ess.Support.artillery) == "function"` etc. (API shape, not behavior); the live confirmation above comes
+from the 0.3.0 verification pass itself, not from that recipe.
 
 The `Ess.Safe.template` guard added to `Ess.Support.reinforce`'s copter path (see [Hardening](#hardening-the-copter-drop-guard)
-below) is part of the same pre-release, offline-only audit pass — also not yet live-tested.
+below) is a narrower claim the 0.3.0 verification summary doesn't separately call out — `CHANGELOG.md` still
+lists the guard's addition under its pre-release, **offline-only** hardening audit, distinct from the
+live-verified list above. `reinforce` firing live and delivering units (above) confirms the function; it
+doesn't by itself confirm this specific guard's blank-template safety net was the thing exercised.
 
 ## Ess.Support
 
@@ -142,7 +146,7 @@ Three delivery modes (`opts.deliver`):
 
 - **`"copter"`** — every `opts.units[i]` spawns at once (no stagger) via `pcall(MrxCopterDrop.Create, fac,
   tmpl, x + ox, y, z + oz, false)`, guarded immediately beforehand by
-  [`Ess.Safe.template(tmpl)`](core#ess-safe) — see [Hardening](#hardening-the-copter-drop-guard) below.
+  [`Ess.Safe.template(tmpl)`](core#esssafe) — see [Hardening](#hardening-the-copter-drop-guard) below.
 - **`"paradrop"`** — first flies a transport over via `pcall(Airstrike.Flyby, opts.vehicle or "Support
   Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (opts.altitude or 180), opts.speed or 140)` (no drop
   callback), then spawns each unit after a `1.5 + 0.2 * i` second delay so it lands roughly under the
@@ -150,7 +154,7 @@ Three delivery modes (`opts.deliver`):
   the branch below (just timed to the flyby) — there's no literal parachute/chute object attached to the
   unit.
 - **anything else / omitted ("direct")** — every unit spawns immediately, no stagger, via
-  [`Ess.Object.spawn(tmpl, x + ox, y, z + oz)`](identity-query#ess-object) (blank-template-safe internally,
+  [`Ess.Object.spawn(tmpl, x + ox, y, z + oz)`](identity-query#essobject) (blank-template-safe internally,
   no yaw specified).
 
 Matches the `reinforce` effect in `def.support` one-for-one on the delivery-mode semantics.
@@ -158,7 +162,7 @@ Matches the `reinforce` effect in `def.support` one-for-one on the delivery-mode
 ### Hardening: the copter-drop guard
 
 Per `CHANGELOG.md`'s Unreleased "Hardening" notes: `reinforce`'s `"copter"` path now validates the template
-with [`Ess.Safe.template`](core#ess-safe) before calling `MrxCopterDrop.Create` — the direct-spawn path was
+with [`Ess.Safe.template`](core#esssafe) before calling `MrxCopterDrop.Create` — the direct-spawn path was
 already guarded (`Ess.Object.spawn` is blank-template-safe on its own), but the copter path wasn't, and
 `MrxCopterDrop.Create` spawns internally the same way a raw `Pg.Spawn` does. **A blank template there can
 hard-CTD past the surrounding `pcall`** — a native crash inside the engine's own spawn code isn't something
@@ -173,11 +177,16 @@ Three one-tap presets — a jet pass plus a few shells — over `Ess.Support` ab
 | Function | Signature | Does |
 |---|---|---|
 | `at` | `Ess.Easy.Airstrike.at(x, y, z)` | `Ess.Support.airstrike(x, y, z)` (all defaults) immediately followed by `Ess.Support.artillery(x, y, z, { count = 4, radius = 10 })` — one flyby plus 4 shells scattered in a 20×20-unit square. |
-| `onTarget` | `Ess.Easy.Airstrike.onTarget(i)` | Resolves [`Ess.Player.targetUnderReticle(i or 0)`](identity-query#ess-player) for the guid, then separately re-reads its position via [`Ess.Object.pos(u)`](identity-query#ess-object) (rather than using the `x, y, z` `targetUnderReticle` already returns) and calls `.at()` on it if that succeeds. |
-| `onMe` | `Ess.Easy.Airstrike.onMe(i)` | Reads the player's own position via [`Ess.Player.pose(i or 0)`](identity-query#ess-player) and calls `.at()` on it — a deliberate danger-close self-strike; the source's own comment calls it "for the brave / the cinematic." |
+| `onTarget` | `Ess.Easy.Airstrike.onTarget(i)` | Resolves [`Ess.Player.targetUnderReticle(i or 0)`](identity-query#essplayer) for the guid, then separately re-reads its position via [`Ess.Object.pos(u)`](identity-query#essobject) (rather than using the `x, y, z` `targetUnderReticle` already returns) and calls `.at()` on it if that succeeds. |
+| `onMe` | `Ess.Easy.Airstrike.onMe(i)` | Reads the player's own position via [`Ess.Player.pose(i or 0)`](identity-query#essplayer) and calls `.at()` on it — a deliberate danger-close self-strike; the source's own comment calls it "for the brave / the cinematic." |
 
 All three no-op quietly if the position lookup fails (no target under the reticle, no character for player
 slot `i`).
+
+`.at()` is one of the 7 call-ins named in the 0.3.0 live-verification pass (see [Status](#status) above).
+`.onTarget()`/`.onMe()` aren't separately named there — both are thin position-resolvers that hand off to
+`.at()` internally, so the call-in itself is covered, but the reticle-lookup/player-position step wrapping it
+hasn't been independently confirmed live.
 
 ## See also
 
@@ -186,7 +195,7 @@ slot `i`).
   still current.
 - [Encounter Toolkit](encounter-toolkit) — the sibling gameplay-scripting systems (`AIOrders`, `Relations`,
   `Triggers`, `Sandbox`, `Layers`) extracted from the same `Ess.Contract` internals.
-- [Core Primitives](core) — [`Ess.Safe`](core#ess-safe) (the `reinforce` copter-path guard), `Ess.RNG`
+- [Core Primitives](core) — [`Ess.Safe`](core#esssafe) (the `reinforce` copter-path guard), `Ess.RNG`
   (artillery's scatter), `Ess.Guid` (the `owner` resolution).
 - [Identity & World Query](identity-query) — `Ess.Player`/`Ess.Object`, what `Ess.Easy.Airstrike.onTarget`/
   `.onMe` and `reinforce`'s direct-spawn path build on.

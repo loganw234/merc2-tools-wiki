@@ -18,18 +18,25 @@ the world (or the player's keyboard) does:
   one key to one script; `Ess.Keys` is how that single script then dispatches several keys to several
   actions internally.
 
-Both are new in the **Unreleased** batch (`CHANGELOG.md`). Per that section's own heading, the whole batch
-is **"Not yet in-game smoke-run"** — built from confirmed underlying calls and, for these two namespaces,
-execute-verified offline (`Ess.On`: "the area/health/hurt logic is execute-verified offline (stubbed loop)";
-`Ess.Keys`: "resolution + dispatch execute-verified offline"). Treat both as **written and internally
-consistent, not yet confirmed via live testing** until a live pass lands.
+Both shipped new in 0.3.0's additive batch (`CHANGELOG.md`), and both were carried through that release's
+live-verification pass. `CHANGELOG.md`'s `[0.3.0]` entry — a dated, versioned first-party record, not a
+captured log/transcript — reports the results feature-by-feature:
+
+- **`Ess.Keys`** (`vk`/`on`/`isBound`/`off`) — confirmed live, no qualifiers.
+- **`Ess.On`** — *"7 of its 8 hooks fired live: `death`, `enterArea`, `insideArea`, `healthBelow`, `tick`,
+  `vehicle` (enter + exit), `playerHurt`."* **`exitArea` was explicitly not exercised** in that pass — it
+  alone is called out by name as the exception, and stays **written and internally consistent, not yet
+  confirmed via live testing** (the status the whole batch carried before 0.3.0) until it gets its own pass.
+
+The other 7 `Ess.On` hooks, and all of `Ess.Keys`, have moved past that status as of 0.3.0.
 
 ## Ess.On — reactive world hooks
 
 Source: `src/32_on.lua`. Built entirely on already-confirmed pieces — `Event.ObjectDeath`,
 `Ess.Object.pos`/`health`, `Ess.Player`, `Ess.Loop`, `Ess.Object.pollVehicleChange`, `Ess.Math.within2D` —
 `Ess.On` just wraps them under an intent-named hook instead of you wiring the primitive yourself. **Every
-hook returns a `stop()`** you call to cancel it.
+hook returns a `stop()`** you call to cancel it. 7 of the 8 hooks below are confirmed live as of 0.3.0 — see
+[Overview](#overview) for the one exception (`exitArea`).
 
 | Function | Signature | Fires | Notes |
 |---|---|---|---|
@@ -39,7 +46,7 @@ hook returns a `stop()`** you call to cancel it.
 | `Ess.On.insideArea(x,y,z,r, fn [,i])` | `insideArea(...) -> stop()` | Every tick | Polls every **0.25s**; calls `fn(px, y, pz)` on **every** tick the player is inside the radius (a live "zone" callback), and simply does nothing on ticks they're outside. Never auto-stops — call the returned `stop()` yourself when the zone should stop watching. |
 | `Ess.On.healthBelow(guid, pct, fn)` | `healthBelow(guid, pct, fn) -> stop()` | Once | Polls every **0.4s**. **The baseline is not max health** — it's whatever `Ess.Object.health(guid)` first reads back as soon as the hook arms (captured once as `base` on the first tick that returns a positive value). Fires `fn(hp)` the first time `hp <= base * (pct/100)` (`pct` defaults to `50`), then stops. Arm this against an already-damaged target and "50% health" means 50% of its health *at arm time*, not 50% of its true max — a real, easy-to-miss gotcha, not a documentation nicety. |
 | `Ess.On.playerHurt(fn [,i])` | `playerHurt(fn [,i]) -> stop()` | Repeats | Polls every **0.2s** against player `i`'s (default `0`) character health. Calls `fn(newHp, lost)` any tick health is lower than the *previous* tick's reading — `lost` is the delta. Keeps running (and keeps updating its internal `last` reading) until you call `stop()`. |
-| `Ess.On.vehicle(fn [,i])` | `vehicle(fn [,i]) -> stop()` | Repeats | A thin pass-through: resolves player `i`'s character via `Ess.Player.character(i or 0)`, then returns `Ess.Object.pollVehicleChange(char, fn)` directly — that call's own `stop()` is what you get back. If there's no character, returns a no-op `stop()` instead. See [Vehicle-entry watch](identity-query#ess-vehicle) for `pollVehicleChange`'s own default poll interval (0.5s) and the `(uVehicleOrNil, uPrevVehicleOrNil)` signature `fn` receives. |
+| `Ess.On.vehicle(fn [,i])` | `vehicle(fn [,i]) -> stop()` | Repeats | A thin pass-through: resolves player `i`'s character via `Ess.Player.character(i or 0)`, then returns `Ess.Object.pollVehicleChange(char, fn)` directly — that call's own `stop()` is what you get back. If there's no character, returns a no-op `stop()` instead. See [Vehicle-entry watch](identity-query#essvehicle) for `pollVehicleChange`'s own default poll interval (0.5s) and the `(uVehicleOrNil, uPrevVehicleOrNil)` signature `fn` receives. |
 | `Ess.On.tick(interval, fn)` | `tick(interval, fn) -> stop()` | Repeats | Just a named, reload-safe `Ess.Loop.start(id, interval or 1, fn)` under an auto-generated id (`"Ess.On.tick:<n>"`) — every call gets its **own** id, so multiple `Ess.On.tick` hooks never collide with each other or with `Ess.Loop` ids you manage yourself elsewhere. `fn()` runs every `interval` seconds (default `1`); its return value is ignored — the loop always keeps going until `stop()`. |
 
 Every callback in the table above is `pcall`-guarded internally (`pcall(fn, ...)`), so one throwing handler
@@ -62,9 +69,10 @@ dropped and by how much, not who caused it.
 
 Source: `src/25_keys.lua`. `lua_loader.ini`'s `[OnKey]` loader binds one key to one script, but a mod is
 usually a *toolkit* of several hotkeys. `Ess.Keys` drains the same edge-triggered key buffer
-[`Ess.Input`](timing-input#ess-input) exposes, on one shared, self-arming `Ess.Loop` (id `"Ess.Keys"`,
+[`Ess.Input`](timing-input#essinput) exposes, on one shared, self-arming `Ess.Loop` (id `"Ess.Keys"`,
 interval **0.05s**), and dispatches to whichever registered key just went down — so a single script can own a
-whole panel of actions instead of one.
+whole panel of actions instead of one. Confirmed live as of 0.3.0 (`vk`/`on`/`isBound`/`off` all named in that
+release's verification pass — see [Overview](#overview)).
 
 | Function | Signature | Notes |
 |---|---|---|
@@ -86,7 +94,7 @@ file, so a consumer script's own `Ess.Keys` bindings persist fine between its ow
 an actual level/world reload clears them.
 
 **Caveat — shared input buffer (paraphrasing the source comment):** `Ess.Keys` reads the exact same
-edge-triggered key buffer a focused [`Ess.UI.Menu`](ui#ess-ui-menu) widget reads. Running `Ess.Keys` and a
+edge-triggered key buffer a focused [`Ess.UI.Menu`](ui#essuimenu) widget reads. Running `Ess.Keys` and a
 focused `Ess.UI.Menu` on the same keys at the same time means they'll contend for the same edges — use one
 or the other, or make sure they bind distinct keys.
 

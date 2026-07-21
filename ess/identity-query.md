@@ -41,6 +41,7 @@ wants it — not worth wrapping.
 | `teleport` | `Ess.Player.teleport(x, y, z, yaw, onDone)` | Warps **all** connected heroes to one spot (co-op safe) via the confirmed `MrxUtil.TeleportHeroesToLocations` idiom — deliberately *not* raw `Object.SetPosition`, which is unreliable on characters. `onDone` fires once the warp completes. For the co-op case where each hero needs a *different* spot, drop to `MrxUtil.TeleportHeroesToLocations` directly with a per-hero location list. |
 | `inVehicle` | `Ess.Player.inVehicle(i) -> uVehicleGuid \| nil` | The vehicle the player is in right now (driver or passenger), `nil` on foot — just `Ess.Object.vehicleOf` on the player's character, surfaced here because "am I driving?" comes up constantly (gating a boost/horn, a car-only menu, a "get out first" prompt). Written and internally consistent, not yet confirmed via live testing. |
 | `onFoot` | `Ess.Player.onFoot(i) -> bool` | The complement: `true` exactly when `inVehicle(i)` returns `nil`. Same confirmation status as `inVehicle`. |
+| `viewYaw` | `Ess.Player.viewYaw(i) -> yaw, bFromReticle` | The yaw the player is *looking* along, distinct from `pose`'s 4th return (the chest/body yaw) — stand still and swing the mouse and these two genuinely diverge (measured live up to 111° apart; running forward re-aligns them). Derived from the reticle hit point (`targetUnderReticle` + `Ess.Math.angleTo`). **Never `nil`** while a character exists — aiming at open sky (no usable hit) falls back to the body yaw and returns `false` as the second value, so callers never need to guard it. This is what the `useView` opt-in on `spawnAhead` below (and `Ess.Easy.Vehicle.summon`/`ctx:spawn`) is built on. Live-verified: with body yaw `-1.5°` and view yaw `-47.2°`, `useView = true` placed a spawn at the computed view point exactly. |
 
 Two caveats worth knowing before you rely on this namespace:
 
@@ -102,7 +103,7 @@ Ess.Object.alive(g)` could otherwise be fooled by a `0`.
 | Function | Signature | Notes |
 |---|---|---|
 | `enablePhysics` / `disablePhysics` | `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)` | |
-| `impulse` | `Ess.Object.impulse(uGuid, x, y, z, bLocal)` | `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger push. `bLocal` defaults to `true` (impulse in the object's own space). This is the bare call — for mass-scaling + directional + `speedBoost`/`launch`/`knockback` presets, see [Ess.Impulse](#ess-impulse) below. |
+| `impulse` | `Ess.Object.impulse(uGuid, x, y, z, bLocal)` | `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger push. `bLocal` defaults to `true` (impulse in the object's own space). This is the bare call — for mass-scaling + directional + `speedBoost`/`launch`/`knockback` presets, see [Ess.Impulse](#essimpulse) below. |
 
 ### Spawn
 
@@ -114,7 +115,7 @@ so it's validated *before* the call rather than relying on `pcall` to make it sa
 | Function | Signature | Notes |
 |---|---|---|
 | `spawn` | `Ess.Object.spawn(sTemplate, x, y, z, yaw) -> uGuid \| nil` | Refuses a blank/whitespace `sTemplate` outright (logs and returns `nil`). Sets `yaw` after spawn if given. |
-| `spawnAhead` | `Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i) -> uGuid \| nil` | Spawns `sTemplate` `nDist` units (default 18) in front of player `i` (default local), `nHeight` units up (default 0 — bump it for aircraft / a midair drop), facing the same way the player is. Hides the yaw→sin/cos "in front of me" trig via `Ess.Math.pointAhead` (see [Core Primitives](core)). |
+| `spawnAhead` | `Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, opts) -> uGuid \| nil` | Spawns `sTemplate` `nDist` units (default 18) in front of player `i` (default local), `nHeight` units up (default 0 — bump it for aircraft / a midair drop), facing the same way the player is. Hides the yaw→sin/cos "in front of me" trig via `Ess.Math.pointAhead` (see [Core Primitives](core) — including the 2026-07-19 mirrored-forward-vector fix this projection was part of). `opts.useView` (default `false`, opt-in — every pre-existing call is unaffected) places it along the *view* yaw (`Ess.Player.viewYaw`, above) instead of the body yaw. |
 
 Real usage, from the shipped `spawn_and_control` recipe:
 

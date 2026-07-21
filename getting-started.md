@@ -106,6 +106,16 @@ chunk with a random nonce, and polls the log for that tag. It also adds `--probe
 `--wait-log TEXT` (block until a string like `"[Ess]"` appears, to confirm `OnLoad` actually ran). See that
 repo's own `tools/README.md` for the full flag list.
 
+That same repo's `tools/webrepl.py` + `tools/webrepl.html` turn this raw-TCP protocol into a **browser**
+tool: since a browser page can't open a raw TCP socket itself, `webrepl.py` runs a tiny local HTTP relay
+(reusing `lua_repl.py`'s own request/response handling) that `webrepl.html` talks to — a page with a grid of
+one-click actions plus a free-form Lua box and a live bridge-status indicator, bound to localhost only. This
+is a different mechanism from the browser-based [Lua Web IDE](live-tools/web-ide) or the [WebSocket
+transport](lua-bridge-api/websocket) it uses — `webrepl` stays entirely on the original raw-TCP wire format
+above, just relayed through HTTP so a browser can reach it. The HTTP↔bridge relay path itself is verified
+end-to-end (the page serves, `/probe`/`/exec` respond correctly); an actual live game round-trip through it
+needs the game running to exercise.
+
 **Reading the response:**
 
 | Prefix | Meaning |

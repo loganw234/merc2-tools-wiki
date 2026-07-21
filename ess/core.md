@@ -55,8 +55,8 @@ Lua error, so the check has to happen *before* the call. That exact guard used t
 roughly six places (`Object.spawn`, `Vehicle.followGhost`, `Bones.attachFX`, `UI.Menu`'s `ctx:spawn`,
 `Contract._safeSpawn`), and two spawn paths — the original `Contract` `Pg.Spawn` gap and, more recently, the
 copter path in `Ess.Support.reinforce` — missed it by hand before this existed. `Ess.Safe.template` is one
-call instead of re-deriving the guard: see [Ess.Support](support) for the `reinforce` consumer. The guard
-itself is execute-verified offline via `tools/checkpure.py`; existing inline copies aren't required to
+call instead of re-deriving the guard: see [Ess.Support](support) for the `reinforce` consumer. Confirmed
+live in the 0.3.0 release pass, on top of its own offline coverage via `tools/checkpure.py`; existing inline copies aren't required to
 migrate, just new code.
 
 ## Ess.Table
@@ -225,7 +225,7 @@ snapping straight to it, low-passing the per-tick position jitter a fast-moving 
 cause. `smooth` defaults to `true`, `smoothFactor` defaults to `0.2` (0..1; higher = snappier/less lag,
 lower = glassier/more lag). Unlike the rest of this section, that *consumer* of `Ess.Vec.lerp` is
 **confirmed working live** — the source itself records a live test against an orbit around a heli and a
-hard-launched car. See [Ess.Camera](camera-bones#ess-camera) for the full write-up; `Ess.Vec.lerp` itself
+hard-launched car. See [Ess.Camera](camera-bones#esscamera) for the full write-up; `Ess.Vec.lerp` itself
 stays in the offline-verified bucket above.
 
 ## Ess.Math
@@ -234,11 +234,27 @@ Geometry/number helpers this project kept re-deriving file after file — spawn-
 orbit/dolly lerps, grid placement, distance checks. One confirmed-correct home for each, loaded right after
 `00_core` (pure functions, no other `Ess` dependencies).
 
-**Engine convention (load-bearing, live-calibrated):** Y is up; the horizontal plane is X/Z. A yaw's FORWARD
-vector is `(-sin(yaw), +cos(yaw))` in `(x, z)` — the exact projection `Ess.Object.spawnAhead` was calibrated
-against in-engine, accurate to about 4 degrees (the parallax between the character's facing and the
-third-person camera). `angleTo`/`pointAhead` below are consistent with it: a yaw from `angleTo` fed to
-`Object.SetYaw` faces the way you'd expect, and `pointAhead` matches `spawnAhead`'s own projection exactly.
+**Engine convention (load-bearing, live-calibrated 2026-07-19):** Y is up; the horizontal plane is X/Z. A
+yaw's FORWARD vector is `(+sin(yaw), +cos(yaw))` in `(x, z)`. `angleTo`/`pointAhead` below are exact inverses
+of each other — if this convention is ever revisited, both must change together, as a pair.
+
+**This was mirrored (wrong X sign) until 2026-07-19** — recorded here because it hid for a long time and
+could otherwise get "re-fixed" back to the broken version. The old formula was `(-sin, +cos)`, with
+`angleTo` computing `atan2(-dx, dz)`. Proven wrong by an A/B marker test: two rings placed from the same
+body yaw, one per convention — facing **east** the correct `(+sin)` ring was dead ahead and the old `(-sin)`
+ring was 180° behind; facing **north** the two rings coincided (`sin(0) = 0`), which is exactly why the bug
+hid — the error is invisible at yaw 0/180 and maximal at yaw ±90. **Always calibrate facing east/west, never
+north**, or a mirror bug like this one can pass a spot-check and hide again. This affected anything that
+placed or aimed something relative to a yaw: `Ess.Object.spawnAhead`, `Ess.Easy.Vehicle.summon`, the UI
+kit's `ctx:spawn`, and `Ess.Object.faceToward`/`faceObject` — all live-verified working correctly since the
+fix. If you wrote code that compensated for the old (backwards) behavior, remove the compensation.
+
+A *separate* issue, easy to conflate with the above but not the same thing: `Object.GetYaw`/a character's
+own yaw is its **chest/body** orientation, not where the player is *looking* — stand still and swing the
+mouse and the view rotates while the body doesn't (measured up to 111° apart; running forward re-aligns
+them). `angleTo`/`pointAhead` are correct either way; which yaw you feed them is the separate question. See
+[`Ess.Player.viewYaw`](identity-query#essplayer) for the view-relative yaw, and the `useView` opt-in on
+`spawnAhead`/`Ess.Easy.Vehicle.summon`/`ctx:spawn` below.
 
 | Function | Signature | Notes |
 |---|---|---|
@@ -251,6 +267,7 @@ third-person camera). `angleTo`/`pointAhead` below are consistent with it: a yaw
 | `dist3D` | `Ess.Math.dist3D(x1, y1, z1, x2, y2, z2) -> n` | Includes the Y term. |
 | `angleTo` | `Ess.Math.angleTo(fromX, fromZ, toX, toZ) -> yawDegrees` | The yaw that faces from `(fromX,fromZ)` toward `(toX,toZ)`, in the engine's own convention. Returns 0 if the two points coincide. |
 | `pointAhead` | `Ess.Math.pointAhead(x, z, yawDeg, dist) -> x2, z2` | The point `dist` units in front of `(x, z)` when facing `yawDeg` — exactly `Ess.Object.spawnAhead`'s projection, exposed for reuse (place something ahead of an NPC, aim a dolly, offset a marker). Y is unchanged; the caller keeps it. |
+| `rotateOffset` | `Ess.Math.rotateOffset(x, z, yawDeg, localX, localZ) -> x2, z2` | Places a *local* offset (`localX` = right+, `localZ` = forward+) into world space around `(x, z)` for something facing `yawDeg` — "5 right and 10 ahead of me." `pointAhead` is this function's `localX = 0` special case. Exists so nobody hand-rolls a rotation matrix again — that's exactly how the mirror-sign bug above got re-derived into MissionForge's squad-grid placement before this existed. |
 | `normDeg` | `Ess.Math.normDeg(deg) -> n in [-180, 180)` | Normalizes an angle so a difference of two yaws reads as the shortest turn (350 and 10 differ by 20, not 340). Handy for "am I roughly facing this" checks and smooth turn easing. |
 | `clamp01` | `Ess.Math.clamp01(v) -> n` | Clamps to the unit range `[0, 1]` — the common case for a lerp/ease parameter. |
 | `remap` | `Ess.Math.remap(v, inLo, inHi, outLo, outHi) -> n` | Linear rescale of `v` from `[inLo, inHi]` onto `[outLo, outHi]` — "a 0..maxHealth into a 0..1 bar," "a distance into an alpha." A degenerate input range (`inLo == inHi`) returns `outLo` instead of dividing by zero. Does **not** clamp the output — a `v` outside `[inLo, inHi]` extrapolates past `[outLo, outHi]`. |

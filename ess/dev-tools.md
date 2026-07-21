@@ -8,12 +8,12 @@ nav_order: 17
 
 ## Overview
 
-Two mod-author-facing tools from the same Unreleased batch, both pure composition of already-confirmed `Ess`
+Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of already-confirmed `Ess`
 pieces — no new engine calls introduced by either: a live on-screen dev overlay (`Ess.Easy.Debug`, from
 `src/97_easy_debug.lua`) and an interactive in-game function runner (`Ess.Easy.Console.play`, the new half of
-`src/96_console.lua`). Per the CHANGELOG's Unreleased banner, this whole batch is **not yet in-game
-smoke-run** — built from confirmed calls and, where pure, offline-verified; each section below states exactly
-how far that verification goes for that specific piece.
+`src/96_console.lua`). Per the CHANGELOG's dated 0.3.0 verification entry, both are now **confirmed live**
+in-game — built from confirmed calls, offline-verified first, and since run and observed in the actual game;
+each section below states exactly what was checked and how.
 
 ## Ess.Easy.Debug
 
@@ -32,7 +32,7 @@ Ess.Easy.Debug.isOn() -> bool
 ```
 
 Calling `overlay()` a second time while it's on tears it down (stops the refresh loop, destroys the panel)
-and returns `nil` — a real toggle, not just "show." The underlying widget is a plain [`Ess.UI.Panel`](ui#ess-ui-panel);
+and returns `nil` — a real toggle, not just "show." The underlying widget is a plain [`Ess.UI.Panel`](ui#essuipanel);
 the source also honors an undocumented `opts.w` (panel width, default 360) alongside the ones listed in its
 own header comment. Session state (`on`/`panel`) is kept in a file-local table that survives an `OnKey`
 re-run (so the toggle stays a toggle across repeated presses of whatever key calls it) but resets on a world
@@ -60,8 +60,9 @@ original design: the CHANGELOG's Hardening section records that the nearby scan 
 tick until an offline pre-release audit added the cache, on the reasoning that "a dev overlay should stay
 light enough not to perturb what you're measuring."
 
-**Status:** line-building and the on/off toggle are execute-verified offline; the panel has not had an
-in-game render pass yet. Written and internally consistent, not yet confirmed via live testing.
+**Status:** line-building and the on/off toggle were execute-verified offline first. Per the CHANGELOG's
+dated 0.3.0 verification entry, the panel itself is now **confirmed to render on-screen in-game** — the one
+gap this page previously flagged for `Debug` ("construction verified, rendering not yet tested") is closed.
 
 ## Ess.Easy.Console.play
 
@@ -69,7 +70,7 @@ in-game render pass yet. Written and internally consistent, not yet confirmed vi
 `Ess.Easy.Console.open()` browses the whole `Ess.Easy.*` (+ a few standout Core) catalog grouped by
 namespace, built on `Ess.UI.Board`, with `Ess.Easy.Console.search()` filtering it via a `Ess.TextConsole`
 prompt. `.play()` is the new piece — an interactive **playground**: instead of just reading a usage line, it
-drills into a curated demo catalog via [`Ess.UI.Menu`](ui#ess-ui-menu), lets you actually **run** a function
+drills into a curated demo catalog via [`Ess.UI.Menu`](ui#essuimenu), lets you actually **run** a function
 live, and cycle its parameters in-game to see exactly what each one does, on demand.
 
 The catalog is a plain array table, `DEMOS`, each entry shaped like:
@@ -115,15 +116,19 @@ open closes the menu instead of reopening it (the same toggle idiom as `Debug.ov
 (confirmed in `samples/OnKey/Playground.lua`, which sets `KEYVAL = "f3"` and just calls
 `Ess.Easy.Console.play()` to toggle it).
 
-**Status:** construction, param-cycling, and run-dispatch are execute-verified offline, per the CHANGELOG.
-Actual on-screen menu rendering has not had an in-game pass yet — written and internally consistent, not yet
-confirmed via live testing.
+**Status:** construction, param-cycling, and run-dispatch were execute-verified offline first. Per the
+CHANGELOG's dated 0.3.0 verification entry, the on-screen behavior is now **confirmed live**: the drill-in
+navigation, running a demo live, and the param-cycling all work in-game — the rendering gap this page
+previously flagged for `.play()` is closed too.
 
 ## Other new OnKey demos built on these pieces
 
-The same Unreleased batch ships five complete `OnKey` demo scripts that *compose* `Ess.Mark`/`Ess.On`/
+The same 0.3.0 batch ships five complete `OnKey` demo scripts that *compose* `Ess.Mark`/`Ess.On`/
 `Ess.Object` (and the rest of the framework) into something playable, without introducing any new `Ess` API
-of their own — one line each, not a deep dive:
+of their own — one line each, not a deep dive. Per the CHANGELOG's own **"Still unverified"** callout, all
+five still need to be deployed to `scripts/OnKey/` with `lua_loader.ini` bindings and a keypress each before
+any of them has had an in-game pass — nothing below is upgraded to confirmed-live by association with the
+rest of this page:
 
 - **VehicleInspector** (F6) — a WAILA-for-vehicles poll: watches for the nil→guid transition on "what
   vehicle is the player in" to catch the moment you board, dumps the vehicle's full detail set to the log,
@@ -143,7 +148,7 @@ of their own — one line each, not a deep dive:
   header comment calls it a **first-pass draft** that still needs an in-game pass (no WASD freecam yet — you
   author by positioning your character — and photo mode only hides player markers, since there's no native
   full-HUD-hide call). Stated plainly per its own header, not upgraded here.
-Two more samples sit alongside them in the same folder but are **not** part of this Unreleased batch —
+Two more samples sit alongside them in the same folder but are **not** part of this 0.3.0 batch —
 neither appears in the CHANGELOG, both still use the old generic `KEYVAL = "free"` pick-a-key convention
 instead of the new batch's dedicated F-keys, and `TrailerHitch`'s own header already declares itself
 confirmed live (a live-test status that predates, and is unrelated to, everything else on this page):

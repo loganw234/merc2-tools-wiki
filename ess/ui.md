@@ -20,7 +20,7 @@ Fits into [the three tiers](index#the-three-tiers) like this: `Ess.Gfx` **is** t
 work — the primitives every one of `uilib.lua`, `contracts.lua`, ForgeCam, and ForgeMenu used to hand-roll
 separately around `MrxGuiBase.FlashWidget`. `Ess.UI` is the Core tier — already fairly friendly, so most UI
 work doesn't need an Easy tier at all. The thin `Ess.Easy` slice on top covers only the handful of
-single-call cases that don't need a widget object (see [below](#ess-easy-ui-helpers)).
+single-call cases that don't need a widget object (see [below](#esseasy-ui-helpers)).
 
 **Deploy:** the `.gfx` movies every `Ess.UI` widget needs ship in `data/vz-patch.wad`, part of the normal
 [Ess install](index#install) — nothing extra to inject beyond what installing `Ess` already requires.
@@ -29,15 +29,15 @@ single-call cases that don't need a widget object (see [below](#ess-easy-ui-help
 
 | Widget | What it is |
 |---|---|
-| [`Ess.UI.Menu`](#ess-ui-menu) | A ForgeMenu-style declarative drill-down: `:entry`/`:category`/`:header`/`:switch`, nests as deep as you like. |
-| [`Ess.UI.List`](#ess-ui-list) | The raw scrolling list every other multi-row widget here is built on — 10 visible rows, section headers, a scrollbar, auto-resize. |
-| [`Ess.UI.Panel`](#ess-ui-panel) | A title bar plus up to 8 lines, body auto-resizing to fit. |
-| [`Ess.UI.Bar`](#ess-ui-bar) | A label plus a progress bar. |
-| [`Ess.UI.Toast`](#ess-ui-toast) | A transient notification, 3 stacked slots, auto-hiding. |
-| [`Ess.UI.Confirm`](#ess-ui-confirm) | A modal yes/no dialog. |
-| [`Ess.UI.Input`](#ess-ui-input) | A one-shot typed prompt. |
-| [`Ess.UI.Chat`](#ess-ui-chat) | A scrolling message log with an optional typed input line. |
-| [`Ess.UI.Board`](#ess-ui-board) | A two-pane list-plus-details view, driving `contracts.gfx` — the same widget [`Ess.Contract`](contract)'s own board UI (contract selection, intermission shops) is built on. |
+| [`Ess.UI.Menu`](#essuimenu) | A ForgeMenu-style declarative drill-down: `:entry`/`:category`/`:header`/`:switch`, nests as deep as you like. |
+| [`Ess.UI.List`](#essuilist) | The raw scrolling list every other multi-row widget here is built on — 10 visible rows, section headers, a scrollbar, auto-resize. |
+| [`Ess.UI.Panel`](#essuipanel) | A title bar plus up to 8 lines, body auto-resizing to fit. |
+| [`Ess.UI.Bar`](#essuibar) | A label plus a progress bar. |
+| [`Ess.UI.Toast`](#essuitoast) | A transient notification, 3 stacked slots, auto-hiding. |
+| [`Ess.UI.Confirm`](#essuiconfirm) | A modal yes/no dialog. |
+| [`Ess.UI.Input`](#essuiinput) | A one-shot typed prompt. |
+| [`Ess.UI.Chat`](#essuichat) | A scrolling message log with an optional typed input line. |
+| [`Ess.UI.Board`](#essuiboard) | A two-pane list-plus-details view, driving `contracts.gfx` — the same widget [`Ess.Contract`](contract)'s own board UI (contract selection, intermission shops) is built on. |
 
 Every widget shares `:show()` `:hide()` `:focus()` `:blur()` `:destroy()` — chainable, identical regardless
 of which widget you're holding. Exactly one widget hears keys at a time (`Ess.UI.Focus(w)`/
@@ -68,16 +68,16 @@ Confirmed by reading both source trees side by side (`uilib.lua`'s full text is 
 - **`Ess.UI.List` (and therefore `Ess.UI.Menu`, built on it) now wraps at the ends.** Pressing Down on the
   last selectable row jumps to the first; Up on the first jumps to the last (headers are skipped correctly
   either way). `uilib.lua`'s list simply stopped — `nearest()` returned `nil` past either end and the
-  keypress did nothing. See [`Ess.UI.List`](#ess-ui-list) below for the exact source line.
+  keypress did nothing. See [`Ess.UI.List`](#essuilist) below for the exact source line.
 - **`Ess.UI.Board` was *not* given the same fix.** Its own copy of the up/down nav logic (`src/55_ui_board.lua`)
   is otherwise a near-exact copy of List's, but it still stops at the ends — no wraparound. That makes List/
   Menu and Board behave differently from each other inside `Ess.UI` itself, which `uilib.lua` never did
   (neither widget wrapped there).
 - **`Ess.UI.Chat` gained an opt-in `autoHide` option** (`opts.autoHide = seconds`) with no equivalent in
-  `uilib.lua`'s `UI.Chat` at all. See [`Ess.UI.Chat`](#ess-ui-chat).
+  `uilib.lua`'s `UI.Chat` at all. See [`Ess.UI.Chat`](#essuichat).
 - **`Ess.UI.Toast`'s default footprint shrank and moved.** `uilib.lua` hardcoded a 320×44 toast with a 50px
   vertical gap between stacked slots. `Ess.UI` makes all of that configurable (`Ess.UI.TOAST_W/H/GAP/X/Y`)
-  but ships smaller defaults: 160×22 with a 25px gap. See [`Ess.UI.Toast`](#ess-ui-toast) for what stayed the
+  but ships smaller defaults: 160×22 with a 25px gap. See [`Ess.UI.Toast`](#essuitoast) for what stayed the
   same (the text-wrap width) despite the box shrinking.
 - **Widget visibility at construction is genuinely ambiguous — flagging this for a live check rather than
   guessing.** `uilib.lua`'s private `make_widget` unconditionally called `wg:SetVisible(true)` as its last
@@ -88,7 +88,7 @@ Confirmed by reading both source trees side by side (`uilib.lua`'s full text is 
   `Ess.Gfx.setVisible(..., true)` directly, for Toast) explicitly in their own constructors — those three
   are unaffected. **`Ess.UI.List`, `Panel`, `Bar`, `Chat`, and `Board` do not call `:show()` in their
   constructors**, exactly matching `uilib.lua`'s own code shape (which didn't need to, since `make_widget`
-  already showed it). Built through [`Ess.UI.Menu`](#ess-ui-menu) — which explicitly calls
+  already showed it). Built through [`Ess.UI.Menu`](#essuimenu) — which explicitly calls
   `rt.list:show():focus()` in `:open()` — this never surfaces. Built directly (the exact pattern
   [UI Kit's own `UI.List`/`UI.Panel` recipes](../uilib/list) use, with no `:show()` call at all), whether the
   widget actually renders depends on `FlashWidget:new()`'s own default visibility, which isn't confirmed from
@@ -143,7 +143,10 @@ menu:toggle()   -- put this at the very end of your OnKey file
 `ctx` (passed to every action): `x`/`y`/`z`/`yaw`, `char`/`player` (from `Ess.Player.pose(0)`, the promoted
 form of `uilib.lua`'s private `pose()` — see [Core Primitives](core)/[Identity & World Query](identity-query)),
 plus `:hint(msg)`/`:toast(msg)` (pop an `Ess.UI.Toast`), `:print(msg)` (via `Ess.Log`), `:close()`,
-`:confirm(text, onYes, onNo)`, `:ask(prompt, onSubmit, onCancel)`, and `:spawn(template, dist?)`.
+`:confirm(text, onYes, onNo)`, `:ask(prompt, onSubmit, onCancel)`, and `:spawn(template, dist?, opts?)` —
+`opts.useView = true` places it along the view yaw instead of the body yaw (see [Core
+Primitives](core#essmath)/[Identity & World Query](identity-query#essplayer)); blank-template crash guard
+unchanged.
 
 **Byte-for-byte port**, confirmed by direct diff against `uilib.lua`'s `UI.Menu` (`src/49_ui_menu.lua` vs.
 [uilib.lua's source](../uilib/source)): identical tree-builder, identical `_choose`/`_back`/`open`/`close`
@@ -154,7 +157,7 @@ over unchanged too. `FEATURE_SHEET.md` calls this out directly: "`Ess.UI.Menu`'s
 byte-for-byte backward compatible with `uilib`'s own — live-tested against the real `ExampleMenu.lua` shape."
 
 The one behavioral change is inherited, not local to this file: because `Menu` is one owned
-[`Ess.UI.List`](#ess-ui-list), it picks up List's new wraparound cursor for free (Down past the last entry
+[`Ess.UI.List`](#essuilist), it picks up List's new wraparound cursor for free (Down past the last entry
 jumps to the top). See [UI.Menu](../uilib/menu) for the full design writeup — the tree-to-list translation,
 the "why this is the one thing `UI.Menu` can do that plain ForgeMenu can't" composition story, and the
 `ctx:spawn` crash-guard history.
@@ -195,9 +198,9 @@ if not t then t = (d == 1) and nearest(1, 1) or nearest(#o._items, -1) end
 
 Down past the last selectable row jumps to the first; Up past the first jumps to the last (headers are
 skipped correctly in both directions). `uilib.lua`'s `UI.List` had no such fallback — `nearest()` returning
-`nil` at either end just left the keypress a no-op. Since [`Ess.UI.Menu`](#ess-ui-menu) is one owned
+`nil` at either end just left the keypress a no-op. Since [`Ess.UI.Menu`](#essuimenu) is one owned
 `Ess.UI.List`, every drill-down menu wraps too, which `uilib.lua`'s `UI.Menu` never did.
-[`Ess.UI.Board`](#ess-ui-board)'s separate copy of this same nav logic was **not** updated the same way — see
+[`Ess.UI.Board`](#essuiboard)'s separate copy of this same nav logic was **not** updated the same way — see
 [Where the native port genuinely differs](#where-the-native-port-genuinely-differs).
 
 Also carries the [construction-time visibility caveat](#where-the-native-port-genuinely-differs): no
@@ -269,7 +272,7 @@ The text-wrap width passed to `Ess.UI.wrap(text, 46)` is **unchanged** — still
 same value `uilib.lua` used for its larger 320-wide box. All four constants above are ordinary overridable
 `Ess.UI.*` globals if the smaller default doesn't fit your `ui_toast.gfx` skin. Everything else — the
 steal-the-soonest-expiring-slot logic, the `Ess.UI.TOAST_TTL` (default 4s) countdown, `:dismiss()` — is
-unchanged. See [UI.Toast](../uilib/panel-bar-toast#ui-toast-a-transient-notification) for the stacking
+unchanged. See [UI.Toast](../uilib/panel-bar-toast#uitoast--a-transient-notification) for the stacking
 behavior.
 
 ## Ess.UI.Confirm
@@ -317,7 +320,7 @@ front past ~40 characters (`"..." .. tail`). Same focus-save/restore as `Confirm
 
 **Logic is byte-for-byte identical to `uilib.lua`'s `UI.Input`.** The one implementation change: character
 typing goes through the now-shared `Ess.Input.VkToChar(vk, shift)` instead of `uilib.lua`'s own private
-`CHAR` table — per `src/48_ui_input.lua`'s header comment and [Timing & Input](timing-input#ess-input), it's
+`CHAR` table — per `src/48_ui_input.lua`'s header comment and [Timing & Input](timing-input#essinput), it's
 the same table, "ported byte-for-byte from uilib's `CHAR` table," still US-layout-only (edit `Ess.Input`'s
 `PUNCT` for other layouts). See [UI.Input](../uilib/confirm-and-input#typed-character-mapping) for the full
 VK-mapping table.
@@ -354,7 +357,7 @@ but `Ess.UI.Chat` is the only constructor that currently exposes it as an option
 5-line visible window, the `CHAR`-table-driven prompt (now `Ess.Input.VkToChar`, same swap as `Ess.UI.Input`)
 — is unchanged. Also has the [construction-time visibility caveat](#where-the-native-port-genuinely-differs).
 **Not related to** the [Co-op Text Chat](../deep-dives/coop-chat) deep dive's `MrxGuiTextBuffer`-based
-network chat — see [UI.Chat](../uilib/chat-and-board#ui-chat-a-scrolling-log-with-an-optional-typed-line)
+network chat — see [UI.Chat](../uilib/chat-and-board#uichat--a-scrolling-log-with-an-optional-typed-line)
 for that distinction.
 
 ## Ess.UI.Board
@@ -374,7 +377,7 @@ local b = Ess.UI.Board{
 }
 ```
 
-**`Ess.UI.Board(opts)`**: same shape as [`Ess.UI.List`](#ess-ui-list) (`x`/`y`/`w`/`h`, `title`, `hint`,
+**`Ess.UI.Board(opts)`**: same shape as [`Ess.UI.List`](#essuilist) (`x`/`y`/`w`/`h`, `title`, `hint`,
 `items`, `empty`, `focus`) plus `detail` (initial payload). Drives `contracts.gfx` — and per
 `src/55_ui_board.lua`'s own header comment, [`Ess.Contract`](contract)'s own board UI (the contract
 selection screen, intermission shops, etc) is **built on this widget directly**, not a separate hand-rolled
@@ -437,7 +440,7 @@ including `Ess.Easy.Console`, lives on the [Ess.Easy](easy) page; this is just t
 | `Ess.Easy.Toast(msg)` | `Ess.UI.Toast(tostring(msg))`. |
 | `Ess.Easy.Confirm(text, onYes, onNo)` | Positional-callback wrapper over `Ess.UI.Confirm`; `onNo` optional. |
 | `Ess.Easy.Menu(title, entries)` | Opens immediately, one **flat** level — no `:category` nesting or `:switch`. `entries` accepts an ordered `{ {label, fn}, ... }` array or a `{ [label] = fn }` map. Use `Ess.UI.Menu` directly for the full nested builder. |
-| `Ess.Easy.Console.open()` | Browses the whole `Ess.Easy.*` surface in-game, searchable — built on [`Ess.UI.Board`](#ess-ui-board) for the list+detail view and `Ess.TextConsole` for the search box. |
+| `Ess.Easy.Console.open()` | Browses the whole `Ess.Easy.*` surface in-game, searchable — built on [`Ess.UI.Board`](#essuiboard) for the list+detail view and `Ess.TextConsole` for the search box. |
 
 See [Ess.Easy](easy) for the complete one-liner catalog.
 

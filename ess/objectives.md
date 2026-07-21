@@ -25,14 +25,15 @@ Two Core-tier pieces, then the beginner-tier bundles built on them:
 - **`Ess.Easy.Objective`** / **`Ess.Easy.Quest`** — the intent bundles: a goal already wired to a world
   event *and* its map marker, in one call — `.reach`, `.destroy`, `.clear`, `.survive`.
 
-**Status:** this shipped in the same Unreleased batch as `Ess.On`, `Ess.Support`, and `Ess.Keys`. Per the
-CHANGELOG, the state machine itself — counting, sequencing, auto-wiring, marker/watcher teardown, the
-reload-safe id replace — is **execute-verified offline** (run against a stubbed loop, not just read and
-believed correct), but the whole batch is explicitly flagged **not yet in-game smoke-run**. So: this is a
-step above "written and internally consistent" — it has actually been executed and observed to behave —
-but there is no recorded live-game pass for the Objective/Quest layer itself. The primitives it composes
-(`Ess.Hud.objective`, `Ess.On.*`, `Ess.Probe.nearby`, `Ess.Mark`) are separately documented elsewhere as
-already live-confirmed; this layer's own logic hasn't had that pass yet.
+**Status:** this shipped in the same 0.3.0 batch as `Ess.On`, `Ess.Support`, and `Ess.Keys`. The state
+machine itself — counting, sequencing, auto-wiring, marker/watcher teardown, the reload-safe id replace —
+was **execute-verified offline** first (run against a stubbed loop, not just read and believed correct).
+Per the CHANGELOG's dated 0.3.0 verification entry, this layer has since been **live-verified in-game**:
+`Ess.Objective` + `Easy.Objective.reach`/`.destroy`/`.clear`/`.survive` and `Ess.Quest` sequencing are named
+explicitly among the features that "all pass." So: this is no longer just "written and internally
+consistent" — it has been executed, observed to behave, *and* run live in-game. The primitives it composes
+(`Ess.Hud.objective`, `Ess.On.*`, `Ess.Probe.nearby`, `Ess.Mark`) were already separately documented
+elsewhere as live-confirmed; this layer's own logic has now had that same pass.
 
 ## Ess.Objective
 
@@ -148,7 +149,7 @@ floating world icon) and wires [`Ess.On.death(guid, ...)`](reactive-hotkeys).
 
 **`.clear(x, y, z, r=40, faction, label, onDone)`** — "eliminate every `faction` unit in this area." The
 engine has no clean per-kill event to hang this off of, so it **polls** instead: every second
-([`Ess.On.tick(1, ...)`](reactive-hotkeys)) it re-runs [`Ess.Probe.nearby(x, y, z, r, "humans", faction)`](identity-query#ess-probe)
+([`Ess.On.tick(1, ...)`](reactive-hotkeys)) it re-runs [`Ess.Probe.nearby(x, y, z, r, "humans", faction)`](identity-query#essprobe)
 and completes the instant the count hits zero. The label live-updates to show the remaining count —
 `"Clear the area   4 left"` — recomputed at construction time too, so the very first paint already shows
 an accurate number. `faction` is an `Object.HasLabel` string (e.g. `"VZ"`); leave it `nil` to count *every*
@@ -175,7 +176,7 @@ directly for those.
 `Ess.Objective.new{id="some_id", ...}` is **reload-safe**: re-creating an objective with an id already in
 use silently `:cancel()`s the prior instance (no `onComplete`/`onFail`, teardown still runs — its watchers
 and markers are torn down) before the replacement takes its place in `Ess.Objective._active`. This is the
-same pattern `Ess.Loop.start`'s own `id` argument uses (see [Timing & Input](timing-input#ess-loop)) — it
+same pattern `Ess.Loop.start`'s own `id` argument uses (see [Timing & Input](timing-input#essloop)) — it
 matters because an `OnLoad`/`OnKey` script that re-runs its own setup (a save reload, a hotkey re-trigger)
 would otherwise leave the *previous* objective's wired `Ess.On` watcher armed alongside a brand-new one,
 double-firing `:advance()` on the same world event.
@@ -237,7 +238,7 @@ Ess.Log("[SMOKE] a_quick_mission: " .. (ok and "PASS" or "FAIL"))
 - [Markers](mark) — `Ess.Easy.Mark.zone`/`.objective`, what the auto-wired constructors drop and clear.
 - [Reactive Hotkeys](reactive-hotkeys) — `Ess.On.enterArea`/`.death`/`.tick`, the world-event wiring behind
   `.reach`/`.destroy`/`.clear`/`.survive`.
-- [Identity & World Query](identity-query#ess-probe) — `Ess.Probe.nearby`, what `.clear` polls in place of a
+- [Identity & World Query](identity-query#essprobe) — `Ess.Probe.nearby`, what `.clear` polls in place of a
   per-kill event.
 - [Objectives Reference](../contract-framework/objectives) — the older, heavier-weight objective system this
   sits below. It's a **different** system, not a replacement: that page covers the 16 objective types built
