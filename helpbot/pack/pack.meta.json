@@ -1,32 +1,32 @@
 {
-  "sha256": "4066e50c8184a71ca3e632e644518105f8755061e0ed49643e1e02ecb2ac5394",
-  "chars": 424275,
-  "est_tokens": 106068,
-  "target_tokens": 112000,
+  "sha256": "2754b3aa9d02d8923d003ad91ce8c37c4113224dc59c27ba7638d27168beee0d",
+  "chars": 786735,
+  "est_tokens": 196683,
+  "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
     {
       "id": "system",
       "title": "OPERATING INSTRUCTIONS",
-      "chars": 6108,
-      "est_tokens": 1527,
-      "budget": 3000,
+      "chars": 7719,
+      "est_tokens": 1929,
+      "budget": 4000,
       "over_budget": false
     },
     {
       "id": "gotchas",
       "title": "ENGINE FACTS AND GOTCHAS",
-      "chars": 6117,
-      "est_tokens": 1529,
-      "budget": 4000,
+      "chars": 7004,
+      "est_tokens": 1751,
+      "budget": 5000,
       "over_budget": false
     },
     {
       "id": "namespaces",
       "title": "ENGINE NAMESPACE REFERENCE",
-      "chars": 128203,
-      "est_tokens": 32050,
-      "budget": 35000,
+      "chars": 130470,
+      "est_tokens": 32617,
+      "budget": 36000,
       "over_budget": false
     },
     {
@@ -55,18 +55,34 @@
     },
     {
       "id": "spawn",
-      "title": "SPAWN / TEMPLATE NAMES",
-      "chars": 32321,
-      "est_tokens": 8080,
-      "budget": 9000,
+      "title": "SPAWN REFERENCE LISTS",
+      "chars": 63296,
+      "est_tokens": 15824,
+      "budget": 20000,
+      "over_budget": false
+    },
+    {
+      "id": "templates",
+      "title": "AUTHORITATIVE TEMPLATE NAMES",
+      "chars": 162581,
+      "est_tokens": 40645,
+      "budget": 45000,
       "over_budget": false
     },
     {
       "id": "tutorials",
-      "title": "GETTING STARTED",
-      "chars": 29343,
-      "est_tokens": 7335,
+      "title": "TUTORIALS",
+      "chars": 29337,
+      "est_tokens": 7334,
       "budget": 8000,
+      "over_budget": false
+    },
+    {
+      "id": "toplevel",
+      "title": "GUIDES, SNIPPETS AND SAMPLES",
+      "chars": 164145,
+      "est_tokens": 41036,
+      "budget": 60000,
       "over_budget": false
     },
     {

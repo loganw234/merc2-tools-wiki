@@ -43,6 +43,15 @@ jobs:
       - name: Verify the committed pack matches the wiki
         run: python helpbot/build_pack.py --check
 
+      # A live answer once invented spawn template names because the
+      # authoritative list was a top-level page the builder never walked, and
+      # nothing failed -- the pack was simply missing a whole category and the
+      # model filled the gap. This asserts every namespace/ess page actually
+      # contributes entries, that known-real symbols are present in the section
+      # they belong to, and that known-fake ones never leak into generated text.
+      - name: Pack coverage (no silent extraction holes)
+        run: python helpbot/build_pack.py --coverage
+
       # The chat app lives in assets/assistant.js as a static file precisely
       # because the theme's layout minifies HTML pages onto one line -- a
       # single // comment in an INLINE script comments out everything after it

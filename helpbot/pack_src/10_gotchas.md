@@ -71,6 +71,20 @@ than silently writing correct code, because the user has probably been bitten by
 - `SetSwfFile` is **asynchronous**: do not call movie functions from inside the same build
   step, or variable-bound fields stay blank.
 
+## Factions and NPCs
+
+- **PMC is the player's own faction, and it is not a troop faction.** It covers the
+  player character and a handful of story NPCs — that is all. **There are no PMC soldier
+  templates.** Every `pmc`-prefixed entry in the template list is a building or a prop
+  (`_pmcoutpost_bld_hq`, `_pmcoutpost_beerA`, …). If someone wants friendly troops under
+  their command, they spawn units from a faction that *has* troop templates and adjust
+  attitude/relations — do not send them looking for `"PMC Soldier"`, it does not exist.
+- Faction names appearing in a template string do **not** imply a matching soldier
+  template. Check the authoritative template list before naming any unit.
+- The faction system itself is engine-side. There is no documented Lua call that creates
+  a new faction; relations and attitudes between existing factions are the adjustable
+  part.
+
 ## Economy, spawning, objects
 
 - `MrxPmc.AddCashQty(n)` / `AddFuelQty(n)` are the **HUD-updating** economy calls. Plain

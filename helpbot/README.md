@@ -37,27 +37,62 @@ system message breaks the prefix and multiplies the bill by roughly 120x.
 ```bash
 python helpbot/build_pack.py --verbose   # build + per-section token report
 python helpbot/build_pack.py --check     # CI gate: fails if the committed pack is stale
+python helpbot/build_pack.py --coverage  # CI gate: fails on silent extraction holes
 ```
+
+### Why `--coverage` exists
+
+A user asked how to command NPCs and the assistant invented `Pg.Spawn("PMC Soldier", ...)`.
+Nothing was broken in the usual sense — the pack simply had **no character templates in
+it at all**, so the model filled the hole. Two causes:
+
+- `hash-lookup.md` (6,101 names, the wiki's own "full real-template-name list") is a
+  **top-level page**, and the builder only walked subfolders. Every top-level page was
+  missing.
+- `namespaces/controller.md` is a constants table, not a function table, so the signature
+  extractor produced **zero lines** for it and no one noticed.
+
+The lesson is that a missing section fails *silently* and looks exactly like a model
+problem. `--coverage` asserts every namespace/ess page contributes entries, that
+known-real symbols appear in the section they belong to, and that known-fake names
+(`PMC Soldier`, `Ai.SetFactionGuid`) never appear in generated content. When adding an
+extractor, add a canary for it.
+
+Note it deliberately globs the filesystem rather than calling `md_pages()`. An earlier
+version used `md_pages()` and, when that function was sabotaged in a negative test,
+passed happily — it was asking the broken code what it should have found.
 
 Output goes to `helpbot/pack/pack.txt` (bundled into the Worker) and `pack.meta.json`
 (hash + per-section sizes). **Commit both.**
 
-Current allocation, ~105k tokens against a ~100k aim:
+Current allocation, ~197k tokens against a 250k ceiling:
 
 | section | ~tokens | source |
 |---|---|---|
-| system | 1.2k | `pack_src/00_system.md` (hand-written) |
+| system | 1.5k | `pack_src/00_system.md` (hand-written) |
 | gotchas | 1.5k | `pack_src/10_gotchas.md` (hand-written) |
-| namespaces | 32k | `namespaces/*.md` signature tables |
+| namespaces | 32k | `namespaces/*.md` signature + constants tables |
 | ess | 20k | `ess/*.md` overviews + signature tables |
 | resident | 28k | `resident/*.md` — signatures only, 228 modules |
 | lua-bridge | 6.8k | `lua-bridge-api/*.md` near-verbatim |
-| spawn | 8k | `spawn-reference/*.md` template names |
+| spawn | 16k | `spawn-reference/*.md` curated lists |
+| templates | 41k | `hash-lookup.md` — all 6,101 authoritative names |
 | tutorials | 7.3k | `tutorials/*.md` truncated |
+| toplevel | 41k | snippets, glossary, getting-started, first-mod/menu, sample scripts, cheat menu, sound |
 | idioms | 0.9k | `pack_src/90_idioms.md` (hand-written) |
 
-Tuning knobs, all in `build_pack.py`: per-section budgets in `SECTIONS`, `SPAWN_NAME_CAP`,
-and the `note_limit`/`char_cap` arguments on each builder.
+The budget was raised from ~100k to 250k after the hallucination described under
+`--coverage` below. V4 Pro has a 1M context window and cached prefix tokens cost
+~$0.0036/M, so breadth is close to free — **completeness beats compactness here**, because
+a gap in the pack does not degrade gracefully, it gets confabulated over.
+
+Tuning knobs, all in `build_pack.py`: per-section budgets in `SECTIONS`, and the
+`note_limit`/`char_cap` arguments on each builder.
+
+**Namespace signatures are auto-qualified.** The wiki is inconsistent — `object.md`
+writes `Object.GetPosition(uGuid)` while `vehicle.md` writes a bare
+`GetFromRider(uCharacter)`. `qualify()` rewrites the bare form so every line in the pack
+is copy-pasteable as written, rather than leaving the model to infer a namespace.
 
 **Editing the pack's judgment** — the system prompt, the gotchas list, the code idioms — means
 editing `pack_src/*.md`, not the generated output. Those three files are where the assistant's

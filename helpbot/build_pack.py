@@ -36,7 +36,7 @@ PACK_OUT = HELPBOT_DIR / "pack"
 CHARS_PER_TOKEN = 4
 
 # Max template names inlined per spawn-reference page (see build_spawn).
-SPAWN_NAME_CAP = 700
+SPAWN_NAME_CAP = 100000  # effectively uncapped; the full list is its own section
 
 SEPARATOR = "\n\n" + "=" * 78 + "\n"
 
@@ -130,6 +130,28 @@ def is_header_row(cells: list[str]) -> bool:
     return first in {"function", "function(s)", "ess function(s)", "name", "constant", "field", "event"}
 
 
+def constant_rows(body: str, note_limit: int) -> list[str]:
+    """Pages like namespaces/controller.md are `| Constant | Value | Notes |`
+    tables, not function tables. The signature extractor requires a call-shaped
+    second cell, so it silently produced NOTHING for those pages -- Controller
+    contributed zero lines to the pack and nobody noticed until an answer went
+    wrong. Pull name = value pairs so constants land too."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for cells in table_rows(body):
+        if len(cells) < 2 or is_header_row(cells):
+            continue
+        name = fn_name(cells[0])
+        val = clean_inline(cells[1]).strip("`")
+        # a constant's value is short and literal; skip prose cells
+        if not name or not val or len(val) > 40 or "(" in val or name in seen:
+            continue
+        seen.add(name)
+        note = truncate(clean_inline(cells[2]), note_limit) if len(cells) > 2 else ""
+        out.append(f"  {name} = {val}" + (f"  -- {note}" if note else ""))
+    return out
+
+
 def fn_name(cell: str) -> str:
     """Pull a bare function name out of a table's first cell."""
     m = re.search(r"`([^`]+)`", cell)
@@ -149,7 +171,24 @@ def build_curated(filename: str) -> str:
     return body.strip()
 
 
-def _signature_pages(folder: str, note_limit: int, skip: set[str] | None = None) -> str:
+def qualify(sig: str, name: str, title: str) -> str:
+    """Force `Namespace.Function(...)` form.
+
+    Wiki pages are inconsistent: object.md writes `Object.GetPosition(uGuid)`
+    but vehicle.md writes a bare `GetFromRider(uCharacter)`. Emitting the bare
+    form leaves the model to infer the namespace from the section header, which
+    is precisely the kind of guessing that produces invented calls. Qualify it
+    here so every line in the pack is copy-pasteable as written.
+    """
+    if not name or f"{title}." in sig:
+        return sig
+    # only rewrite a standalone occurrence of the function name
+    return re.sub(r"(?<![\w.])" + re.escape(name) + r"(?=\s*\()",
+                  f"{title}.{name}", sig, count=1)
+
+
+def _signature_pages(folder: str, note_limit: int, skip: set[str] | None = None,
+                     qualify_names: bool = False) -> str:
     """Namespace- and Ess-style pages: markdown tables of
     | `Fn` | `signature` | notes |. Used for wiki/namespaces and wiki/ess."""
     skip = skip or {"index.md"}
@@ -172,8 +211,13 @@ def _signature_pages(folder: str, note_limit: int, skip: set[str] | None = None)
             if "(" not in sig and "." not in sig:
                 continue
             seen.add(name)
+            if qualify_names:
+                sig = qualify(sig, name, title)
             note = truncate(clean_inline(cells[2]), note_limit) if len(cells) > 2 else ""
             lines.append(f"  {sig}" + (f"  -- {note}" if note else ""))
+        # Constants-table pages (Controller) yield no call-shaped rows at all.
+        if len(lines) == 1:
+            lines.extend(constant_rows(body, note_limit))
         if len(lines) > 1:
             out.append("\n".join(lines))
     return "\n\n".join(out)
@@ -187,7 +231,7 @@ def build_namespaces() -> str:
         "detail is only confirmed where a real call site exists in the decompiled\n"
         "corpus -- notes say so where it does not.\n"
     )
-    return header + "\n" + _signature_pages("namespaces", note_limit=130)
+    return header + "\n" + _signature_pages("namespaces", note_limit=130, qualify_names=True)
 
 
 def build_ess() -> str:
@@ -299,10 +343,11 @@ def build_spawn() -> str:
     the whole point is that the model quotes a real template name instead of
     inventing a plausible one."""
     header = (
-        "Spawnable template names -- EXACT strings for Pg.Spawn(\"<name>\", x, y, z)\n"
-        "and Pg.GetGuidByName(\"<name>\"). If a name a user wants is not in these\n"
-        "lists, say so rather than guessing a spelling; template names are not\n"
-        "predictable from the in-game display name.\n"
+        "Curated spawn lists -- EXACT strings for Pg.Spawn(\"<name>\", x, y, z) and\n"
+        "Pg.GetGuidByName(\"<name>\"). These are the cleaned, categorised subsets;\n"
+        "the complete name list is in the AUTHORITATIVE TEMPLATE NAMES section.\n"
+        "Template names are NOT predictable from the in-game display name -- never\n"
+        "construct one by guessing at a pattern.\n"
     )
     out: list[str] = []
     for path in md_pages("spawn-reference"):
@@ -327,41 +372,104 @@ def build_spawn() -> str:
                 names.append(name)
         if not names:
             continue
-        # Per-page cap keeps the biggest dump (all-vehicles, which its own page
-        # notes is full of non-drivable noise) from eating the whole budget.
-        # When we truncate we SAY so -- otherwise the model would treat a missing
-        # name as proof it does not exist, which is exactly the wrong answer.
-        cap = SPAWN_NAME_CAP
-        if len(names) > cap:
-            shown = names[:cap]
-            out.append(
-                f"### {title} (showing {cap} of {len(names)} -- this list is TRUNCATED;\n"
-                f"a name missing from here may still exist, send the user to\n"
-                f"https://wiki.mercs2.tools/spawn-reference/{path.stem} for the full list)\n"
-                + ", ".join(shown)
-            )
-        else:
-            out.append(f"### {title} ({len(names)} names, complete)\n" + ", ".join(names))
+        out.append(f"### {title} ({len(names)} names)\n" + ", ".join(names))
     return header + "\n" + "\n\n".join(out)
+
+
+def build_templates() -> str:
+    """The authoritative name list from hash-lookup.md.
+
+    This page is a top-level wiki page, and the builder only ever walked
+    subfolders -- so the single most important anti-hallucination resource in
+    the wiki (its own ai-primer calls this "the full real-template-name list")
+    was absent from the pack entirely. A user asked how to spawn a PMC soldier,
+    the model had no character templates in context at all, and invented
+    "PMC Soldier". Every `pmc` entry in this table is a building or a prop;
+    there is no PMC troop template, and now the model can see that.
+    """
+    hl = WIKI / "hash-lookup.md"
+    if not hl.exists():
+        return "(hash-lookup.md not found)"
+    _fm, body = read_page(hl)
+    rows = re.findall(r"<tr><td>([^<]*)</td><td>([^<]*)</td><td>([^<]*)</td></tr>", body)
+    names, seen = [], set()
+    for name, _hash, _is_vehicle in rows:
+        name = name.strip()
+        if not name or name == "(unnamed)" or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    header = (
+        "AUTHORITATIVE TEMPLATE NAME LIST -- every named entry in the game's own\n"
+        "asset/string hash table (%d names). This is the complete set of real\n"
+        "names. Use it two ways:\n"
+        "  1. To quote an EXACT string for Pg.Spawn / Pg.GetGuidByName.\n"
+        "  2. To answer 'does X exist?' -- if a name is NOT in this list, it is\n"
+        "     not a real template. Say so plainly instead of guessing a spelling.\n"
+        "Caveats: the table also contains non-spawnable assets (decals, interior\n"
+        "props, test assets), so presence here means the NAME is real, not that\n"
+        "it is necessarily spawnable. Names are case- and spacing-sensitive.\n"
+        "NOTE ON FACTION TROOPS: names like '<Faction> Soldier' do NOT exist.\n"
+        "Faction-prefixed entries below are overwhelmingly buildings and props.\n"
+        % len(names)
+    )
+    return header + "\n" + ", ".join(names)
+
+
+def build_toplevel() -> str:
+    """Top-level wiki pages. The builder originally walked only subfolders, so
+    every one of these -- snippets, the tutorials index, the worked sample
+    scripts -- was missing from the pack."""
+    pages = [
+        ("snippets.md", 34000),
+        ("glossary.md", 9000),
+        ("getting-started.md", 16000),
+        ("first-mod.md", 10000),
+        ("first-menu.md", 8000),
+        ("sample-scripts-onkey.md", 46000),
+        ("sample-scripts-onload.md", 11000),
+        ("sample-scripts-onboot.md", 2000),
+        ("cheat-menu.md", 30000),
+        ("sound-music-effects.md", 13000),
+        ("deprecated-frameworks.md", 2500),
+        ("frameworks.md", 2000),
+    ]
+    out: list[str] = []
+    for fname, cap in pages:
+        path = WIKI / fname
+        if not path.exists():
+            continue
+        fm, body = read_page(path)
+        title = fm.get("title", path.stem)
+        text = MD_LINK_RE.sub(r"\1", body)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        out.append(f"### {title}\n{truncate(text, cap)}")
+    return "\n\n".join(out)
 
 
 # id, human title, builder, soft token budget
 # Budgets are set a little above current actuals so that "OVER" means the wiki
 # grew enough to need re-tuning, not that we are 50 tokens past a round number.
 SECTIONS = [
-    ("system",     "OPERATING INSTRUCTIONS",        lambda: build_curated("00_system.md"),  3_000),
-    ("gotchas",    "ENGINE FACTS AND GOTCHAS",      lambda: build_curated("10_gotchas.md"), 4_000),
-    ("namespaces", "ENGINE NAMESPACE REFERENCE",    build_namespaces,                      35_000),
+    ("system",     "OPERATING INSTRUCTIONS",        lambda: build_curated("00_system.md"),  4_000),
+    ("gotchas",    "ENGINE FACTS AND GOTCHAS",      lambda: build_curated("10_gotchas.md"), 5_000),
+    ("namespaces", "ENGINE NAMESPACE REFERENCE",    build_namespaces,                      36_000),
     ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             24_000),
     ("resident",   "RESIDENT MODULE INDEX",         build_resident,                        31_000),
     ("luabridge",  "LUA-BRIDGE API",                build_luabridge,                        8_000),
-    ("spawn",      "SPAWN / TEMPLATE NAMES",        build_spawn,                            9_000),
-    ("tutorials",  "GETTING STARTED",               build_tutorials,                        8_000),
+    ("spawn",      "SPAWN REFERENCE LISTS",         build_spawn,                           20_000),
+    ("templates",  "AUTHORITATIVE TEMPLATE NAMES",  build_templates,                       45_000),
+    ("tutorials",  "TUTORIALS",                     build_tutorials,                        8_000),
+    ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        60_000),
     ("idioms",     "CANONICAL CODE PATTERNS",       lambda: build_curated("90_idioms.md"),  4_000),
 ]
 
-# We aim for ~100k; this is the ceiling at which the build complains loudly.
-TARGET_TOKENS = 112_000
+# Raised from 112k after a live hallucination traced to missing coverage: the
+# assistant invented spawn template names because the authoritative list (a
+# top-level page) was never in the pack. DeepSeek V4 Pro has a 1M context
+# window, and cached prefix tokens cost ~$0.0036/M, so breadth is close to free
+# -- completeness matters more here than compactness.
+TARGET_TOKENS = 250_000
 
 
 def est_tokens(s: str) -> int:
@@ -393,12 +501,113 @@ def build() -> tuple[str, list[dict]]:
     return pack, report
 
 
+# Symbols that are definitely real. If one of these stops appearing, an
+# extractor has silently gone blind for a whole page or folder -- which is how
+# the assistant ended up inventing spawn template names in the first place: the
+# pack simply had no character templates and nothing failed loudly.
+# (symbol, section id it must appear IN). Scoping to a section matters: an
+# earlier version of this check only asked whether the symbol was somewhere in
+# the pack, and passed even with the whole Ai namespace removed -- because
+# "Ai.SetRelation" also occurs in prose on other pages.
+COVERAGE_MUST_EXIST = [
+    ("Object.GetPosition", "namespaces"),
+    ("Object.SetInvincible", "namespaces"),
+    ("Ai.SetRelation", "namespaces"),
+    ("Ai.GetFactionGuid", "namespaces"),
+    ("Vehicle.GetFromRider", "namespaces"),
+    ("LPad_Up", "namespaces"),          # controller.md constants table
+    ("Loader.Printf", "luabridge"),
+    ("MrxPmc", "resident"),
+    ("Ess.Easy", "ess"),
+    ("Veyron", "templates"),
+    ("_pmcoutpost_bld_hq", "templates"),
+    ("Pg.Spawn", "spawn"),
+]
+
+# Plausible-looking names that do NOT exist. If one of these ever appears in a
+# GENERATED section it means we are feeding the model the very fiction we are
+# trying to stop. (The curated sections name them on purpose, as warnings.)
+COVERAGE_MUST_NOT_EXIST = [
+    "PMC Soldier", "China Soldier", "Ai.SetFactionGuid",
+]
+
+# Sections written by hand in pack_src/ rather than extracted from the wiki.
+CURATED_SECTION_IDS = {"system", "gotchas", "idioms"}
+
+
+def coverage_report() -> int:
+    """Structural + canary check for silent extraction holes.
+
+    Deliberately does NOT reuse md_pages() to enumerate the wiki: an earlier
+    version did, and when md_pages() itself was sabotaged in a negative test the
+    check happily passed, because it was asking the broken code what it should
+    have found. It globs the filesystem directly instead.
+    """
+    sections = {sid: fn() for sid, _t, fn, _b in SECTIONS}
+    problems: list[str] = []
+
+    # 1. no generated section may come back (nearly) empty
+    for sid, body in sections.items():
+        if sid in CURATED_SECTION_IDS:
+            continue
+        if est_tokens(body) < 200:
+            problems.append("section '%s' is nearly empty (%d tokens)"
+                            % (sid, est_tokens(body)))
+
+    # 2. every namespace/ess page must contribute entries to its own section
+    for folder, sid in (("namespaces", "namespaces"), ("ess", "ess")):
+        body = sections.get(sid, "")
+        for path in sorted((WIKI / folder).glob("*.md"), key=lambda p: p.name):
+            if path.name == "index.md":
+                continue
+            fm, _b = read_page(path)
+            title = fm.get("title", path.stem)
+            marker = "### %s\n" % title
+            idx = body.find(marker)
+            if idx < 0:
+                problems.append("%s/%s contributed NOTHING to section '%s'"
+                                % (folder, path.name, sid))
+                continue
+            rest = body[idx + len(marker):]
+            end = rest.find("\n\n")
+            entries = rest[:end if end > 0 else len(rest)].strip().splitlines()
+            if not entries:
+                problems.append("%s/%s produced a header but no entries"
+                                % (folder, path.name))
+
+    # 3. canaries, scoped to the section each belongs in
+    for sym, sid in COVERAGE_MUST_EXIST:
+        if sym not in sections.get(sid, ""):
+            problems.append("expected symbol '%s' missing from section '%s'" % (sym, sid))
+
+    # must-NOT-exist is checked against GENERATED sections only: the curated
+    # sections name these fakes on purpose, to warn the model off them.
+    generated = "\n".join(b for sid, b in sections.items() if sid not in CURATED_SECTION_IDS)
+    for sym in COVERAGE_MUST_NOT_EXIST:
+        if sym in generated:
+            problems.append("INVENTED symbol present in generated content: %s" % sym)
+
+    if problems:
+        print("[FAIL] pack coverage problems:")
+        for p in problems:
+            print("   - %s" % p)
+        return 1
+    print("[ok] coverage: every namespace/ess page contributes; %d scoped canaries "
+          "present, %d absent" % (len(COVERAGE_MUST_EXIST), len(COVERAGE_MUST_NOT_EXIST)))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
                     help="exit 1 if the committed pack differs from a fresh build")
+    ap.add_argument("--coverage", action="store_true",
+                    help="exit 1 if a page contributes nothing or a canary symbol is wrong")
     ap.add_argument("--verbose", "-v", action="store_true", help="per-section report")
     args = ap.parse_args()
+
+    if args.coverage:
+        return coverage_report()
 
     pack, report = build()
     digest = hashlib.sha256(pack.encode("utf-8")).hexdigest()
