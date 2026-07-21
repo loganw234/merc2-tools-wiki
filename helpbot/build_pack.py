@@ -230,6 +230,19 @@ def build_curated(filename: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", body).strip()
 
 
+def curated(filename: str):
+    """Build a curated section AND mark it as hand-written.
+
+    CURATED_SECTION_IDS is derived from this marker, so the coverage check can
+    tell prose we wrote (which deliberately names fake symbols to warn against
+    them) from text the extractor produced (where a fake symbol is a real bug).
+    Use this instead of `lambda: build_curated(...)` for every pack_src section.
+    """
+    fn = lambda: build_curated(filename)   # noqa: E731
+    fn.is_curated = True
+    return fn
+
+
 def qualify(sig: str, name: str, title: str) -> str:
     """Force `Namespace.Function(...)` form.
 
@@ -550,10 +563,10 @@ def build_toplevel() -> str:
 # Budgets are set a little above current actuals so that "OVER" means the wiki
 # grew enough to need re-tuning, not that we are 50 tokens past a round number.
 SECTIONS = [
-    ("system",     "OPERATING INSTRUCTIONS",        lambda: build_curated("00_system.md"),  4_000),
-    ("game",       "WHAT THIS GAME IS",             lambda: build_curated("05_game.md"),    4_000),
-    ("guide",      "GAME OVERVIEW (SECONDARY SOURCE)", lambda: build_curated("06_guide.md"), 7_000),
-    ("gotchas",    "ENGINE FACTS AND GOTCHAS",      lambda: build_curated("10_gotchas.md"), 5_000),
+    ("system",     "OPERATING INSTRUCTIONS",        curated("00_system.md")           ,  4_000),
+    ("game",       "WHAT THIS GAME IS",             curated("05_game.md")             ,    4_000),
+    ("guide",      "GAME OVERVIEW (SECONDARY SOURCE)", curated("06_guide.md")            , 7_000),
+    ("gotchas",    "ENGINE FACTS AND GOTCHAS",      curated("10_gotchas.md")          , 5_000),
     ("namespaces", "ENGINE NAMESPACE REFERENCE",    build_namespaces,                      36_000),
     ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             28_000),
     ("resident",   "RESIDENT MODULE INDEX",         build_resident,                        31_000),
@@ -563,7 +576,7 @@ SECTIONS = [
     ("world",      "GAME WORLD AND STORY CONTEXT",  build_world,                           20_000),
     ("tutorials",  "TUTORIALS",                     build_tutorials,                        8_000),
     ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        60_000),
-    ("idioms",     "CANONICAL CODE PATTERNS",       lambda: build_curated("90_idioms.md"),  4_000),
+    ("idioms",     "CANONICAL CODE PATTERNS",       curated("90_idioms.md")           ,  4_000),
 ]
 
 # Raised from 112k after a live hallucination traced to missing coverage: the
@@ -658,7 +671,14 @@ COVERAGE_MUST_NOT_EXIST = [
 ]
 
 # Sections written by hand in pack_src/ rather than extracted from the wiki.
-CURATED_SECTION_IDS = {"system", "gotchas", "idioms"}
+#
+# Derived from SECTIONS, not hardcoded. A hardcoded set went stale the moment
+# 05_game.md and 06_guide.md were added: their curated prose names "PMC Soldier"
+# on purpose (to warn the model off it) and was then scanned as though the
+# extractor had emitted it, failing CI on a false positive. Deriving the set
+# means adding a curated section can never reintroduce that.
+CURATED_SECTION_IDS = {sid for sid, _t, fn, _b in SECTIONS
+                       if getattr(fn, "is_curated", False)}
 
 
 def coverage_report() -> int:
