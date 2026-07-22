@@ -676,40 +676,186 @@ own scripts can still add a new boundary later (e.g. on a mission or area transi
 <details class="script-entry nuclear-drop" markdown="1">
 <summary>A tunable multi-ordnance dropper — shells, bombs, and nukes — contributed by @Badga666 (Discord).</summary>
 
-Shared by community member **@Badga666** on the project's Discord, describing their own tuning work on a
-custom ordnance-dropping system built on `Ess`. This wiki hasn't independently re-tested it — treat the
-specific ranges/values below as their own reported tuning experience, not wiki-confirmed fact, the same way
-any other community contribution is flagged per [Contributing](CONTRIBUTING).
+Shared by community member **@Badga666** on the project's Discord — first as a written tuning guide, then
+the actual script itself. This wiki hasn't independently re-tested it in-game — treat the specific
+ranges/values below as their own reported tuning experience, not wiki-confirmed fact, the same way any other
+community contribution is flagged per [Contributing](CONTRIBUTING). The code below is quoted as given
+(`-- Ess v0.3.0` per its own header comment), not rewritten.
 
 **How it's built**, in the contributor's own words:
 - Replaced `ctx:hint` with `Ess.Easy.Toast` and wrapped engine calls in `Ess.Safe.call` to catch silent
   ordnance failures instead of failing invisibly.
-- `"impact"`-triggered raw spawns reportedly ignore terrain, so arming switched to `"distance"` — detonating
-  reliably after the projectile travels a set number of world units instead.
+- Reasoned that `"impact"`-triggered raw spawns ignore terrain, so every call here arms on `"distance"`
+  instead — detonating after the projectile travels a set number of world units. (Note: the `"IMPACT"`
+  string that shows up in the menu entries below is a *different* thing — see the `fxType` row below.)
 - Reverse-engineered `mrxfuelairbomb.lua` and `mrxbunkerbuster.lua` to replicate the official callback
   chains — `Ess.Loop` schedules fuel-cloud ignition, submunition scattering, and delayed shockwaves to land
   when the projectile would naturally detonate.
 - Spawn height (`height`) is decoupled from detonation height (`fxAlt`): explosions lock to `py + fxAlt`
   (player Y plus an offset) for a ground-hugging blast regardless of spawn altitude or terrain slope.
-- Nukes run through their own `dropNukes()`, keeping the same distance-arming and particle timing separate
-  from the shared, tunable spawner every other ordnance type routes through.
+- Nukes run through their own `dropNukes()`/`spawnNuke()`, separate from the shared, tunable spawner every
+  other ordnance type routes through — aims with `Ess.Player.viewYaw(0)` (falling back to the body yaw,
+  `Ess.Object.yaw`, if no view yaw is available), matching the `useView` pattern documented on
+  [Identity & World Query](ess/identity-query#essplayer).
 
-All ordnance except nukes routes through one function:
+The actual script, menu wiring included:
 
 ```lua
-dropOrdnance(ctx, name, radius, height, triggerType, triggerVal, velocity, fxType, fxAlt)
+-- ==========================================
+-- ORDNANCE DROPS CATEGORY (Ess v0.3.0)
+-- FX Altitude tuned to 2-10m above player level
+-- ==========================================
+
+-- Nuke-specific spawner (UNCHANGED)
+local function spawnNuke(tx, tz, ty, burstDist)
+  local ok = Ess.Safe.call(function()
+    Airstrike.SpawnOrdnance("Nuclear Bunker Buster Projectile", tx, ty, tz, 0, -90, 0, "distance", burstDist)
+  end)
+  if not ok then return false end
+
+  local loopId = "NukeSeq_" .. tostring(math.random(1000,9999))
+  Ess.Loop.start(loopId, 0.2, function()
+    local detY = math.max(0, ty - burstDist)
+    Ess.Safe.call(function() Pg.Spawn("global_particle_airstrike_tactnuke", tx, detY, tz) end)
+    return false
+  end)
+
+  local shockId = "NukeShock_" .. tostring(math.random(1000,9999))
+  Ess.Loop.start(shockId, 1.0, function()
+    local detY = math.max(0, ty - burstDist)
+    Ess.Safe.call(function() Pg.Spawn("global_particle_exp_shockwave_ground_tactnuke", tx, detY, tz) end)
+    return false
+  end)
+  return true
+end
+
+local function dropNukes(ctx, ringMode)
+  local uChar = Ess.Player.character(0)
+  if not uChar then Ess.Easy.Toast("No player found"); return end
+
+  local px, py, pz = Ess.Object.pos(uChar)
+  local pYaw = Ess.Player.viewYaw(0) or Ess.Object.yaw(uChar)
+
+  local radius = 120
+  local height = 60
+  local burstDist = 100
+
+  if ringMode then
+    local success = true
+    for i = 1, 8 do
+      local angle = (i - 1) * (2 * math.pi / 8)
+      local tx = px + math.sin(pYaw + angle) * radius
+      local tz = pz + math.cos(pYaw + angle) * radius
+      if not spawnNuke(tx, tz, py + height, burstDist) then success = false end
+    end
+    if success then Ess.Easy.Toast("Nuke Ring Armed (8x)") end
+  else
+    local tx, tz = Ess.Math.pointAhead(px, pz, pYaw, radius)
+    if spawnNuke(tx, tz, py + height, burstDist) then Ess.Easy.Toast("Nuke Dropped") end
+  end
+end
+
+-- Generic ordnance spawner with ground-locked FX
+local function dropOrdnance(ctx, name, radius, height, triggerType, triggerVal, velocity, fxType, fxAlt)
+  fxAlt = fxAlt or 7
+  local uChar = Ess.Player.character(0)
+  if not uChar then Ess.Easy.Toast("No player found"); return end
+
+  local px, py, pz = Ess.Object.pos(uChar)
+  local pYaw = Ess.Player.viewYaw(0) or Ess.Object.yaw(uChar)
+
+  local tx, tz = Ess.Math.pointAhead(px, pz, pYaw, radius)
+  local ty = py + height
+
+  local ok = Ess.Safe.call(function()
+    Airstrike.SpawnOrdnance(name, tx, ty, tz, 0, velocity, 0, triggerType, triggerVal)
+  end)
+
+  if not ok then Ess.Easy.Toast("Spawn failed: " .. name); return end
+
+  -- Detonation timing based on travel
+  local detTime = triggerVal / math.abs(velocity)
+  -- FX height locked to player level + offset (2-10m)
+  local detY = py + fxAlt
+
+  local seqId = "OrdSeq_" .. tostring(math.random(10000,99999))
+  Ess.Loop.start(seqId, detTime, function()
+    if fxType == "FAB" then
+      Ess.Safe.call(function() Pg.Spawn("global_particle_airstrike_fuelairbomb", tx, detY, tz) end)
+
+      local ignId = "FABIgn_" .. tostring(math.random(1000,9999))
+      Ess.Loop.start(ignId, 1.6, function()
+        Ess.Safe.call(function() Pg.Spawn("Light_airstrike_fuelairbomb_sml", tx, detY, tz) end)
+        Ess.Safe.call(function() Pg.Spawn("global_particle_exp_falling_debris_airstrike", tx, detY, tz) end)
+        Sound.CueSound(0, "exp_oiltrucker")
+        return false
+      end)
+
+      local fireId = "FABFire_" .. tostring(math.random(1000,9999))
+      Ess.Loop.start(fireId, 1.75, function()
+        Ess.Safe.call(function() Pg.Spawn("Explosion (Fuel Air Bomb)", tx, detY, tz) end)
+        Ess.Safe.call(function() Pg.Spawn("Light_airstrike_fuelairbomb_lrg_flash", tx, detY, tz) end)
+        Ess.Safe.call(function() Pg.Spawn("global_particle_exp_shockwave_ground", tx, detY, tz) end)
+        return false
+      end)
+
+    elseif fxType == "CLUSTER" then
+      for i = 1, 6 do
+        local a = (i - 1) * (2 * math.pi / 6)
+        local cx = tx + math.sin(a) * 12
+        local cz = tz + math.cos(a) * 12
+        Ess.Safe.call(function() Pg.Spawn("Explosion (Bombing Run)", cx, detY, cz) end)
+      end
+      Ess.Safe.call(function() Pg.Spawn("global_particle_exp_shockwave_ground", tx, detY, tz) end)
+
+    else
+      Ess.Safe.call(function() Pg.Spawn("Explosion (Bombing Run)", tx, detY, tz) end)
+      Ess.Safe.call(function() Pg.Spawn("global_particle_exp_shockwave_ground", tx, detY, tz) end)
+    end
+    return false
+  end)
+
+  Ess.Easy.Toast("Dropped: " .. name)
+end
+
+-- Menu Category
+menu:category("Ordnance Drops", function(ctx)
+  ctx:entry("Tactical Nuke (Single)", function() dropNukes(ctx, false) end)
+  ctx:entry("Tactical Nuke (Ring 8x)",function() dropNukes(ctx, true) end)
+
+  -- fxAlt parameter added (last arg): sets detonation height relative to player Y
+  ctx:entry("Fuel Air Bomb",          function() dropOrdnance(ctx, "Fuel Air Bomb Projectile", 60, 80, "distance", 70, -90, "FAB", 8) end)
+  ctx:entry("Cluster Bomb",           function() dropOrdnance(ctx, "Cluster Bomb Projectile", 70, 90, "distance", 80, -90, "CLUSTER", 2) end)
+
+  ctx:entry("Gunship Shell",          function() dropOrdnance(ctx, "Gunship Shell", 40, 30, "distance", 40, -90, "IMPACT", 2) end)
+  ctx:entry("Heavy Artillery",        function() dropOrdnance(ctx, "Artillery Shell", 50, 40, "distance", 50, -90, "IMPACT", 2) end)
+end)
 ```
+
+`spawnNuke`/`dropNukes` use `Airstrike.SpawnOrdnance("Nuclear Bunker Buster Projectile", ...)` directly, with
+a real, layered particle sequence: an immediate `global_particle_airstrike_tactnuke` puff, then a ground
+shockwave (`global_particle_exp_shockwave_ground_tactnuke`) one second later, both floored at world Y `0`
+(`math.max(0, ty - burstDist)`) so a nuke armed over open sky doesn't detonate its FX underground. The
+ring mode spaces 8 nukes around the player with a manual `sin`/`cos` loop rather than `Ess.Math.pointAhead`
+(`pointAhead` only projects a single forward direction; a full ring needs an angle offset per nuke), while
+the single-nuke path and `dropOrdnance` both use `pointAhead` directly, matching the description below.
+
+`dropOrdnance` defaults `fxAlt` to **`7`** when the caller omits it (`fxAlt = fxAlt or 7`) — none of the
+four menu entries above actually omit it, but it's there if you add a fifth. Note the parameter reference
+below was written from the contributor's prose guide before this script was shared; the table's `2`–`8`
+range matches the four real calls above, while the script's own header comment claims a wider `2`–`10`m —
+both are given here rather than silently picking one.
 
 | Parameter | What it does | How to tweak | Reported range |
 |---|---|---|---|
-| `name` | Internal projectile template string | Match your build's ordnance names | `"Gunship Shell"`, `"Artillery Shell"`, `"Fuel Air Bomb Projectile"`, etc. |
-| `radius` | Horizontal distance from player to drop zone | Lower = closer blasts, higher = safer distance | `30`–`120` |
-| `height` | Spawn altitude above player Y | Higher = longer drop time (raise `triggerVal` to match) | `30`–`100` |
-| `triggerType` | Arming method | `"distance"` (most reliable), `"timer"` (seconds), `"impact"` (reportedly often buggy) | `"distance"` |
-| `triggerVal` | Arming threshold | Units traveled (`"distance"`) or seconds airborne (`"timer"`) before detonation | `40`–`120` |
-| `velocity` | Downward drop speed (negative = falling) | Lower number = faster dive; keep proportional to `height` | `-80` to `-110` |
-| `fxType` | FX routing tag | `"IMPACT"`, `"FAB"`, or `"CLUSTER"` — match the ordnance type | — |
-| `fxAlt` | Detonation altitude above player Y | Lower = ground-hugging, higher = airburst | `2`–`8` |
+| `name` | Projectile template string, passed straight to `Airstrike.SpawnOrdnance` | Match your build's ordnance names | `"Gunship Shell"`, `"Artillery Shell"`, `"Fuel Air Bomb Projectile"`, `"Cluster Bomb Projectile"` (nukes separately use `"Nuclear Bunker Buster Projectile"`) |
+| `radius` | Horizontal distance from player to drop zone | Lower = closer blasts, higher = safer distance | `30`–`120` (`40`–`70` across the four real menu entries) |
+| `height` | Spawn altitude above player Y | Higher = longer drop time (raise `triggerVal` to match) | `30`–`100` (`30`–`90` across the four real menu entries) |
+| `triggerType` | Arming method, passed straight to `Airstrike.SpawnOrdnance` | The contributor's notes call `"impact"` unreliable (ignores terrain) and `"timer"` viable; **every real call in this script uses `"distance"`** — no example of the other two exists here | `"distance"` |
+| `triggerVal` | Arming threshold — units traveled before detonation, for `"distance"` | Raise it if the projectile detonates before reaching the ground | `40`–`120` (`40`–`80` across the four real menu entries) |
+| `velocity` | Downward drop speed (negative = falling), passed straight to `Airstrike.SpawnOrdnance` | Lower number = faster dive; keep proportional to `height` | Every real call here uses exactly `-90` |
+| `fxType` | **Not an engine parameter** — a plain string this script's own `if/elseif` branches on to pick which FX chain plays. `"IMPACT"` (the `else` branch — same string shape as the unrelated engine `triggerType` concept above, easy to conflate but not connected to it) plays a single `Explosion (Bombing Run)` + shockwave; `"FAB"` plays the staged fuel-air sequence; `"CLUSTER"` rings 6 `Explosion (Bombing Run)`s around the impact point | Match the ordnance type | `"IMPACT"`, `"FAB"`, `"CLUSTER"` |
+| `fxAlt` | Detonation altitude above player Y (`detY = py + fxAlt`) | Lower = ground-hugging, higher = airburst | Defaults to `7`; `2`–`8` in the real calls above; the script's own header comment says `2`–`10` |
 
 Nukes use a separate function, `dropNukes(ctx, ringMode)`, tuned via locals inside it:
 
@@ -723,9 +869,10 @@ Nukes use a separate function, `dropNukes(ctx, ringMode)`, tuned via locals insi
 - Detonation timing: `detTime = triggerVal / math.abs(velocity)` — e.g. `triggerVal = 80`, `velocity = -90`
   gives roughly a 0.89s delay before FX fire.
 - FX altitude: `detY = py + fxAlt` — with `fxAlt = 2`, explosions lock to exactly 2 units above your feet.
-- Ring distribution uses the engine's `x = sin(yaw), z = cos(yaw)` convention (see
-  [Ess.Math](ess/core#essmath) for the same convention documented elsewhere on this wiki) —
-  `Ess.Math.pointAhead()` handles the rotation, no manual yaw offset needed.
+- Both placements share the engine's `x = sin(yaw), z = cos(yaw)` convention (see [Ess.Math](ess/core#essmath)
+  for the same convention documented elsewhere on this wiki). A single target (`dropOrdnance`, the
+  single-nuke path) gets it for free from `Ess.Math.pointAhead()`; the 8-nuke ring needs a per-nuke angle
+  offset `pointAhead` doesn't expose, so that one loop applies the same `sin`/`cos` by hand instead.
 
 **Tuning tips, from the contributor's own notes:**
 1. Explosions too high or low? Adjust only `fxAlt` — leave `height` alone unless you also want to change
