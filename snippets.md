@@ -660,6 +660,88 @@ own scripts can still add a new boundary later (e.g. on a mission or area transi
 
 </details>
 
+## Custom ordnance & nuke drop system
+
+<style>
+.nuclear-drop { background: #14120a; border: 2px solid #ffcc00; border-radius: 8px; overflow: hidden; }
+.nuclear-drop > summary { background: #000; color: #ffd400; font-weight: 700; padding: 0.65em 1em;
+  cursor: pointer; border-bottom: 2px solid #ffcc00; list-style: none; }
+.nuclear-drop > summary::-webkit-details-marker { display: none; }
+.nuclear-drop > summary:before { content: "\2622  "; }
+.nuclear-drop > *:not(summary) { padding: 0 1.1em; }
+.nuclear-drop > *:first-of-type { padding-top: 0.9em; }
+.nuclear-drop > *:last-child { padding-bottom: 0.9em; }
+</style>
+
+<details class="script-entry nuclear-drop" markdown="1">
+<summary>A tunable multi-ordnance dropper — shells, bombs, and nukes — contributed by @Badga666 (Discord).</summary>
+
+Shared by community member **@Badga666** on the project's Discord, describing their own tuning work on a
+custom ordnance-dropping system built on `Ess`. This wiki hasn't independently re-tested it — treat the
+specific ranges/values below as their own reported tuning experience, not wiki-confirmed fact, the same way
+any other community contribution is flagged per [Contributing](CONTRIBUTING).
+
+**How it's built**, in the contributor's own words:
+- Replaced `ctx:hint` with `Ess.Easy.Toast` and wrapped engine calls in `Ess.Safe.call` to catch silent
+  ordnance failures instead of failing invisibly.
+- `"impact"`-triggered raw spawns reportedly ignore terrain, so arming switched to `"distance"` — detonating
+  reliably after the projectile travels a set number of world units instead.
+- Reverse-engineered `mrxfuelairbomb.lua` and `mrxbunkerbuster.lua` to replicate the official callback
+  chains — `Ess.Loop` schedules fuel-cloud ignition, submunition scattering, and delayed shockwaves to land
+  when the projectile would naturally detonate.
+- Spawn height (`height`) is decoupled from detonation height (`fxAlt`): explosions lock to `py + fxAlt`
+  (player Y plus an offset) for a ground-hugging blast regardless of spawn altitude or terrain slope.
+- Nukes run through their own `dropNukes()`, keeping the same distance-arming and particle timing separate
+  from the shared, tunable spawner every other ordnance type routes through.
+
+All ordnance except nukes routes through one function:
+
+```lua
+dropOrdnance(ctx, name, radius, height, triggerType, triggerVal, velocity, fxType, fxAlt)
+```
+
+| Parameter | What it does | How to tweak | Reported range |
+|---|---|---|---|
+| `name` | Internal projectile template string | Match your build's ordnance names | `"Gunship Shell"`, `"Artillery Shell"`, `"Fuel Air Bomb Projectile"`, etc. |
+| `radius` | Horizontal distance from player to drop zone | Lower = closer blasts, higher = safer distance | `30`–`120` |
+| `height` | Spawn altitude above player Y | Higher = longer drop time (raise `triggerVal` to match) | `30`–`100` |
+| `triggerType` | Arming method | `"distance"` (most reliable), `"timer"` (seconds), `"impact"` (reportedly often buggy) | `"distance"` |
+| `triggerVal` | Arming threshold | Units traveled (`"distance"`) or seconds airborne (`"timer"`) before detonation | `40`–`120` |
+| `velocity` | Downward drop speed (negative = falling) | Lower number = faster dive; keep proportional to `height` | `-80` to `-110` |
+| `fxType` | FX routing tag | `"IMPACT"`, `"FAB"`, or `"CLUSTER"` — match the ordnance type | — |
+| `fxAlt` | Detonation altitude above player Y | Lower = ground-hugging, higher = airburst | `2`–`8` |
+
+Nukes use a separate function, `dropNukes(ctx, ringMode)`, tuned via locals inside it:
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `radius` | `120` | Ring diameter from player |
+| `height` | `60` | Spawn altitude above player |
+| `burstDist` | `100` | Travel distance before arming/detonation |
+
+**The math behind it**, per the contributor:
+- Detonation timing: `detTime = triggerVal / math.abs(velocity)` — e.g. `triggerVal = 80`, `velocity = -90`
+  gives roughly a 0.89s delay before FX fire.
+- FX altitude: `detY = py + fxAlt` — with `fxAlt = 2`, explosions lock to exactly 2 units above your feet.
+- Ring distribution uses the engine's `x = sin(yaw), z = cos(yaw)` convention (see
+  [Ess.Math](ess/core#essmath) for the same convention documented elsewhere on this wiki) —
+  `Ess.Math.pointAhead()` handles the rotation, no manual yaw offset needed.
+
+**Tuning tips, from the contributor's own notes:**
+1. Explosions too high or low? Adjust only `fxAlt` — leave `height` alone unless you also want to change
+   drop travel time.
+2. Projectile detonating before it reaches the ground? Raise `triggerVal` by `10`–`20`.
+3. Fuel-air-bomb cloud not forming? Raise `height` to `80`–`100` and `fxAlt` to `6`–`8` — FABs reportedly
+   need altitude to disperse before ignition.
+4. Cluster submunitions clumping together? Raise `triggerVal` to give the engine more frames to process the
+   scatter logic.
+5. FX out of sync with the blast? Adjust the `detTime` divisor, or add a `+0.2` buffer to the
+   `Ess.Loop.start()` delay.
+6. Testing a new ordnance type? Start from `"distance"` triggering, `velocity = -90`, `fxAlt = 3`, then tune
+   from there.
+
+</details>
+
 ## Ready for something more involved?
 
 Everything above reads or writes a value. [Deep Dive: Overriding a Function](deep-dives/function-override)
