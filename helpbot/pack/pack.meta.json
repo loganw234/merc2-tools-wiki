@@ -1,7 +1,7 @@
 {
-  "sha256": "c1a0e356ed6fd243f684f1d562a0a63607f185816afdaaeb24f8742872940342",
-  "chars": 960131,
-  "est_tokens": 240032,
+  "sha256": "7f61240f76d25dc66485c79da5adb736588daab6b3920d6e24ec8c26b766de23",
+  "chars": 961784,
+  "est_tokens": 240446,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -48,8 +48,8 @@
     {
       "id": "ess",
       "title": "ESSENTIALS (Ess) FRAMEWORK",
-      "chars": 100972,
-      "est_tokens": 25243,
+      "chars": 101788,
+      "est_tokens": 25447,
       "budget": 28000,
       "over_budget": false
     },
@@ -112,8 +112,8 @@
     {
       "id": "toplevel",
       "title": "GUIDES, SNIPPETS AND SAMPLES",
-      "chars": 164145,
-      "est_tokens": 41036,
+      "chars": 164982,
+      "est_tokens": 41245,
       "budget": 60000,
       "over_budget": false
     },
