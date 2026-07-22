@@ -666,6 +666,13 @@ TIERS: dict[str, list[str] | None] = {
     "small":  ["system", "gotchas", "idioms", "luabridge"],
     # ~46k -- 64k context
     "small+": ["system", "game", "gotchas", "idioms", "luabridge", "namespaces"],
+    # ~70k -- ~100k context. Fills the gap between small+ (64k models) and
+    # medium (128k models): small+ plus the whole Ess framework, which is the
+    # foundational library most scripts build on, so it earns its place before
+    # the 228-module resident dump does. Exactly "medium minus resident", which
+    # keeps the tiers a clean nested chain (small+ subset ess subset medium).
+    "ess":    ["system", "game", "gotchas", "idioms", "luabridge", "namespaces",
+               "ess"],
     # ~100k -- 128k context, the common cloud tier
     "medium": ["system", "game", "gotchas", "idioms", "luabridge", "namespaces",
                "ess", "resident"],
