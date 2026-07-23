@@ -20,6 +20,9 @@ to keep growing.
   predecessors together: a wave-survival gamemode where a Contract Framework contract is only the launcher,
   ModNet's authority model decides which machine runs the simulation, and UI Kit draws the entire HUD and
   setup menu itself.
+- **[Building Your Own Framework](building-a-framework)** — not a library either, but the tutorial for
+  writing one: OnLoad load order, registering a global safely, and the safe/unsafe patterns Ess itself
+  follows, ending in a basic skeleton to build from.
 
 Looking for `Ess`'s now-superseded predecessors? See [Deprecated Frameworks](deprecated-frameworks) —
 Contract Framework, UI Kit, and ModNet are still documented in full, just no longer where new mods should

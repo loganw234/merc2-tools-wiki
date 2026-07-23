@@ -1,7 +1,7 @@
 {
-  "sha256": "dd1564a8fcd943af52662282ddaf96f52a793f7be2e7395aaa25491d80df717c",
-  "chars": 973371,
-  "est_tokens": 243342,
+  "sha256": "20b2f6e7c5972200ae83a21392d973a833ec8e242fb3d912a85969f5eee045b9",
+  "chars": 973606,
+  "est_tokens": 243401,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -112,8 +112,8 @@
     {
       "id": "toplevel",
       "title": "GUIDES, SNIPPETS AND SAMPLES",
-      "chars": 168667,
-      "est_tokens": 42166,
+      "chars": 168902,
+      "est_tokens": 42225,
       "budget": 60000,
       "over_budget": false
     },
