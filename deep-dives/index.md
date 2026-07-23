@@ -112,6 +112,14 @@ different problem instead of just copy-pasting the end result.
   keyspace, so synthetic collision handles address bones whose real name was never cracked), includes the
   full 89-bone human skeleton reference, and closes the loop on the turret aim vector the
   [destroyer dive](destroyer-vehicle) called unreadable — while confirming that same camera wall still holds.
+- **[Getting Into Interior Spaces](interior-spaces)** — *confirmed working live* — three genuinely different
+  things this engine calls an "interior," easy to conflate: the PMC HQ mansion (a true separate-region
+  layer), the five faction bases (not interiors at all — ordinary open-world locations), and the newest
+  find, each faction's own walkable HQ *office* — a worldentity template spawned on demand onto one shared
+  hidden coordinate island. Documents the one real trap (`MrxUtil.SpawnActor` is asynchronous — teleport too
+  early and you fall through the floor), every live-confirmed coordinate, and a decoded-from-`vz.wad`
+  contents reference for every interior layer block, honestly caveated as a raw string-scan rather than a
+  fully decoded transform. Paired with a ready-to-use [`GoInside`/`GoOutside` snippet](../snippets#warp-into-any-hq-interior-and-back-out).
 - **[Cracking the Bone-Name Hashes](name-cracking)** — *method proven, results delivered and cross-validated* —
   where every bone and hardpoint *name* on this wiki actually came from. The full arc: from an in-game Lua probe
   brute-forcing strings against a Transport Truck parked in the PMC HQ overnight, to a pair of GPUs solving the last

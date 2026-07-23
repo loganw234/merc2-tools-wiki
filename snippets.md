@@ -660,6 +660,63 @@ own scripts can still add a new boundary later (e.g. on a mission or area transi
 
 </details>
 
+## Warp into any HQ interior and back out
+
+<details class="script-entry" markdown="1">
+<summary>GoInside(sWhich) / GoOutside(x,y,z) — into any faction's walkable HQ office, and back.</summary>
+
+The 4 faction offices are worldentity templates spawned onto one shared hidden island
+`{3750, 450, -3840}`; the PMC HQ has its own dedicated entry instead. Full mechanism, every
+live-confirmed coordinate, and the reasoning behind the async-wait below:
+[Getting Into Interior Spaces](deep-dives/interior-spaces).
+
+{% raw %}
+```lua
+-- GoInside(sWhich) / GoOutside(x,y,z) — warp into any HQ interior and back out.
+-- The 4 faction offices are worldentity templates spawned onto one shared hidden
+-- island {3750,450,-3840}; the PMC HQ has its own packaged entry. All confirmed in-engine.
+-- Names: "pmc", "oil"/"oc", "allied", "china"/"chi", "guerrilla"/"gur" (or a raw *Hq_Interior template).
+
+local HQ = { oil="OilHq_Interior", oc="OilHq_Interior", allied="AllHq_Interior",
+             china="ChiHq_Interior", chi="ChiHq_Interior", guerrilla="GurHq_Interior", gur="GurHq_Interior" }
+
+function GoInside(sWhich)
+  sWhich = string.lower(sWhich or "pmc")
+  WifVzBoundary.SetInteriorMode(true)
+  if sWhich == "pmc" then
+    _MODULES.wifpmcinterior.Enter(true, 1)               -- PMC mansion: its own module loads + teleports
+    return
+  end
+  local old = Pg.GetGuidByName("HqInterior")              -- offices share one slot, so clear the last one
+  if old and Object.IsValid(old) then Object.Remove(old) end
+  _MODULES.mrxhq.GlobalEnter(false)                       -- HUDs off, interior atmosphere, invincible
+  MrxUtil.SpawnActor(HQ[sWhich] or sWhich, "HqInterior", {3750, 450, -3840}, nil, 0, false, false, function()
+    MrxUtil.TeleportHeroesToHardpoints({{ vObject = Pg.GetGuidByName("HqInterior"), sHardpoint = "hp_playerA_enter" }})
+  end)                                                     -- teleport in the callback: SpawnActor is ASYNC
+end
+
+function GoOutside(x, y, z)
+  WifVzBoundary.SetInteriorMode(false)
+  if _MODULES.mrxhq then _MODULES.mrxhq.GlobalExit() end   -- restore HUDs / faction reporting
+  local hq = Pg.GetGuidByName("HqInterior")
+  if hq and Object.IsValid(hq) then Object.Remove(hq) end  -- despawn the office actor
+  DebugTeleport(x or 2551, y or -14, z or -911)            -- default: back to the open-world start
+end
+```
+{% endraw %}
+
+Call `GoInside("oil")`/`GoInside("allied")`/etc. to enter an office, `GoInside("pmc")` for the mansion, and
+`GoOutside()` (or `GoOutside(x, y, z)` for a specific spot) to leave. Worth knowing about the one real trap
+here: `MrxUtil.SpawnActor` is asynchronous, so teleporting before the spawned office's collision has
+actually streamed in drops you through the floor. This snippet teleports directly inside `SpawnActor`'s own
+callback, reported working as-is — but the [deep dive above](deep-dives/interior-spaces#the-gotcha-spawnactor-is-asynchronous)
+documents a more cautious variant for the same problem that doesn't teleport in the callback at all: it
+polls `Pg.GetGuidByName("HqInterior")` until the actor resolves (roughly another 1.5s beyond the callback
+firing, for collision specifically) and only teleports after that. If this simpler version ever drops you
+through the floor, that polling version is the fallback fix.
+
+</details>
+
 ## Custom ordnance & nuke drop system
 
 <style>

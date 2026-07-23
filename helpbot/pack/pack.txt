@@ -6398,6 +6398,63 @@ own scripts can still add a new boundary later (e.g. on a mission or area transi
 
 </details>
 
+## Warp into any HQ interior and back out
+
+<details class="script-entry" markdown="1">
+<summary>GoInside(sWhich) / GoOutside(x,y,z) — into any faction's walkable HQ office, and back.</summary>
+
+The 4 faction offices are worldentity templates spawned onto one shared hidden island
+`{3750, 450, -3840}`; the PMC HQ has its own dedicated entry instead. Full mechanism, every
+live-confirmed coordinate, and the reasoning behind the async-wait below:
+Getting Into Interior Spaces.
+
+{% raw %}
+```lua
+-- GoInside(sWhich) / GoOutside(x,y,z) — warp into any HQ interior and back out.
+-- The 4 faction offices are worldentity templates spawned onto one shared hidden
+-- island {3750,450,-3840}; the PMC HQ has its own packaged entry. All confirmed in-engine.
+-- Names: "pmc", "oil"/"oc", "allied", "china"/"chi", "guerrilla"/"gur" (or a raw *Hq_Interior template).
+
+local HQ = { oil="OilHq_Interior", oc="OilHq_Interior", allied="AllHq_Interior",
+             china="ChiHq_Interior", chi="ChiHq_Interior", guerrilla="GurHq_Interior", gur="GurHq_Interior" }
+
+function GoInside(sWhich)
+  sWhich = string.lower(sWhich or "pmc")
+  WifVzBoundary.SetInteriorMode(true)
+  if sWhich == "pmc" then
+    _MODULES.wifpmcinterior.Enter(true, 1)               -- PMC mansion: its own module loads + teleports
+    return
+  end
+  local old = Pg.GetGuidByName("HqInterior")              -- offices share one slot, so clear the last one
+  if old and Object.IsValid(old) then Object.Remove(old) end
+  _MODULES.mrxhq.GlobalEnter(false)                       -- HUDs off, interior atmosphere, invincible
+  MrxUtil.SpawnActor(HQ[sWhich] or sWhich, "HqInterior", {3750, 450, -3840}, nil, 0, false, false, function()
+    MrxUtil.TeleportHeroesToHardpoints({{ vObject = Pg.GetGuidByName("HqInterior"), sHardpoint = "hp_playerA_enter" }})
+  end)                                                     -- teleport in the callback: SpawnActor is ASYNC
+end
+
+function GoOutside(x, y, z)
+  WifVzBoundary.SetInteriorMode(false)
+  if _MODULES.mrxhq then _MODULES.mrxhq.GlobalExit() end   -- restore HUDs / faction reporting
+  local hq = Pg.GetGuidByName("HqInterior")
+  if hq and Object.IsValid(hq) then Object.Remove(hq) end  -- despawn the office actor
+  DebugTeleport(x or 2551, y or -14, z or -911)            -- default: back to the open-world start
+end
+```
+{% endraw %}
+
+Call `GoInside("oil")`/`GoInside("allied")`/etc. to enter an office, `GoInside("pmc")` for the mansion, and
+`GoOutside()` (or `GoOutside(x, y, z)` for a specific spot) to leave. Worth knowing about the one real trap
+here: `MrxUtil.SpawnActor` is asynchronous, so teleporting before the spawned office's collision has
+actually streamed in drops you through the floor. This snippet teleports directly inside `SpawnActor`'s own
+callback, reported working as-is — but the deep dive above
+documents a more cautious variant for the same problem that doesn't teleport in the callback at all: it
+polls `Pg.GetGuidByName("HqInterior")` until the actor resolves (roughly another 1.5s beyond the callback
+firing, for collision specifically) and only teleports after that. If this simpler version ever drops you
+through the floor, that polling version is the fallback fix.
+
+</details>
+
 ## Custom ordnance & nuke drop system
 
 <style>
@@ -6415,75 +6472,7 @@ own scripts can still add a new boundary later (e.g. on a mission or area transi
 <summary>A tunable multi-ordnance dropper — shells, bombs, and nukes — contributed by @Badga666 (Discord).</summary>
 
 Shared by community member **@Badga666** on the project's Discord — first as a written tuning guide, then
-the actual script itself. This wiki hasn't independently re-tested it in-game — treat the specific
-ranges/values below as their own reported tuning experience, not wiki-confirmed fact, the same way any other
-community contribution is flagged per Contributing. The code below is quoted as given
-(`-- Ess v0.3.0` per its own header comment), not rewritten.
-
-**How it's built**, in the contributor's own words:
-- Replaced `ctx:hint` with `Ess.Easy.Toast` and wrapped engine calls in `Ess.Safe.call` to catch silent
-  ordnance failures instead of failing invisibly.
-- Reasoned that `"impact"`-triggered raw spawns ignore terrain, so every call here arms on `"distance"`
-  instead — detonating after the projectile travels a set number of world units. (Note: the `"IMPACT"`
-  string that shows up in the menu entries below is a *different* thing — see the `fxType` row below.)
-- Reverse-engineered `mrxfuelairbomb.lua` and `mrxbunkerbuster.lua` to replicate the official callback
-  chains — `Ess.Loop` schedules fuel-cloud ignition, submunition scattering, and delayed shockwaves to land
-  when the projectile would naturally detonate.
-- Spawn height (`height`) is decoupled from detonation height (`fxAlt`): explosions lock to `py + fxAlt`
-  (player Y plus an offset) for a ground-hugging blast regardless of spawn altitude or terrain slope.
-- Nukes run through their own `dropNukes()`/`spawnNuke()`, separate from the shared, tunable spawner every
-  other ordnance type routes through — aims with `Ess.Player.viewYaw(0)` (falling back to the body yaw,
-  `Ess.Object.yaw`, if no view yaw is available), matching the `useView` pattern documented on
-  Identity & World Query.
-
-The actual script, menu wiring included:
-
-```lua
--- ==========================================
--- ORDNANCE DROPS CATEGORY (Ess v0.3.0)
--- FX Altitude tuned to 2-10m above player level
--- ==========================================
-
--- Nuke-specific spawner (UNCHANGED)
-local function spawnNuke(tx, tz, ty, burstDist)
-  local ok = Ess.Safe.call(function()
-    Airstrike.SpawnOrdnance("Nuclear Bunker Buster Projectile", tx, ty, tz, 0, -90, 0, "distance", burstDist)
-  end)
-  if not ok then return false end
-
-  local loopId = "NukeSeq_" .. tostring(math.random(1000,9999))
-  Ess.Loop.start(loopId, 0.2, function()
-    local detY = math.max(0, ty - burstDist)
-    Ess.Safe.call(function() Pg.Spawn("global_particle_airstrike_tactnuke", tx, detY, tz) end)
-    return false
-  end)
-
-  local shockId = "NukeShock_" .. tostring(math.random(1000,9999))
-  Ess.Loop.start(shockId, 1.0, function()
-    local detY = math.max(0, ty - burstDist)
-    Ess.Safe.call(function() Pg.Spawn("global_particle_exp_shockwave_ground_tactnuke", tx, detY, tz) end)
-    return false
-  end)
-  return true
-end
-
-local function dropNukes(ctx, ringMode)
-  local uChar = Ess.Player.character(0)
-  if not uChar then Ess.Easy.Toast("No player found"); return end
-
-  local px, py, pz = Ess.Object.pos(uChar)
-  local pYaw = Ess.Player.viewYaw(0) or Ess.Object.yaw(uChar)
-
-  local radius = 120
-  local height = 60
-  local burstDist = 100
-
-  if ringMode then
-    local success = true
-    for i = 1, 8 do
-      local angle = (i - 1) * (2 * math.pi / 8)
-      local tx = px + math.sin(pYaw + angle) * radius
-      local...
+the actual script itself. This wiki hasn't...
 
 ### Glossary
 # Glossary
