@@ -176,7 +176,7 @@ directly as an `rgb` param.
 `04_vec.lua` — 3D vector helpers on flat `x, y, z` values: the spatial math that spawn/aim/knockback/camera
 code kept open-coding (normalize a direction, step a point toward a target, lerp two positions). Pure Lua,
 no engine calls, no `Ess` dependencies. Execute-verified offline via `tools/checkpure.py`, not yet confirmed
-via live testing — with one exception, see below.
+via live testing — with two exceptions, see below.
 
 Everything takes and **returns flat components** (three separate values), not a table — matching how the
 rest of `Ess` passes positions (`Ess.Object.pos` returns `x, y, z`; `Ess.Object.setPos` takes `x, y, z`) and
@@ -196,6 +196,7 @@ Ess.Object.impulse(u, Ess.Vec.scale(dx, dy, dz, 8000))
 | `add` | `Ess.Vec.add(x1, y1, z1, x2, y2, z2) -> x, y, z` | |
 | `sub` | `Ess.Vec.sub(x1, y1, z1, x2, y2, z2) -> x, y, z` | `a - b`, i.e. the vector from `b` to `a`. |
 | `dot` | `Ess.Vec.dot(x1, y1, z1, x2, y2, z2) -> n` | |
+| `cross` | `Ess.Vec.cross(ax, ay, az, bx, by, bz) -> cx, cy, cz` | The cross product — dot's missing sibling, added in 0.3.1: perpendicular to both inputs, for camera-right from forward+up, a surface normal from two edges, or "is B left or right of A" from the sign of the vertical component. See below for its live-verification status and its distinction from the engine's own native `Math.CrossProduct`. |
 | `dir` | `Ess.Vec.dir(fromX, fromY, fromZ, toX, toY, toZ) -> nx, ny, nz` | Unit direction from A to B (`normalize(sub(B, A))`). |
 | `toward` | `Ess.Vec.toward(fromX, fromY, fromZ, toX, toY, toZ, dist) -> x, y, z` | The point `dist` units from A toward B. |
 | `lerp` | `Ess.Vec.lerp(x1, y1, z1, x2, y2, z2, t) -> x, y, z` | Interpolates between two positions. |
@@ -227,6 +228,14 @@ lower = glassier/more lag). Unlike the rest of this section, that *consumer* of 
 **confirmed working live** — the source itself records a live test against an orbit around a heli and a
 hard-launched car. See [Ess.Camera](camera-bones#esscamera) for the full write-up; `Ess.Vec.lerp` itself
 stays in the offline-verified bucket above.
+
+**`Ess.Vec.cross`, added in 0.3.1 (the 2026-07-22 "bindings-pass harvest"), is this section's other
+exception — and a more direct one than `lerp` above.** Per `CHANGELOG.md`'s `[0.3.1]` entry, `cross` itself
+— not just a consumer built on top of it — was one of the targeted live probes run during that release's
+in-game pass, and it returned `(0, 0, 1)`. It's pure Lua, no engine call, exactly like the rest of this
+table: a **separate, independently-implemented** function from the native engine's own
+[`Math.CrossProduct`](../namespaces/math), which computes the same cross-product math but through an actual
+engine binding, not this framework. Same underlying math, two unrelated call paths — don't confuse the two.
 
 ## Ess.Math
 

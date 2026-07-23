@@ -44,8 +44,19 @@ The panel repaints four lines every `interval` seconds, each sourced from an alr
 |---|---|---|
 | Position | `pos: (120.4, 5.0, -88.2)  yaw 45` | `Ess.Player.pose(i)` |
 | Aim | `aim: Veyron  VZ  d=12.3` (or `aim: (nothing)`) | `Ess.Player.targetUnderReticle(i)` + `Ess.Name` + `Ess.Probe.getFaction` + `Ess.Object.distance` |
-| Vehicle + health | `on foot   health: 85 / 100` (or `vehicle: <name>`) | `Ess.Player.inVehicle(i)` + `Ess.Object.health` (plus a direct `Object.GetMaxHealth` read) |
+| Vehicle + health + mem | `on foot   health: 85 / 100   mem 128` (or `vehicle: <name>`) | `Ess.Player.inVehicle(i)` + `Ess.Object.health` (plus a direct `Object.GetMaxHealth` read) + [`Sys.MemUsage`](../namespaces/sys) (new in 0.3.1, wrapped) |
 | Nearby | `near(40): 6 hum  2 veh` | `Ess.Probe.nearby(x, y, z, radius, "humans"/"vehicles")`, called once per kind |
+
+**As of 0.3.1 (the 2026-07-22 "bindings-pass harvest"), that vehicle/health line also appends an engine `mem`
+figure.** `Ess.Easy.Debug.overlay` now wraps the native [`Sys.MemUsage`](../namespaces/sys) call and tacks its
+raw, unlabeled number onto the end of the line (`memLine()` in the source). The absolute value isn't the
+point — **the practical use is watching that number climb while your script runs**, a live memory-leak smell
+test you get for free just by leaving the overlay open through a play session. `Sys.MemUsage` itself is a
+native engine call documented on [Sys](../namespaces/sys), not an `Ess`-authored function. Per `CHANGELOG.md`'s
+`[0.3.1]` entry, this release's offline test pass caught and fixed a real `Sys`-indexing guard bug in this
+exact mem line before it ever shipped (the source now checks `Sys and Sys.MemUsage` before calling it, so a
+missing `Sys` global — e.g. running under the offline test harness — returns an empty string instead of
+throwing); the figure then rendered correctly during the release's live in-game pass.
 
 **Deliberately shows no "FPS" number.** The overlay refreshes on a fixed-interval `Ess.Loop` — a timer, not
 a per-render-frame hook — so any framerate it computed would be the *tick* rate, not the real framerate. The
@@ -63,6 +74,8 @@ light enough not to perturb what you're measuring."
 **Status:** line-building and the on/off toggle were execute-verified offline first. Per the CHANGELOG's
 dated 0.3.0 verification entry, the panel itself is now **confirmed to render on-screen in-game** — the one
 gap this page previously flagged for `Debug` ("construction verified, rendering not yet tested") is closed.
+The `mem` figure folded into that same line in 0.3.1 (above) carries its own separate confirmation from that
+later release's dated verification entry.
 
 ## Ess.Easy.Console.play
 
