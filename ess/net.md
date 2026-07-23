@@ -46,6 +46,9 @@ Ess.Net.Track("hp", function() return myHp end)   -- push a local var out on a h
   send/receive call anywhere in your own code.
 - **`Ess.Net.Set(key, value)`** / **`Ess.Net.Get(key)`** — shortcuts for `Shared("_")`, the default
   namespace.
+- **`Ess.Net.setv(ns, key, value)`** / **`Ess.Net.getv(ns, key)`** — the namespaced primitives everything
+  above wraps (`Shared`'s metamethods and `Set`/`Get` all route here). Reach for them directly when you
+  want an explicit-namespace one-off without holding a `Shared(ns)` table.
 - **`Ess.Net.Track(key, getter, ns)`** — polls `getter()` once per heartbeat (`Ess.Net.HB`, default 2s) and
   broadcasts only when its return value actually changed since the last check. **Idempotent**: calling
   `Track` again with the same `(ns, key)` just replaces the getter in place rather than adding a duplicate

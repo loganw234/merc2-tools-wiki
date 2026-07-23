@@ -304,8 +304,8 @@ Ess.Easy.Contract.destroy("Raid the Depot", {
 ## Debug — `Ess.Easy.Debug`
 
 A live on-screen dev panel for mod authors — position, aim target, vehicle/health, nearby counts — built on
-[`Ess.UI.Panel`](ui#essuipanel). See [Debug & Dev Tools](dev-tools) for the full writeup. **Unreleased** —
-construction verified offline, not yet in-game smoke-run.
+[`Ess.UI.Panel`](ui#essuipanel). See [Debug & Dev Tools](dev-tools) for the full writeup. **Live-verified as
+of 0.3.0** — the CHANGELOG's dated verification entry confirms the overlay renders in-game.
 
 | Call | Does |
 |---|---|

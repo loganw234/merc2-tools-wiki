@@ -161,7 +161,7 @@ Matches the `reinforce` effect in `def.support` one-for-one on the delivery-mode
 
 ### Hardening: the copter-drop guard
 
-Per `CHANGELOG.md`'s Unreleased "Hardening" notes: `reinforce`'s `"copter"` path now validates the template
+Per `CHANGELOG.md`'s `[0.3.0]` "Hardening" notes: `reinforce`'s `"copter"` path now validates the template
 with [`Ess.Safe.template`](core#esssafe) before calling `MrxCopterDrop.Create` — the direct-spawn path was
 already guarded (`Ess.Object.spawn` is blank-template-safe on its own), but the copter path wasn't, and
 `MrxCopterDrop.Create` spawns internally the same way a raw `Pg.Spawn` does. **A blank template there can
