@@ -1,7 +1,7 @@
 {
-  "sha256": "7f61240f76d25dc66485c79da5adb736588daab6b3920d6e24ec8c26b766de23",
-  "chars": 961784,
-  "est_tokens": 240446,
+  "sha256": "dd1564a8fcd943af52662282ddaf96f52a793f7be2e7395aaa25491d80df717c",
+  "chars": 973371,
+  "est_tokens": 243342,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -40,8 +40,8 @@
     {
       "id": "namespaces",
       "title": "ENGINE NAMESPACE REFERENCE",
-      "chars": 130470,
-      "est_tokens": 32617,
+      "chars": 138372,
+      "est_tokens": 34593,
       "budget": 36000,
       "over_budget": false
     },
@@ -112,8 +112,8 @@
     {
       "id": "toplevel",
       "title": "GUIDES, SNIPPETS AND SAMPLES",
-      "chars": 164982,
-      "est_tokens": 41245,
+      "chars": 168667,
+      "est_tokens": 42166,
       "budget": 60000,
       "over_budget": false
     },

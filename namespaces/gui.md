@@ -15,6 +15,14 @@ underscore-prefixed internal marker primitives that the public `Marker` namespac
 texture loading for the HUD, language/localization queries, controller-type detection, reticle screen
 position, and a handful of shell-lifecycle/dev-only hooks.
 
+**A live-probing caveat worth knowing before concluding a function "doesn't exist":** during a live
+WebSocket lua-bridge probe (2026-07-22), some `Gui` functions came back nil/inert when called on the
+runtime global `_G.Gui`. Gui functionality apparently does not live entirely on `_G.Gui` itself — some of
+it lives only under a separate `_GuiInternal` table instead (a real, separate table the wiki already
+documents extensively as the primitive layer beneath `MrxGuiBase`'s widget methods — see
+`resident/mrxguibase.lua`). This is a real, confirmed finding, not a guess: don't conclude a `Gui` function
+"doesn't exist" just because it's absent/nil on `_G.Gui` — it may only be reachable via `_GuiInternal`.
+
 ## Provenance
 
 This page's function list comes from a live `pairs(Gui)` enumeration in-game (via lua-bridge), not from

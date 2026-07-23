@@ -93,10 +93,29 @@ function counts as "at least this many," not complete:
 | [Airstrike](airstrike) | 7 | The only mechanism in the whole corpus for spawning a projectile/ordnance object — `SpawnOrdnance`/`SpawnTargettedOrdnance`/`Flyby`/`ConeSpawn`/`SpawnCarpetBombLine`/`SpawnDirectedObject`/`EquipDesignator`, plus a catalog of every confirmed ordnance template name string. |
 | [Weapon](weapon) | 3 | Ammo-reserve management for a player's carried/equipped weapon — confirmed to have no relationship to vehicle turrets. |
 
+Four more below come from neither method above. A 2026-07-22 research pass statically dumped all 973
+`luaL_Reg` engine bindings compiled into the executable, diffed them against the decompiled corpus to find
+bindings that are real but never called anywhere in it, and live-probed the survivors that resolved to
+previously-unlabeled binding tables over lua-bridge's WebSocket transport against a running game. That's a
+third, independent discovery method — see any of the four pages' own Provenance sections for the full
+methodology. Their function counts are a **first partial batch**, not a complete enumeration — only the
+members that happened to surface as call-prefixes during that pass:
+
+| Namespace | Functions (partial, first batch) | Notes |
+|---|---|---|
+| [Math](math) | 6 named (17 real, per an independent static count of the binding table itself) | Vector/numeric utilities — `CrossProduct`, `round`, `deg`, `exp`, `abs`, `PolarToRect`. A native, capitalized table, distinct from the mod-authored `Ess.Math`. |
+| [Animation](animation) | 2 named | `PlayFaceAnim`, `GetTranslationForStanceAndAction` — distinct from the already-confirmed animation functions on [Object](object#animation). |
+| [ObjectState](objectstate) | 2 named (+ more likely, unnamed particle/effects work) | `SendMessage`, `StartEmitter`. |
+| [ObjectFilter](objectfilter) | 6 named | `Create`/`AddObject`/`SetFilter`/`SetRelation`/`Eval`/`GetCoopPlayerGuid` — reads as a filter/query-builder pattern (inference, not confirmed). |
+
 ## What's left
 
 A full `pairs(_G)` scan (see [Snippets](../snippets#dump-every-engine-namespace-at-once)) turned up a
-handful more real engine namespaces beyond the seventeen above, mostly small (a few entries each) —
-check the scan output if you want to track down what's left. If you've run the full dump yourself and
-want to contribute a page for one of them, following the same Overview/Provenance/Functions shape as
+handful more real engine namespaces beyond the seventeen in the first table above, mostly small (a few
+entries each) — check the scan output if you want to track down what's left. The binding-dump-plus-live-probe
+method described just above is a second way to find the same kind of small namespace, and closed out four
+of them as of 2026-07-22; it's very likely not exhaustive either, since it only surfaces a table if at
+least one of its members happened to leave a call-prefix in the decompiled corpus to cross-reference
+against. If you've run either the full `pairs(_G)` dump or a binding-table diff yourself and want to
+contribute a page for one that's still missing, following the same Overview/Provenance/Functions shape as
 the pages above is the right template to copy.

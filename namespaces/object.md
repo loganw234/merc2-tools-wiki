@@ -36,12 +36,12 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 | `SetYaw` | `Object.SetYaw(uGuid, nYaw)` | Used with `uGuid` and a numeric yaw in real game scripts. Same unit caveat as `GetYaw` above. |
 | `SetPositionToObject` | `Object.SetPositionToObject(uGuid, uTargetGuid [, sHardpoint])` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Signature inferred only by analogy to the confirmed `SetTransformToObject` below; treat with caution. |
 | `SetTransformToObject` | `Object.SetTransformToObject(uGuid, uTargetGuid [, sHardpoint])` | Used with two `uGuid`s in real scripts (e.g. `Object.SetTransformToObject(self.guid, uPoint)`), and with an optional 3rd hardpoint-name string argument in others (e.g. `Object.SetTransformToObject(uGuid, uObject, sHardpoint)`). |
-| `TransformLocalToWorld` | `Object.TransformLocalToWorld(uGuid, ...)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed beyond the presumed leading `uGuid`. |
+| `TransformLocalToWorld` | `x, y, z = Object.TransformLocalToWorld(uGuid, lx, ly, lz)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: takes a local-space point (`lx, ly, lz`) and returns its world-space `x, y, z`. Still no call sites in the decompiled corpus — this signature comes from the live probe, not source. |
 | `GetHardpointPosition` | `x, y, z = Object.GetHardpointPosition(uGuid, sHardpointName)` | Used with a `uGuid` and a hardpoint-name string in real scripts (e.g. `Object.GetHardpointPosition(uMainTruck, "HP_Truckbed")`), returns 3 coordinates. |
-| `GetHardpointYaw` | `Object.GetHardpointYaw(uGuid, sHardpointName)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Signature inferred only by analogy to the confirmed `GetHardpointPosition`. |
-| `GetHardpointPitch` | `Object.GetHardpointPitch(uGuid, sHardpointName)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Signature inferred only by analogy to the confirmed `GetHardpointPosition`. |
+| `GetHardpointYaw` | `nYaw = Object.GetHardpointYaw(uGuid, sHardpointName)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return the hardpoint's yaw in degrees, settling the earlier by-analogy guess. Still no call sites in the decompiled corpus. |
+| `GetHardpointPitch` | `nPitch = Object.GetHardpointPitch(uGuid, sHardpointName)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return the hardpoint's pitch in degrees, settling the earlier by-analogy guess. Still no call sites in the decompiled corpus. |
 | `GetDistanceFrom` | `n = Object.GetDistanceFrom(uGuidA, uGuidB [, bIgnoreY])` or `n = Object.GetDistanceFrom(uGuidA, nX, nY, nZ [, bIgnoreY])` | Confirmed with both an object-to-object form (`Object.GetDistanceFrom(uObjectA, uObjectB, bIgnoreY)`) and an object-to-coordinates form (`Object.GetDistanceFrom(uObjectA, nX, nY, nZ, bIgnoreY)`) in real scripts. |
-| `GetHeightAboveTerrain` | `n = Object.GetHeightAboveTerrain(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `GetHeightAboveTerrain` | `n = Object.GetHeightAboveTerrain(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: returns height above ground/seabed, in metres. Still no call sites in the decompiled corpus — this return meaning comes from the live probe, not source. |
 | `InsideBoundary` | `b = Object.InsideBoundary(uGuid, uZoneGuid [, bIgnoreY])` | Used in real scripts as `Object.InsideBoundary(self.exec.guid, Pg.GetGuidByName("oc001.rgn.warehouse01"), true)`. |
 | `OutsideBoundary` | `b = Object.OutsideBoundary(uGuid, uZoneGuid)` | Used in real scripts as `Object.OutsideBoundary(self.uVehicle, self.inRegion)`. |
 
@@ -55,7 +55,7 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 | `GetNodeHealth` | `n = Object.GetNodeHealth(uGuid, sNodeName)` | Used with a `uGuid` and a node-name string in real scripts, e.g. `Object.GetNodeHealth(uGuid, sNodeName)` for destructible sub-parts. |
 | `Kill` | `Object.Kill(uGuid)` | Used with a plain `uGuid` argument in real scripts. See Notes for modders below. |
 | `Revive` | `Object.Revive(uGuid [, nDelay])` | Used with a plain `uGuid` in real scripts, and with an optional numeric second argument (e.g. `Object.Revive(uChar, 0.5)`) that call-site patterns suggest is a delay. |
-| `GetInvincible` | `b = Object.GetInvincible(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `GetInvincible` | `b = Object.GetInvincible(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return a boolean. Still no call sites in the decompiled corpus. |
 | `SetInvincible` | `Object.SetInvincible(uGuid, bInvincible [, sReason])` | Very common in real scripts; the optional 3rd string argument is used consistently as a named "reason" tag (e.g. `Object.SetInvincible(uGuid, true, "Survival")`, `"Hijack"`, `"HQ"`, `"Fanfare"`). |
 | `SetUnkillable` | `Object.SetUnkillable(uGuid, bUnkillable [, sReason])` | Used in real scripts with the same shape as `SetInvincible`, e.g. `Object.SetUnkillable(uGuid, true, "Support")`. |
 | `GetCashValue` | `n = Object.GetCashValue(uGuid)` | Used with a plain `uGuid` argument in real scripts, e.g. to compute a collectible's cash reward. |
@@ -70,8 +70,8 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 | `GetMass` | `n = Object.GetMass(uGuid)` | Used with a plain `uGuid` argument in real scripts, e.g. `local myMass = Object.GetMass(uGuid)`. |
 | `SetMass` | `Object.SetMass(uGuid, nMass)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
 | `GetVelocity` | `n = Object.GetVelocity(uGuid)` | Used with a plain `uGuid` argument in real scripts, returns what call sites treat as a single scalar speed value. |
-| `GetVelocityVector` | `Object.GetVelocityVector(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed; presumably returns a vector/multiple components given `GetVelocity` returns a scalar, but that is not verified. |
-| `GetVelocitySquared` | `Object.GetVelocitySquared(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `GetVelocityVector` | `vx, vy, vz = Object.GetVelocityVector(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return three components, `vx, vy, vz` — settles the earlier guess that it returns a vector where `GetVelocity` returns a scalar. Still no call sites in the decompiled corpus. |
+| `GetVelocitySquared` | `n = Object.GetVelocitySquared(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return speed² (the squared magnitude of velocity). Still no call sites in the decompiled corpus. |
 | `ApplyImpulse` | `Object.ApplyImpulse(uGuid, nX, nY, nZ [, bLocalSpace])` | Confirmed in real scripts with a `uGuid` and 3 numeric components plus a trailing boolean, e.g. `Object.ApplyImpulse(uGuid, 0, 10000, 6 * myMass, true)`. |
 | `ApplyPointImpulse` | `Object.ApplyPointImpulse(uGuid, nX, nY, nZ, nPX, nPY, nPZ [, bFlag])` | Confirmed in real scripts with 6 numeric arguments plus a trailing boolean, e.g. `Object.ApplyPointImpulse(uGuid, 0, 10 * myMass, 0.1 * myMass, 0, 0, 0.15, true)` — likely impulse vector + application-point offset, but the exact meaning of each component is not confirmed. |
 | `ApplyAngularImpulse` | `Object.ApplyAngularImpulse(uGuid, ...)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed beyond the presumed leading `uGuid`. |
@@ -93,13 +93,13 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 
 | Function | Signature (best-known) | Notes |
 |---|---|---|
-| `HasWinch` | `b = Object.HasWinch(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
-| `GetWinchState` | `Object.GetWinchState(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. The confirmed setter (below) uses string states like `"deployed"`, so the getter presumably returns the same, but that's inferred, not confirmed. |
+| `HasWinch` | `b = Object.HasWinch(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return a boolean. Still no call sites in the decompiled corpus. |
+| `GetWinchState` | `Object.GetWinchState(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: on a non-winch object, returns `nil` — expected behavior, not a bug (there's simply no winch state to report). What it returns on an object that *does* have a winch wasn't exercised by the probe; the setter (below) uses string states like `"deployed"`, so the getter presumably returns the same, but that remains inferred, not confirmed. |
 | `SetWinchState` | `Object.SetWinchState(uGuid, sState)` | Used in real scripts with a string state argument, always seen as `Object.SetWinchState(uGuid, "deployed")`. |
 | `AttachCargoToWinch` | `Object.AttachCargoToWinch(uCargo, uHeli)` | Confirmed with two `uGuid` arguments (cargo first, then the winching vehicle) in real scripts, e.g. `Object.AttachCargoToWinch(uCargo, uHeli)`. |
 | `DetachCargoFromWinch` | `Object.DetachCargoFromWinch(uHeli)` | Confirmed with a single `uGuid` argument (the winching vehicle) in real scripts, e.g. `Object.DetachCargoFromWinch(uHeli)`. |
 | `IsWinched` | `b = Object.IsWinched(uGuid)` | Used with a plain `uGuid` argument in real scripts, e.g. `if Object.IsWinched(uGuid) then`. |
-| `IsWinching` | `Object.IsWinching(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `IsWinching` | `Object.IsWinching(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: on a non-winch object, returns `nil` — expected behavior, not a bug (there's no winch for the object to be winching with), not evidence of a broken call. |
 
 ### Attachment
 
@@ -123,9 +123,9 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 | `GetName` | `s = Object.GetName(uGuid)` | Used with a plain `uGuid` argument in real scripts, returns an internal/debug name (contrast with `GetLocalizedName` below). |
 | `SetName` | `bSuccess = Object.SetName(uGuid, sName)` | Confirmed in real scripts, e.g. `local bSuccess = Object.SetName(Mendez_Spawn, "Mendez")`, returns a success boolean. |
 | `GetLocalizedName` | `s = Object.GetLocalizedName(uGuid [, bFlag])` | Very common in real scripts for HUD/display text; one call site passes an extra boolean (`Object.GetLocalizedName(uVehicle, true)`), meaning unconfirmed. |
-| `GetModelName` | `s = Object.GetModelName(uGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `GetModelName` | `hModelName = Object.GetModelName(uGuid)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)** — and a real gotcha: this returns **userdata** (a model name-hash handle), **not a string**, despite what the placeholder `s =` naming previously implied. Don't expect string concatenation/`string.*` calls to work on the result without conversion; treat it as an opaque handle. Still no call sites in the decompiled corpus. |
 | `SetModelName` | `Object.SetModelName(uGuid, sModelName)` | Confirmed with a `uGuid` and a model-name string in real scripts, e.g. `Object.SetModelName(uCharacterGuid, sModelName)`. |
-| `AreEqual` | `b = Object.AreEqual(uGuidA, uGuidB)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. |
+| `AreEqual` | `b = Object.AreEqual(uGuidA, uGuidB)` | **Live-confirmed via WebSocket lua-bridge probe (2026-07-22)**: confirmed to return a boolean. Still no call sites in the decompiled corpus. |
 
 ### Visibility & State
 
@@ -168,3 +168,12 @@ not guessed beyond the `uGuid`-first convention that holds for every confirmed f
 - Functions marked "no call sites found" are real (confirmed via the live `pairs(Object)` dump) but their
   argument shape beyond a presumed leading `uGuid` is a guess based on naming convention only — don't build
   mods around them without testing in-game first.
+- **Missing or wrong arguments fail silently on this engine, not loudly.** A live WebSocket lua-bridge probe
+  (2026-07-22) found that bad or missing arguments to these engine-namespace functions simply return `nil` —
+  there is no Lua `bad argument #N (TYPE expected)` error, because the engine inlines its own argument checks
+  rather than going through the usual Lua C-API checking path. That cuts both ways: a read-only getter is safe
+  to probe blind (a wrong guess just yields `nil`, never a crash), but it also means you can't discover a
+  function's real arity or argument shape from an error message the way you normally could in Lua — the only
+  way to pin down a real signature for a "no call sites found" entry is a live probe with argument values you
+  already have reason to believe are valid, not trial-and-error against error text. This applies across every
+  engine namespace, not just `Object`.

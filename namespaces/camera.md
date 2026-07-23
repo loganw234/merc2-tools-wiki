@@ -19,6 +19,15 @@ that handles near/far-plane and FOV/LOD parameters (`Graphics.Camera.SetNearFar`
 `SetFocusParams`, etc.). The two are unrelated aside from the name, and `Graphics.Camera` is documented
 separately.
 
+**A live-probing caveat worth knowing before concluding a function "doesn't exist":** during a live
+WebSocket lua-bridge probe (2026-07-22), calling this namespace's getters from an isolated open-world spot
+with no active scripted camera sequence running came back nil/inert — even though the functions themselves
+are real (the live `pairs(Camera)` enumeration behind the Functions tables below already confirms that).
+`Camera` appears to need an actively running scripted-camera sequence — like the cinematic-briefing system
+built on `resident/mrxbriefing.lua`, cited throughout the Functions tables below — before its functions
+return real data; it's not reachable at just any moment during ordinary open-world gameplay. If you probe
+`Camera.*` yourself and get `nil` back, that alone doesn't mean the function doesn't exist.
+
 ## Provenance
 
 This page's function list comes from a live `pairs(Camera)` enumeration in-game (via lua-bridge), not from
@@ -39,7 +48,7 @@ that corpus, we only know the name — arguments, return values, and behavior fo
 | `GetPitch` | `nPitch = Camera.GetPitch(uCameraGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage unconfirmed. Presumed counterpart to the confirmed `SetPitch`. |
 | `SetPitch` | `Camera.SetPitch(uCameraGuid, nPitch)` | Confirmed in real scripts, e.g. `Camera.SetPitch(uCamera, 0.302)` in `resident/mrxutil.lua:370`, paired with `Camera.SetYaw(uCamera, 0)` right before it — both called on the camera obtained from `Player.GetCamera(tOperation.uPlayer)` during a teleport-recovery sequence. |
 | `GetFOV` | `nFOV = Camera.GetFOV(uCameraGuid)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Do not confuse with `Graphics.Camera.SetFovParams`, which is a different, confirmed-in-use function on the separate `Graphics.Camera` sub-table. |
-| `SetFOV` | `Camera.SetFOV(uCameraGuid, nFOV)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Same caveat as `GetFOV` above regarding `Graphics.Camera.SetFovParams`. |
+| `SetFOV` | `Camera.SetFOV(uCameraGuid, nFOV)` | No call sites found in the decompiled corpus — exists (confirmed via live `pairs()` enumeration) but usage/arguments unconfirmed. Same caveat as `GetFOV` above regarding `Graphics.Camera.SetFovParams`. Still flagged as needing a dedicated live-probe pass with an active cinematic mode running to pin down its real behavior — not yet attempted as of the most recent live-probe pass (2026-07-22). |
 
 ### Positioning & Following
 
