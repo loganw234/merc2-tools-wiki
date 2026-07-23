@@ -30,13 +30,19 @@ captured log/transcript — reports the results feature-by-feature:
 
 The other 7 `Ess.On` hooks, and all of `Ess.Keys`, have moved past that status as of 0.3.0.
 
+**`Ess.On.labeled` is a later addition, not covered by the "7 of 8" accounting above.** It shipped afterward,
+in **v0.3.1**'s "bindings-pass harvest" (2026-07-22, `CHANGELOG.md`'s `[0.3.1]` entry) — a ninth hook with its
+own, narrower verification status; see its row in the table below and the note underneath it.
+
 ## Ess.On — reactive world hooks
 
 Source: `src/32_on.lua`. Built entirely on already-confirmed pieces — `Event.ObjectDeath`,
-`Ess.Object.pos`/`health`, `Ess.Player`, `Ess.Loop`, `Ess.Object.pollVehicleChange`, `Ess.Math.within2D` —
-`Ess.On` just wraps them under an intent-named hook instead of you wiring the primitive yourself. **Every
-hook returns a `stop()`** you call to cancel it. 7 of the 8 hooks below are confirmed live as of 0.3.0 — see
-[Overview](#overview) for the one exception (`exitArea`).
+`Ess.Object.pos`/`health`, `Ess.Player`, `Ess.Loop`, `Ess.Object.pollVehicleChange`, `Ess.Math.within2D`, and
+(for the 0.3.1-added `labeled` hook) `ObjectFilter` + `Event.ObjectProximity` — `Ess.On` just wraps them under
+an intent-named hook instead of you wiring the primitive yourself. **Every hook returns a `stop()`** you call
+to cancel it. 7 of the (now) 9 hooks below are confirmed live as of 0.3.0 — see [Overview](#overview) for the
+one exception from that pass (`exitArea`); the ninth, `labeled`, arrived later in 0.3.1 with its own status
+(see its row and the note below the table).
 
 | Function | Signature | Fires | Notes |
 |---|---|---|---|
@@ -48,9 +54,22 @@ hook returns a `stop()`** you call to cancel it. 7 of the 8 hooks below are conf
 | `Ess.On.playerHurt(fn [,i])` | `playerHurt(fn [,i]) -> stop()` | Repeats | Polls every **0.2s** against player `i`'s (default `0`) character health. Calls `fn(newHp, lost)` any tick health is lower than the *previous* tick's reading — `lost` is the delta. Keeps running (and keeps updating its internal `last` reading) until you call `stop()`. |
 | `Ess.On.vehicle(fn [,i])` | `vehicle(fn [,i]) -> stop()` | Repeats | A thin pass-through: resolves player `i`'s character via `Ess.Player.character(i or 0)`, then returns `Ess.Object.pollVehicleChange(char, fn)` directly — that call's own `stop()` is what you get back. If there's no character, returns a no-op `stop()` instead. See [Vehicle-entry watch](identity-query#essvehicle) for `pollVehicleChange`'s own default poll interval (0.5s) and the `(uVehicleOrNil, uPrevVehicleOrNil)` signature `fn` receives. |
 | `Ess.On.tick(interval, fn)` | `tick(interval, fn) -> stop()` | Repeats | Just a named, reload-safe `Ess.Loop.start(id, interval or 1, fn)` under an auto-generated id (`"Ess.On.tick:<n>"`) — every call gets its **own** id, so multiple `Ess.On.tick` hooks never collide with each other or with `Ess.Loop` ids you manage yourself elsewhere. `fn()` runs every `interval` seconds (default `1`); its return value is ignored — the loop always keeps going until `stop()`. |
+| `Ess.On.labeled(label, r, fn [,i])` | `labeled(label, r, fn [,i]) -> stop()` | Once per object | **New in 0.3.1.** Wraps the confirmed `ObjectFilter` + `Event.ObjectProximity` discovery idiom (see [ObjectFilter](../namespaces/objectfilter)): arms a filter on world label `label` (`ObjectFilter.Create` + `SetFilter`), then a persistent `Event.ObjectProximity` calls `fn(uGuid)` once for each matching object as it streams within radius `r` (default `300`) of player `i`'s (default `0`) character — immediately excluding that guid from the filter (`AddObject(filter, uGuid, true)`) so it can never re-fire; the exclusion **is** the dedupe, not a separate seen-set. Returns a no-op `stop()` immediately if `label` isn't a non-empty string, player `i` has no character, or `ObjectFilter.Create` itself fails. Promoted from the `CollectibleFinder` sample's inline version (see [Debug & Dev Tools](dev-tools#other-new-onkey-demos-built-on-these-pieces)), which stays as the hand-written worked example. |
 
 Every callback in the table above is `pcall`-guarded internally (`pcall(fn, ...)`), so one throwing handler
 can't kill the poll loop it's attached to.
+
+**`On.labeled`'s own verification is narrower than the rest of the table above, and worth stating precisely.**
+Like the rest of 0.3.1, it was verified offline first (`checkpure` 10/10, `test_bundles` all green) before the
+release's full in-game pass on the 2026-07-22 build — the same pass that ran the 42/42-recipe smoke suite. But
+`On.labeled` wasn't one of those 42 recipes: it was exercised as a **targeted live probe** instead, and that
+probe armed and stopped it cleanly (its `stop()` teardown works end-to-end) — no labeled object happened to be
+inside radius at the test spot, so the `fn(uGuid)` fire callback itself was not observed actually firing in
+that pass. That's a real, specific gap, not a reason to doubt the technique in general: the exact same
+`ObjectFilter` + `Event.ObjectProximity` idiom this hook wraps is already live-proven by the existing
+`CollectibleFinder` sample (which marks and clears `SpareParts` pickups with it as the player approaches). So
+the underlying discovery idiom is live-confirmed — only this specific wrapper's own fire path is still
+waiting on its own in-game trigger.
 
 ### Honest limits (from the source header, not omitted)
 
@@ -129,3 +148,8 @@ in-game is a manual follow-up, per the recipe's own logged instruction ("now pre
   (the edge/held-key polling primitive `Ess.Keys` and `Ess.On.playerHurt`-style polling ultimately read).
 - [Identity & World Query](identity-query) — `Ess.Object.pollVehicleChange`, the call `Ess.On.vehicle` wraps
   directly.
+- [ObjectFilter](../namespaces/objectfilter) — the native engine namespace `Ess.On.labeled` wraps
+  (`Create`/`SetFilter`/`AddObject`), including the corpus-cross-reference + live-probe provenance behind
+  those signatures.
+- [Debug & Dev Tools](dev-tools#other-new-onkey-demos-built-on-these-pieces) — the `CollectibleFinder` sample
+  `Ess.On.labeled` was promoted from, which stays as the hand-written worked example.

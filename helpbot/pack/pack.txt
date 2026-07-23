@@ -1626,6 +1626,7 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   `Ess.Vec.add(x1, y1, z1, x2, y2, z2) -> x, y, z`
   `Ess.Vec.sub(x1, y1, z1, x2, y2, z2) -> x, y, z`  -- `a - b`, i.e. the vector from `b` to `a`.
   `Ess.Vec.dot(x1, y1, z1, x2, y2, z2) -> n`
+  `Ess.Vec.cross(ax, ay, az, bx, by, bz) -> cx, cy, cz`  -- The cross product — dot's missing sibling, added in 0.3.1: perpendicular to both inputs, for camera-right from forward+up, a surface normal from two edges, or "is B left or right of A" from the sign of the vertical...
   `Ess.Vec.dir(fromX, fromY, fromZ, toX, toY, toZ) -> nx, ny, nz`  -- Unit direction from A to B (`normalize(sub(B, A))`).
   `Ess.Vec.toward(fromX, fromY, fromZ, toX, toY, toZ, dist) -> x, y, z`  -- The point `dist` units from A toward B.
   `Ess.Math.clamp(v, lo, hi) -> n`
@@ -1705,6 +1706,7 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   add -- `Ess.Vec.add(x1, y1, z1, x2, y2, z2) -> x, y, z`
   sub -- `Ess.Vec.sub(x1, y1, z1, x2, y2, z2) -> x, y, z`
   dot -- `Ess.Vec.dot(x1, y1, z1, x2, y2, z2) -> n`
+  cross -- `Ess.Vec.cross(ax, ay, az, bx, by, bz) -> cx, cy, cz`
   dir -- `Ess.Vec.dir(fromX, fromY, fromZ, toX, toY, toZ) -> nx, ny, nz`
   toward -- `Ess.Vec.toward(fromX, fromY, fromZ, toX, toY, toZ, dist) -> x, y, z`
   clamp -- `Ess.Math.clamp(v, lo, hi) -> n`
@@ -1744,7 +1746,7 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
 Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of already-confirmed `Ess` pieces — no new engine calls introduced by either: a live on-screen dev overlay (`Ess.Easy.Debug`, from `src/97_easy_debug.lua`) and an interactive in-game function runner (`Ess.Easy.Console.play`, the new half of `src/96_console.lua`). Per the CHANGELOG's dated 0.3.0 verification entry, both are now **confirmed live** in-game — built from confirmed calls, offline-verified first, and since run and observed in the actual game; each section below states exactly what was checked and how.
   `pos: (120.4, 5.0, -88.2) yaw 45`  -- `Ess.Player.pose(i)`
   `aim: Veyron VZ d=12.3` (or `aim: (nothing)`)  -- `Ess.Player.targetUnderReticle(i)` + `Ess.Name` + `Ess.Probe.getFaction` + `Ess.Object.distance`
-  `on foot health: 85 / 100` (or `vehicle: `)  -- `Ess.Player.inVehicle(i)` + `Ess.Object.health` (plus a direct `Object.GetMaxHealth` read)
+  `on foot health: 85 / 100 mem 128` (or `vehicle: `)  -- `Ess.Player.inVehicle(i)` + `Ess.Object.health` (plus a direct `Object.GetMaxHealth` read) + `Sys.MemUsage` (new in 0.3.1, wrapped)
   `near(40): 6 hum 2 veh`  -- `Ess.Probe.nearby(x, y, z, radius, "humans"/"vehicles")`, called once per kind
   Explosion (grenade/C4/MOAB/huge-fx cycle), Summon a vehicle (UH1 Transport/AH1Z (Full)/Veyron), Weapon pickup (RPG/Sniper Rifle/Minigun/Grenade Launcher/Shotgun/C4), Supply crate (Light MG/Blueprints/Treasure), Enemy squad (count 1/3/5/8)
   Grappling hook, All rewards, Give cash (10k/100k/1M), Change skin (`pmc_hum_fiona`/`vz_hum_solano`)
@@ -1794,11 +1796,13 @@ Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of 
   Unlocks every HQ/outpost (`MrxHqManager.UnlockAllHq`).
   Dispenses every unlock reward at once (`MrxRewardData.DispenseAllRewards`).
   Ignores all airstrike/support stock + unlock requirements so any support call-in is free (`MrxSupportData.SetIgnoreRequirements`). `bOn` defaults to `true`; pass `false` to turn it back off.
+  New in 0.3.1. Floors your own AI detectability (`Ess.Relations.setPerceivability`, wrapping native `Ai.SetPerceivability`) so hostiles are far less likely to notice you; toggling back off restores your exact original value rather than a hardcoded default. Live-confirmed round-trip (90 → 30 → 90) via the `control_pursuit` smoke recipe. See Encounter Toolkit for the underlying `Ess.Relations` calls.
   Swaps player `i`'s whole-figure costume/skin via `Player.SetOutfit` — only a full `"*_hum_*"` model works, individual body parts don't. Confirmed codes include `"pmc_hum_fiona"`, `"pmc_hum_eva"`, `"pmc_hum_diablo"`, `"vz_hum_solano"`, `"al_hum_boss"`, `"ch_hum_boss"`, `"gr_hum_boss"`, `"civ_hum_beachfemale_a"`, `"police_hum_officer_b"` (~30 more in `sample-scripts-onload`). A reload restores your normal look. A skin swap re-inits the model — its bones aren't ready for ~0.3s, so wait a beat before attaching bone FX (`Ess.Easy.Spawn.fxOn`) to a just-skinned character; see the fresh-spawn readiness gotcha.
   Your character does the "technoviking" dance (loads `player_mattias_bare_technoviking` and plays it via `Human.PlayRawAnimation`). Pure easter egg.
   Plays the mission-success (or, with `bWin = false`, mission-fail) music sting via `MrxMusic.PlayFanfare` — the same call `mrxtaskcontract.lua` uses. Defaults to the win sting.
   Drops the single "world boundary" fencing you into the story-unlocked map (`WifVzBoundary.RemoveWorldBoundary`, a real corpus call site) — including the Fiona-voiced warning + static. Caveat: this is host/server-authoritative — works in single-player and for the co-op host, but no-ops on a co-op *client*, and it only clears whichever main boundary is currently active. For a client-safe full unlock, use `Ess.Player.removeBoundaries()` instead (the confirmed-live per-player `Player.RemoveAllBoundary` loop) — kept as a separate verb here because it targets the *story* boundary system specifically, which is what a single-player roamer usually means. No clean restore.
-  Instantly drops all pursuit/wanted heat (`Pg.ClearPursuitLock(true)`, a global — no import needed).
+  Instantly drops all pursuit/wanted heat (`Pg.ClearPursuitLock(true)`, a global — no import needed). One-shot only — heat can build right back up afterward.
+  New in 0.3.1. Clears the current chase and keeps new organic heat from building back up, in one call (composes `Ess.Pursuit.clear()` + `.restrictAll(true)`) — reach for this over `clearWanted()` when a mod wants the player to *stay* cold (a safe-zone hub, a cutscene) rather than just reset once. `bOn` defaults to `true`; `noPursuit(false)` lifts the restriction only, it doesn't retroactively restart a cleared chase.
   Washes the world in an ambient color, 0–255 each. Defaults to a deep red (220, 30, 30).
   Overall light level: ~0.05 is near-black, 1 is normal, above 1 blows out.
   The confirmed dark + deep-red preset in one call (`brightness(0.08)` + the default red tint), and it sticks across zones like the other two.
@@ -1894,6 +1898,8 @@ Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of 
   Ess.Relations.isActive(handle) -> bool
   Ess.Relations.getFeeling(uGuidA, uGuidB) -> n
   Ess.Relations.setFeeling(uGuidA, uGuidB, n)
+  Ess.Relations.getPerceivability(uGuid) -> n, nFloor
+  Ess.Relations.setPerceivability(uGuid, n) -> ok
   Ess.Raw.Triggers.arm(spec, onFire, tracker) -> cancel()
   Ess.Triggers.arm(spec, onFire, tracker) -> cancel() -- passthrough to Ess.Raw.Triggers.arm
   Ess.Raw.Sandbox.register(name, { apply = fn(id, opts), restore = fn(id) })
@@ -1946,7 +1952,7 @@ Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of 
   current -- `Ess.Layers.current()`
 
 ### Identity & World Query
-This page covers the Ess namespaces you reach for once you know *what* you want to touch: who the player is, what a given object is doing, what's sitting in a vehicle's seats, what's nearby, what a character is carrying, and how to shove any of it around. Six source files: `10_player.lua` (`Ess.Player`), `11_object.lua` (`Ess.Object`), `12_vehicle.lua` (`Ess.Vehicle` + an inline `Ess.Easy.Vehicle.summon`), `13_probe.lua` (`Ess.Probe`), `14_human.lua` (`Ess.Human` + an inline `Ess.Easy.Human.giveWeapon`), and `16_impulse.lua` (the full three-tier `Ess.Raw.Impulse` / `Ess.Impulse` / `Ess.Easy.Impulse`). Every function here is `uGuid`-first and `pcall`-wrapped — the whole point is that a bad or dead guid gets you `nil`/`false` back, not a hard Lua error killing the rest of your script.
+This page covers the Ess namespaces you reach for once you know *what* you want to touch: who the player is, what a given object is doing, what's sitting in a vehicle's seats, what's nearby, what a character is carrying, and how to shove any of it around. Six source files: `10_player.lua` (`Ess.Player`), `11_object.lua` (`Ess.Object`), `12_vehicle.lua` (`Ess.Vehicle` + an inline `Ess.Easy.Vehicle.summon`), `13_probe.lua` (`Ess.Probe`), `14_human.lua` (`Ess.Human` + an inline `Ess.Easy.Human.giveWeapon`), and `16_impulse.lua` (the full three-tier `Ess.Raw.Impulse` / `Ess.Impulse` / `Ess.Easy.Impulse`). Every function here is `uGuid`-first and `pcall`-wrapped — the whole point is that a bad or dead guid gets you `nil`/`false` back, not a hard Lua error killing the rest of your script. **0.3.1 — "the 2026-07-22 bindings-pass harvest"** adds new entries to `Ess.Object`, `Ess.Vehicle`, and...
   `Ess.Player.character(i) -> uCharGuid \  -- nil`
   `Ess.Player.slot(i) -> uPlayerGuid \  -- nil`
   `Ess.Player.camera(i) -> uCameraGuid \  -- nil`
@@ -1975,12 +1981,19 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Object.revive(uGuid, nDelay)`  -- `nDelay` is an optional, confirmed second argument to `Object.Revive`.
   `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool`  -- `Object.IsAlive`/`Object.IsValid`, `truthy()`-coerced.
   `Ess.Object.setInvincible(uGuid, bOn, sReason)`  -- `sReason` is required here even though the native call allows omitting it — every real call site tags one ("Survival"/"Hijack"/"HQ"), and making it mandatory means you can't accidentally ship an untagged toggle some...
+  `Ess.Object.invincible(uGuid) -> bool`  -- The missing getter for `setInvincible` above, wrapping `Object.GetInvincible`. New in 0.3.1's bindings-pass harvest (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). `truthy()`-coerced like...
   `Ess.Object.visible(uGuid) -> bool` / `Ess.Object.setVisible(uGuid, bOn)`  -- `Object.IsVisible` is a real boolean-returning native here (distinct from the `FlashWidget` `GetVisible` footgun documented elsewhere in Ess).
   `Ess.Object.hasLabel(uGuid, sLabel) -> bool`, `.addLabel(uGuid, sLabel)`, `.removeLabel(uGuid, sLabel)`  -- Labels are free-form string tags the engine and other scripts read (e.g. `"PMC"`, `"Disposable"`, `"garage"`).
   `Ess.Object.displayName(uGuid) -> s`  -- Localized, human-readable name (`Object.GetLocalizedName`) — for HUD/labels. Distinct from `Ess.Name(guid)` (see Core Primitives), which is the guid's hash string.
   `Ess.Object.playerControlled(uGuid) -> bool`  -- Live discovery: despite the engine's own wiki page implying a boolean, `Object.IsPlayerControlled` actually returns the *controlling player's guid* (a userdata) when the object is player-controlled, and a falsy value...
   `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)`
   `Ess.Object.impulse(uGuid, x, y, z, bLocal)`  -- `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger...
+  `Ess.Object.velocity(uGuid) -> vx, vy, vz \  -- nil`
+  `Ess.Object.speed(uGuid) -> n \  -- nil` / `Ess.Object.speedSq(uGuid) -> n \
+  `Ess.Object.size(uGuid) -> ex, ey, ez \  -- nil`
+  `Ess.Object.localToWorld(uGuid, lx, ly, lz) -> x, y, z \  -- nil`
+  `Ess.Object.heightAboveGround(uGuid) -> n \  -- nil`
+  `Ess.Object.snapToGround(uGuid, nOffset) -> ok`  -- Drops (or lifts) the object onto the terrain, optionally hovering `nOffset` units above it — reads `heightAboveGround` once and adjusts Y by `-h + nOffset`; a `nil` or exact-`0` reading (already grounded, or the...
   `Ess.Object.spawn(sTemplate, x, y, z, yaw) -> uGuid \  -- nil`
   `Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, opts) -> uGuid \  -- nil`
   `Ess.Object.vehicleOf(uChar) -> uVehicleGuid \  -- nil`
@@ -1991,11 +2004,16 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok`  -- `pcall`-wrapped `MrxUtil.EnterBestAvailableSeat` — confirmed driver/gunner/passenger/cargo seat priority order.
   `Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed`  -- For "board a vehicle but never take the driver seat" (e.g. a co-op partner boarding after the driver already has). Loops `{"d","g","p","c"}` in priority order via `Vehicle.GetSeatByType` + `Vehicle.EnterBySeatGuid`,...
   `Ess.Vehicle.exit(uVeh, uChar) -> ok`  -- Confirmed signature+usage from the same `DestroyerTool.lua`: `Vehicle.Exit(uVehicle, uCharacter, true)`.
+  `Ess.Vehicle.evictAll(uVeh) -> ok`  -- Forces every occupant out at once via `Ai.EveryoneOut` — takes the vehicle's own guid, not a rider/pilot guid. New in 0.3.1's bindings-pass harvest (zero corpus call sites; signature came from the 2026-07-22 live-probe...
+  `Ess.Vehicle.repair(uVeh) -> ok`  -- Full heal + rearm in one call — `Vehicle.RestoreHealth` then `Vehicle.RestoreAmmo`. New in 0.3.1's bindings-pass harvest; both natives had zero corpus call sites, signatures came from the 2026-07-22 live-probe pass. The...
+  `Ess.Vehicle.isFlipped(uVeh) -> bool`  -- Wraps `Vehicle.IsFlipped`, `truthy()`-coerced like every other boolean-returning wrapper. New in 0.3.1's bindings-pass harvest (zero corpus call sites; signature from the 2026-07-22 live-probe pass). No `unflip()` yet —...
   `Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()`  -- Sends an AI helicopter to a world point. Wraps two gotchas: the flight command is `Ai.Deliver(driver, x, y, z, dropHeight, careless)` — not `Ai.Goal "MoveToPos"`, which does not fly a heli — and a freshly-spawned heli...
+  `Ess.Vehicle.land(uHeliOrPilot) -> ok`  -- Commands an AI helicopter to descend and set down via `Ai.HeliLand`, which takes the pilot guid — same convention as `Ai.Deliver` above, not the vehicle guid — so pass either the heli (its pilot is resolved via `driver`...
   `Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts) -> totalSeconds`  -- Flies a *crewed* heli (a "(Driver)"/"(Full)" template) a few circular laps around a centre point by chaining timed `flyTo` waypoints. `opts`: `radius`(90), `height`(45), `orbits`(2), `points`(6 per orbit),...
   `Ess.Vehicle.followGhost(template, x, y, z) -> ghost \  -- nil`
   `Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }`  -- Collapses `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (11 separate "find nearby X" natives) into one dispatcher, deduped by guid across whichever families `kind` selects. `kind`:...
   `Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist \  -- nil`
+  `Ess.Probe.allByName(sName) -> { uGuid, ... }`  -- Every guid matching a template/object name, wrapping `Pg.GetAllGuidsByName` (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). New in 0.3.1's bindings-pass harvest. Contrast with `Ess.Guid`,...
   `Ess.Probe.getFaction(uGuid) -> sAbbrev \  -- nil`
   `Ess.Probe.describeSafe(uGuid) -> sDescription`  -- A one-line "what is this" for logging/debugging — name, position, health, faction — every field individually `pcall`-guarded so one bad field can't blank out the whole description.
   `Ess.Human.equipWeapon(uChar, uWeapon) -> ok`  -- `Human.Inventory.EquipWeapon` — the confirmed-working form. The top-level `Human.EquipWeapon` has zero real call sites anywhere in the decompiled corpus, so this deliberately does not expose that one.
@@ -2052,12 +2070,19 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   revive -- `Ess.Object.revive(uGuid, nDelay)`
   alive -- `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool`
   setInvincible -- `Ess.Object.setInvincible(uGuid, bOn, sReason)`
+  invincible -- `Ess.Object.invincible(uGuid) -> bool`
   visible -- `Ess.Object.visible(uGuid) -> bool` / `Ess.Object.setVisible(uGuid, bOn)`
   hasLabel -- `Ess.Object.hasLabel(uGuid, sLabel) -> bool`, `.addLabel(uGuid, sLabel)`, `.removeLabel(uGuid, sLabel)`
   displayName -- `Ess.Object.displayName(uGuid) -> s`
   playerControlled -- `Ess.Object.playerControlled(uGuid) -> bool`
   enablePhysics -- `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)`
   impulse -- `Ess.Object.impulse(uGuid, x, y, z, bLocal)`
+  velocity -- `Ess.Object.velocity(uGuid) -> vx, vy, vz \
+  speed -- `Ess.Object.speed(uGuid) -> n \
+  size -- `Ess.Object.size(uGuid) -> ex, ey, ez \
+  localToWorld -- `Ess.Object.localToWorld(uGuid, lx, ly, lz) -> x, y, z \
+  heightAboveGround -- `Ess.Object.heightAboveGround(uGuid) -> n \
+  snapToGround -- `Ess.Object.snapToGround(uGuid, nOffset) -> ok`
   spawn -- `Ess.Object.spawn(sTemplate, x, y, z, yaw) -> uGuid \
   spawnAhead -- `Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, opts) -> uGuid \
   vehicleOf -- `Ess.Object.vehicleOf(uChar) -> uVehicleGuid \
@@ -2068,11 +2093,16 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   enterBestSeat -- `Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok`
   enterSeatExcluding -- `Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed`
   exit -- `Ess.Vehicle.exit(uVeh, uChar) -> ok`
+  evictAll -- `Ess.Vehicle.evictAll(uVeh) -> ok`
+  repair -- `Ess.Vehicle.repair(uVeh) -> ok`
+  isFlipped -- `Ess.Vehicle.isFlipped(uVeh) -> bool`
   flyTo -- `Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()`
+  land -- `Ess.Vehicle.land(uHeliOrPilot) -> ok`
   orbitFlight -- `Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts) -> totalSeconds`
   followGhost -- `Ess.Vehicle.followGhost(template, x, y, z) -> ghost \
   nearby -- `Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }`
   nearest -- `Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist \
+  allByName -- `Ess.Probe.allByName(sName) -> { uGuid, ... }`
   getFaction -- `Ess.Probe.getFaction(uGuid) -> sAbbrev \
   describeSafe -- `Ess.Probe.describeSafe(uGuid) -> sDescription`
   equipWeapon -- `Ess.Human.equipWeapon(uChar, uWeapon) -> ok`
@@ -2231,6 +2261,35 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   Ess.Override.wrap(target, name, newFn) -> ok
   Ess.Override.mergeIntoLiveTable(t, key, data) -> ok
 
+### Pursuit & Wanted System
+`Ess.Pursuit` (`src/17_pursuit.lua`) wraps the engine's wanted/heat system — the `Pg.*Pursuit*` native family documented at the raw-engine level on Pg, "Pursuit/Wanted System". New in **v0.3.1**, what `CHANGELOG.md` itself calls **"the 2026-07-22 bindings-pass harvest"** — a live-probe mapping of the engine's never-called `luaL_Reg` bindings that landed in the wiki's `namespaces/` pages the same day this wrapper was written against them. `Ess.Pursuit` is Core-tier only (no `Ess.Raw.Pursuit`, no `Ess.Easy.Pursuit`); the one Easy-tier one-liner this release adds, `Ess.Easy.World.noPursuit`, lives in a different file and namespace entirely — see below. Two things about this system are easy to get backwards, and both are pinned down by live testing rather than by what the names suggest: - **`.clear()` is the only real reset.** `.restrictAll()`, `.restrictFaction()`, and...
+  `Ess.Pursuit.state() -> t \  -- nil`
+  `Ess.Pursuit.level() -> n`  -- (shortcut on `state()`)
+  `Ess.Pursuit.start(faction, nLevel) -> ok`  -- `Pg.SetPursuit`
+  `Ess.Pursuit.clear() -> ok`  -- `Pg.ClearPursuitLock`
+  `Ess.Pursuit.seconds(faction, n) -> ok`  -- `Pg.SetPursuitSeconds`
+  `Ess.Pursuit.levelTimes(n1, n2) -> ok`  -- `Pg.SetPursuitLevelTimes`
+  `Ess.Pursuit.lock(faction, nLevel) -> ok`  -- `Pg.LockPursuit`
+  `Ess.Pursuit.custom(faction, nDur, tSettings) -> ok`  -- `Pg.SetCustomPursuit`
+  `Ess.Pursuit.capLevel(nLevel) -> ok`  -- `Pg.SetMaxPursuitLevel`
+  `Ess.Pursuit.restrictAll(bOn) -> ok`  -- `Pg.RestrictAllPursuit`
+  `Ess.Pursuit.restrictFaction(faction, bOn) -> ok`  -- `Pg.RestrictPursuitFaction`
+  `Ess.Pursuit.clearRestrictions() -> ok`  -- `Pg.ClearPursuitRestrictions`
+  Ess.Pursuit.clear()
+  Ess.Pursuit.restrictAll(true)
+  state -- `Ess.Pursuit.state() -> t \
+  level -- `Ess.Pursuit.level() -> n`
+  start -- `Ess.Pursuit.start(faction, nLevel) -> ok`
+  clear -- `Ess.Pursuit.clear() -> ok`
+  seconds -- `Ess.Pursuit.seconds(faction, n) -> ok`
+  levelTimes -- `Ess.Pursuit.levelTimes(n1, n2) -> ok`
+  lock -- `Ess.Pursuit.lock(faction, nLevel) -> ok`
+  custom -- `Ess.Pursuit.custom(faction, nDur, tSettings) -> ok`
+  capLevel -- `Ess.Pursuit.capLevel(nLevel) -> ok`
+  restrictAll -- `Ess.Pursuit.restrictAll(bOn) -> ok`
+  restrictFaction -- `Ess.Pursuit.restrictFaction(faction, bOn) -> ok`
+  clearRestrictions -- `Ess.Pursuit.clearRestrictions() -> ok`
+
 ### Reactive Hooks & Hotkeys
 Two namespaces for the other half of scripting a mod — not making something happen, but responding to what the world (or the player's keyboard) does: - **`Ess.On`** — intent-named reactive hooks (`death`, `enterArea`, `healthBelow`, `playerHurt`, …) so a mod can react to the world without wiring a raw `Event.*` call or standing up a whole `Ess.Contract`. Every hook returns a `stop()` function. - **`Ess.Keys`** — lets one script own a whole panel of hotkeys. `lua_loader.ini`'s `[OnKey]` binds exactly one key to one script; `Ess.Keys` is how that single script then dispatches several keys to several actions internally. Both shipped new in 0.3.0's additive batch (`CHANGELOG.md`), and both were carried through that release's live-verification pass. `CHANGELOG.md`'s `[0.3.0]` entry — a dated, versioned first-party record, not a captured log/transcript — reports the results...
   `death(guid, fn) -> stop()`  -- Once
@@ -2241,6 +2300,7 @@ Two namespaces for the other half of scripting a mod — not making something ha
   `playerHurt(fn [,i]) -> stop()`  -- Repeats
   `vehicle(fn [,i]) -> stop()`  -- Repeats
   `tick(interval, fn) -> stop()`  -- Repeats
+  `labeled(label, r, fn [,i]) -> stop()`  -- Once per object
   `on(key, fn)`  -- `key` is a Windows VK number (e.g. `0x74`) or a name string resolved via `Ess.Keys.vk` — `"F1"`..`"F12"`, `"a"`..`"z"`, `"0"`..`"9"`, and named keys (`space`, `enter`, `escape`/`esc`, `tab`, `backspace`,...
   `off(key)`  -- Unbinds that one key; no-op if it wasn't bound or doesn't resolve.
   `clear()`  -- Drops every binding at once (`Ess.Keys._map = {}`).

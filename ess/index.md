@@ -69,7 +69,7 @@ one guessable call. The full catalog lives on the [Ess.Easy](easy) page; a taste
 |---|---|
 | `Ess.Easy.Vehicle.summon(template)` | spawn a vehicle in front + drop you in the driver seat |
 | `Ess.Easy.Spawn.explosion(type)` / `.crate(type)` / `.weapon(name)` / `.airstrike(round)` | a boom in front / a supply drop / a weapon pickup / a shell on your own head |
-| `Ess.Easy.World.removeMapBoundary()` / `.clearWanted()` | roam the whole map / lose all heat |
+| `Ess.Easy.World.removeMapBoundary()` / `.clearWanted()` / `.noPursuit(true)` | roam the whole map / lose all heat once / lose all heat **and stay cold** |
 | `Ess.Easy.Player.giveGrapplingHook()` / `.unlockFastTravel()` / `.giveAllRewards()` / `.skin(code)` | the game's own cheat-menu unlocks + whole-figure skin swap, one call each |
 | `Ess.Easy.Spawn.fx(t, x,y,z)` / `.fxOn(t, guid, bone)` | a particle effect at a point, on an object, or glued to a bone |
 | `Ess.Easy.Fun.dance()` / `.fanfare(win)` | technoviking dance / victory-or-fail music sting |
@@ -95,13 +95,14 @@ page for whatever you're building. The framework's own
 | [Ess.UI](ui) | `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog` | The nine-widget kit, native port of [UI Kit](../uilib/), on one input/focus/heartbeat engine. |
 | [Camera, Bones & Spatial](camera-bones) | `Camera`, `Bones`, `Points` | Shake/fade/FOV, the full cinematic camera take-over, the confirmed bone/hardpoint recipes, arena spawn-point selection. |
 | [Sound & HUD](sound-hud) | `Sound`, `Hud` | Cue/ambience/volume, native hint/banner/objective-tray/radio-subtitle popups. |
-| [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. |
+| [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. `Relations.getPerceivability`/`.setPerceivability` added in **0.3.1**, live-confirmed reversible. |
+| [Pursuit & Wanted System](pursuit) | `Pursuit` | The wanted/heat system: start/read/clear a pursuit, the one-way `capLevel` ratchet, and why `restrictAll`/`restrictFaction` gate organic heat only rather than stopping a chase. **New in 0.3.1**, Core-tier only — confirmed live via a dedicated `control_pursuit` smoke recipe (start → state-read → clear round-trip). |
 | [Cinematic](cinematic) | `Cinematic` | A declarative cutscene timeline (cuts/dollies/orbits, spawns, AI orders, narration, fades, music) — always restores control, always ESC-skippable. |
 | [Networking](net) | `Net` | Co-op data sync, native port of [ModNet](../modnet): auto-syncing shared tables, named messages, authority model. |
 | [Contract Engine](contract) | `Contract` | The full save-safe ephemeral-mission engine, native port of the [Contract Framework](../contract-framework/): 16 objective types plus relations/support/AI-order/trigger subsystems. |
 | [Meta / Override](override) | `Override` | Change engine logic without the tail-call crash — the crashing shape is made structurally impossible to write. |
 | [Support & Call-ins](support) | `Support`, `Easy.Airstrike` | Combat call-ins (shell/artillery/airstrike/bombing run/gunship/reinforce) lifted out of `Ess.Contract` so they're callable anywhere, fire-and-forget. **Confirmed live in 0.3.0** — all 7 call-ins (including `Easy.Airstrike.at`) fired clean in-game; `reinforce` confirmed actually delivering units. |
-| [Reactive Hooks & Hotkeys](reactive-hotkeys) | `On`, `Keys` | Intent-named reactive world hooks (death/area/health/hurt/vehicle/tick) and a multi-hotkey panel for one `OnKey` script. **Confirmed live in 0.3.0** — `Ess.Keys` fully confirmed; 7 of `Ess.On`'s 8 hooks confirmed live (`exitArea` not yet exercised). |
+| [Reactive Hooks & Hotkeys](reactive-hotkeys) | `On`, `Keys` | Intent-named reactive world hooks (death/area/health/hurt/vehicle/tick/labeled) and a multi-hotkey panel for one `OnKey` script. **Confirmed live in 0.3.0** — `Ess.Keys` fully confirmed; 7 of the original 8 `Ess.On` hooks confirmed live (`exitArea` not yet exercised). `Ess.On.labeled` added in **0.3.1**; its arm/disarm lifecycle is confirmed, its fire callback not yet exercised live (see the page for the precise distinction). |
 | [Objectives & Quests](objectives) | `Objective`, `Quest`, `Easy.Objective`, `Easy.Quest` | The middle tier between a bare `Ess.Hud.objective` line and a whole `Ess.Contract` — single goals and multi-step chains with reload-safe `id`-based construction. **Confirmed live** — per the CHANGELOG's 0.3.0 verification entry, `Ess.Objective`/`Ess.Quest`/the `Easy.Objective.reach`/`.destroy`/`.clear`/`.survive` bundles are live-verified in-game. |
 | [Debug & Dev Tools](dev-tools) | `Easy.Debug`, `Easy.Console.play` | A live on-screen debug overlay (position, reticle target, health, nearby counts) and an in-game "run any Easy call and cycle its params" playground. **Confirmed live** — per the CHANGELOG's 0.3.0 verification entry, `Easy.Debug.overlay()` renders and `Easy.Console.play()`'s drill-in/run-live/param-cycling all work in-game. |
 | **[Ess.Easy](easy)** | Every `Ess.Easy.*` namespace | The full beginner-tier one-liner surface in one place — spawning, unlocks, world tweaks, fun, and every other namespace's Easy preset. |
@@ -160,7 +161,7 @@ framework); it will eventually *consume* `Ess.*` rather than be absorbed.
 
 ## Samples & the smoke test
 
-The framework ships **25 recipes** — short "how do I X?" scripts that are each a living doc *and* a
+The framework ships **42 recipes** — short "how do I X?" scripts that are each a living doc *and* a
 self-verifying smoke test. `python tools/smoke.py` reloads the current build into the running game, runs
 every recipe, and reports `PASS`/`FAIL` per recipe, so a change that breaks a public helper turns a recipe
 red before release. There are also five bind-to-a-key demos (including the in-game MissionForge mission

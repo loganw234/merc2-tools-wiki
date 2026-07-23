@@ -18,6 +18,14 @@ character is carrying, and how to shove any of it around. Six source files: `10_
 Every function here is `uGuid`-first and `pcall`-wrapped — the whole point is that a bad or dead guid gets
 you `nil`/`false` back, not a hard Lua error killing the rest of your script.
 
+**0.3.1 — "the 2026-07-22 bindings-pass harvest"** adds new entries to `Ess.Object`, `Ess.Vehicle`, and
+`Ess.Probe` below (each tagged inline) from a live-probe mapping of the engine's never-called `luaL_Reg`
+bindings that had zero call sites anywhere in the decompiled corpus (`CHANGELOG.md`'s `[0.3.1]` entry).
+Verified in two stages: offline first (`checkpure` 10/10, every `test_bundles` suite green), then a full
+in-game pass on the release build on 2026-07-22 — the whole smoke suite at **42/42 recipes PASS**, including
+a new dedicated recipe, `control_pursuit` (covered on its own page, not this one). Individual live-measured
+numbers are cited inline below.
+
 ## Ess.Player
 
 Player/character identity, without the 8-getter native sprawl (`GetLocalCharacter`/`GetPrimaryCharacter`/
@@ -88,6 +96,7 @@ Ess.Object.alive(g)` could otherwise be fooled by a `0`.
 | `revive` | `Ess.Object.revive(uGuid, nDelay)` | `nDelay` is an optional, confirmed second argument to `Object.Revive`. |
 | `alive` / `valid` | `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool` | `Object.IsAlive`/`Object.IsValid`, `truthy()`-coerced. |
 | `setInvincible` | `Ess.Object.setInvincible(uGuid, bOn, sReason)` | `sReason` is **required** here even though the native call allows omitting it — every real call site tags one ("Survival"/"Hijack"/"HQ"), and making it mandatory means you can't accidentally ship an untagged toggle some other system can't attribute later. An invalid/missing reason logs a warning and falls back to `"Ess"` rather than failing. |
+| `invincible` | `Ess.Object.invincible(uGuid) -> bool` | The missing getter for `setInvincible` above, wrapping `Object.GetInvincible`. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). `truthy()`-coerced like every other boolean-returning wrapper here. Live-confirmed round-trip: `false` → `true` → `false`. |
 
 ### Visibility, labels, identity
 
@@ -104,6 +113,26 @@ Ess.Object.alive(g)` could otherwise be fooled by a `0`.
 |---|---|---|
 | `enablePhysics` / `disablePhysics` | `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)` | |
 | `impulse` | `Ess.Object.impulse(uGuid, x, y, z, bLocal)` | `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger push. `bLocal` defaults to `true` (impulse in the object's own space). This is the bare call — for mass-scaling + directional + `speedBoost`/`launch`/`knockback` presets, see [Ess.Impulse](#essimpulse) below. |
+| `velocity` | `Ess.Object.velocity(uGuid) -> vx, vy, vz \| nil` | Wraps `Object.GetVelocityVector` — Ess's first motion API. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). Feeds race checks, chase-camera damping, "has it stopped yet." See the fresh-spawn caveat under [Geometry](#geometry) below. |
+| `speed` / `speedSq` | `Ess.Object.speed(uGuid) -> n \| nil` / `Ess.Object.speedSq(uGuid) -> n \| nil` | Scalar speed, both built on `Object.GetVelocitySquared` — `speed` adds a `sqrt`, `speedSq` skips it for a cheap threshold check (no sqrt needed when you're only comparing distances). Same 0.3.1 harvest as `velocity`, same fresh-spawn caveat. |
+
+### Geometry
+
+All four rows below are **new in 0.3.1's bindings-pass harvest** — zero corpus call sites before the
+2026-07-22 live-probe pass, signatures confirmed live rather than from source.
+
+| Function | Signature | Notes |
+|---|---|---|
+| `size` | `Ess.Object.size(uGuid) -> ex, ey, ez \| nil` | The model's bounding-box extents, wrapping `Junk.GetModelBBoxExtents`. **Takes a guid, not a template/model name** — easy to assume otherwise for a "model" function, worth flagging plainly. Ess's first size information: spawn spacing, camera-orbit radius, attach offsets. Live-confirmed on a settled object (one measured example, a human: **0.98 × 1.93 × 0.33**) — see the fresh-spawn caveat below. |
+| `localToWorld` | `Ess.Object.localToWorld(uGuid, lx, ly, lz) -> x, y, z \| nil` | The engine's full 3D local→world transform, wrapping `Object.TransformLocalToWorld` — includes pitch/roll. **Prefer this over [`Ess.Math.rotateOffset`](core#essmath)** (yaw-only, assumes level ground) whenever the object may be tilted — a vehicle on a slope, a listing boat. Live-confirmed: a local offset of 5 measured out to an exact **5.00** in world space. |
+| `heightAboveGround` | `Ess.Object.heightAboveGround(uGuid) -> n \| nil` | Wraps `Object.GetHeightAboveTerrain`, battle-proven by the terrain-tensor project (the whole map was surveyed with it). Carries that project's confirmed **exact-0-placeholder** caveat: a reading of exactly `0` can be the engine's unstreamed-geometry placeholder rather than real ground contact — reliable near the player, worth treating with suspicion far away or on a just-streamed cell. The same class of "let it settle before you trust it" issue as the fresh-spawn caveat below. Live-confirmed: read **12.05** on an object spawned 12 units up. |
+| `snapToGround` | `Ess.Object.snapToGround(uGuid, nOffset) -> ok` | Drops (or lifts) the object onto the terrain, optionally hovering `nOffset` units above it — reads `heightAboveGround` once and adjusts Y by `-h + nOffset`; a `nil` or exact-`0` reading (already grounded, or the placeholder above) is left untouched rather than guessed at. No native 1:1 equivalent — built from `heightAboveGround` + `setPos`. Live-confirmed: took the object above (at **12.05**) down to **0.00**. |
+
+**Fresh-spawn settle caveat, live-confirmed in the 0.3.1 release pass:** `size`, `speed`, and `velocity`
+(in Physics above) all read `nil`/zero in the exact same tick an object spawns — the same "wait a moment
+after spawning" class already documented elsewhere in Ess (`Ess.Bones` hardpoints, `Ai` feelings). Read them
+on a settled object, or re-read a tick later; it's called out at the top of `11_object.lua` itself as a
+recognized, named pattern, not a one-off bug.
 
 ### Spawn
 
@@ -149,7 +178,11 @@ Seat/rider queries plus the human-doesn't-`SetPosition` workaround, wrapping the
 | `enterBestSeat` | `Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok` | `pcall`-wrapped `MrxUtil.EnterBestAvailableSeat` — confirmed driver/gunner/passenger/cargo seat priority order. |
 | `enterSeatExcluding` | `Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed` | For "board a vehicle but never take the driver seat" (e.g. a co-op partner boarding after the driver already has). Loops `{"d","g","p","c"}` in priority order via `Vehicle.GetSeatByType` + `Vehicle.EnterBySeatGuid`, skipping any type named in `excludeSeats`. Verified against the real, live-confirmed-working `DestroyerTool.lua` (see [Making the Destroyer Driveable](../deep-dives/destroyer-vehicle)) — its two boolean arguments are passed exactly as that reference does; their precise semantics beyond that call site aren't independently confirmed. |
 | `exit` | `Ess.Vehicle.exit(uVeh, uChar) -> ok` | Confirmed signature+usage from the same `DestroyerTool.lua`: `Vehicle.Exit(uVehicle, uCharacter, true)`. |
+| `evictAll` | `Ess.Vehicle.evictAll(uVeh) -> ok` | Forces **every** occupant out at once via `Ai.EveryoneOut` — takes the vehicle's own guid, not a rider/pilot guid. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). The bulk counterpart to `exit` above, which moves one known character. Live-confirmed: `driver` read a real pilot guid before the call and `nil` after. |
+| `repair` | `Ess.Vehicle.repair(uVeh) -> ok` | Full heal + rearm in one call — `Vehicle.RestoreHealth` then `Vehicle.RestoreAmmo`. **New in 0.3.1's bindings-pass harvest**; both natives had zero corpus call sites, signatures came from the 2026-07-22 live-probe pass. The vehicle repair this framework long lacked (the old era of "no SetMaxHealth, so bosses just regen") — wave-defense between-round fixups, escort patch-ups, "my ride is smoking" mercy. Returns `true` if the health call executed (ammo is best-effort). Live-confirmed: health **25 → 130/130** (full max). |
+| `isFlipped` | `Ess.Vehicle.isFlipped(uVeh) -> bool` | Wraps `Vehicle.IsFlipped`, `truthy()`-coerced like every other boolean-returning wrapper. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature from the 2026-07-22 live-probe pass). No `unflip()` yet — righting a flipped vehicle needs a confirmed way to reset roll/pitch, and none is live-verified. Live-confirmed: read `false` on an upright vehicle. |
 | `flyTo` | `Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()` | Sends an AI helicopter to a world point. Wraps two gotchas: the flight command is `Ai.Deliver(driver, x, y, z, dropHeight, careless)` — **not** `Ai.Goal "MoveToPos"`, which does not fly a heli — and a freshly-spawned heli has no driver for a moment, so this polls `Ess.Vehicle.driver` until one exists before issuing the order. `opts.height` (drop height, default 0.5), `opts.careless` (bool), `opts.onReady(driver)` fires once the order is issued. Returns `cancel()` to stop the driver-wait early. |
+| `land` | `Ess.Vehicle.land(uHeliOrPilot) -> ok` | Commands an AI helicopter to descend and set down via `Ai.HeliLand`, which takes the **pilot** guid — same convention as `Ai.Deliver` above, not the vehicle guid — so pass either the heli (its pilot is resolved via `driver` above) or the pilot directly. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature from the 2026-07-22 live-probe pass). **Pairs with `flyTo` above** — see the live-confirmed autonomous-AI caveat below. |
 | `orbitFlight` | `Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts) -> totalSeconds` | Flies a *crewed* heli (a "(Driver)"/"(Full)" template) a few circular laps around a centre point by chaining timed `flyTo` waypoints. `opts`: `radius`(90), `height`(45), `orbits`(2), `points`(6 per orbit), `secPerLeg`(2.2), `startAngle`(deg), `tracker` (an `Ess.Track`, for cleanup), `onDone`. The first leg starts above ground, so the heli climbs into the orbit with no separate takeoff order. |
 | `followGhost` | `Ess.Vehicle.followGhost(template, x, y, z) -> ghost \| nil` | Spawns `template` and returns a `ghost` object (`ghost.guid`, `ghost:update(nx, ny, nz)`, `ghost:remove()`). Confirmed gotcha: `Object.SetPosition` silently does **not** move a spawned human (works fine on props/vehicles) — `:update()` tries `SetPosition` first, then re-reads the real position; if it's still off by more than ~3 units, it despawns and respawns the template at the new spot instead, updating `ghost.guid` so callers always read the current handle. |
 
@@ -159,6 +192,13 @@ bare `return 1+1`) stalling Lua execution for 30+ seconds, recovered only by kil
 process. Never confirmed the vehicle-entry was the actual cause — could be coincidental — but the source
 flags it explicitly: avoid spawning + entering a vehicle from inside an interior cell without further
 testing, and don't chain an immediate follow-up query in the same breath if you do.
+
+**Live-confirmed limitation, 0.3.1 release pass — `land` under autonomous AI:** a heli running its own
+autonomous combat AI (a bare, free-milling "AH1Z (Full)") **overrides** the `land` order outright — two
+calls, zero descent. It only works reliably once the pilot is under **scripted control**: `flyTo(...)` then
+`land(...)` measured a real descent, AGL **35.0 → 19.4** and still dropping ~9s in. Fly it somewhere, then
+land it there — that pairing is the confirmed usage; the autonomous-AI override is a confirmed limitation to
+design around, not a bug to chase.
 
 ### Ess.Easy.Vehicle
 
@@ -180,8 +220,9 @@ Nearby-object queries and a safe "what is this guid" description.
 
 | Function | Signature | Notes |
 |---|---|---|
-| `nearby` | `Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }` | Collapses `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (11 separate "find nearby X" natives) into one dispatcher, deduped by guid across whichever families `kind` selects. `kind`: `"humans"` \| `"vehicles"` (ground + flying) \| `"buildings"` \| `nil`/`"any"` (humans + ground vehicles + flying). `filter`: optional `Object.HasLabel` string — only objects carrying that label are kept. `includeSelf`: **default `false`** — the native `FastCollect*` calls have no concept of "self," so a query whose radius covers the caller's own position would otherwise return the local player's own character(s) indistinguishable from any other result; pass `true` for the rare case that genuinely wants them (e.g. counting total zone occupants). |
+| `nearby` | `Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }` | Collapses `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (11 separate "find nearby X" natives) into one dispatcher, deduped by guid across whichever families `kind` selects. `kind`: `"humans"` \| `"vehicles"` (ground + flying) \| `"buildings"` \| `nil`/`"any"` (humans + ground vehicles + flying) — plus, **new in 0.3.1's bindings-pass harvest**, eight narrower kinds on the same dispatcher: `"tanks"` \| `"helicopters"` \| `"boats"` \| `"cars"` \| `"jets"` \| `"props"` \| `"usables"` \| `"groundNoTanks"`, each its own `Pg.FastCollect*` native with zero corpus call sites before the 2026-07-22 live-probe pass. An unrecognized `kind` still falls through to the `"any"` default, unchanged. `filter`: optional `Object.HasLabel` string — only objects carrying that label are kept. `includeSelf`: **default `false`** — the native `FastCollect*` calls have no concept of "self," so a query whose radius covers the caller's own position would otherwise return the local player's own character(s) indistinguishable from any other result; pass `true` for the rare case that genuinely wants them (e.g. counting total zone occupants). Live-confirmed dispatch (all eight new kinds, at one real test spot): `cars` = 5, `props` = 17, `boats` = 0, `tanks` = 0 — every kind ran clean; the counts are just what was at that location, not a general claim about typical counts. |
 | `nearest` | `Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist \| nil` | The single closest match from `nearby` (same args, same player-excluded-by-default behavior). Returns `nil` if nothing matched in range. |
+| `allByName` | `Ess.Probe.allByName(sName) -> { uGuid, ... }` | Every guid matching a template/object name, wrapping `Pg.GetAllGuidsByName` (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). **New in 0.3.1's bindings-pass harvest.** Contrast with [`Ess.Guid`](core#essguid--essname), which stays the single-match form (`Pg.GetGuidByName`) — reach for this one when a template/name has multiple live instances (every soldier of a template, every placed instance of a prop). Empty table on no match/failure, never `nil` — same contract as `nearby`. Live-confirmed: found a spawned template by name (template-name matching confirmed working). |
 | `getFaction` | `Ess.Probe.getFaction(uGuid) -> sAbbrev \| nil` | `MrxUtil.GetFaction` → `MrxFactionManager.GetFactionAbbrev` fallback chain. |
 | `describeSafe` | `Ess.Probe.describeSafe(uGuid) -> sDescription` | A one-line "what is this" for logging/debugging — name, position, health, faction — every field individually `pcall`-guarded so one bad field can't blank out the whole description. |
 
@@ -292,6 +333,8 @@ See [Ess.Easy](easy) for the full beginner-tier catalog across every namespace, 
   this page's namespaces are built on.
 - [Player](../namespaces/player), [Object](../namespaces/object), [Vehicle](../namespaces/vehicle) — the raw
   engine namespaces `Ess.Player`, `Ess.Object`, and `Ess.Vehicle` each wrap.
+- [Pg](../namespaces/pg) — the raw engine namespace `Ess.Probe.nearby`'s `FastCollect*` family (including
+  0.3.1's eight new kinds) and `.allByName` (`Pg.GetAllGuidsByName`) wrap.
 - [Making the Destroyer Driveable](../deep-dives/destroyer-vehicle) — the live-confirmed multi-seat boarding
   script `Ess.Vehicle.enterSeatExcluding`/`exit` are verified against.
 - [Ess.Easy](easy) — the full one-liner surface, including `Ess.Easy.Vehicle.summon`,

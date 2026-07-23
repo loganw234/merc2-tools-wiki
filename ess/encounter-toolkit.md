@@ -135,6 +135,8 @@ Ess.Relations.restore(handle)
 Ess.Relations.isActive(handle) -> bool
 Ess.Relations.getFeeling(uGuidA, uGuidB) -> n
 Ess.Relations.setFeeling(uGuidA, uGuidB, n)
+Ess.Relations.getPerceivability(uGuid) -> n, nFloor
+Ess.Relations.setPerceivability(uGuid, n) -> ok
 ```
 
 `pairsList` entries are `{a, b, set}` or `{a=, b=, set=}`. `set` is one of the stance names below
@@ -169,6 +171,22 @@ stale `0` if queried in the same tick as the spawn — the same class of "needs 
 documented elsewhere for bone/hardpoint reads. Wait at least one tick after spawning before calling
 `getFeeling`/`setFeeling` on a target you just created.
 
+`getPerceivability`/`setPerceivability` wrap `Ai.GetPerceivability`/`Ai.SetPerceivability` (see
+[Ai](../namespaces/ai)) — yet another per-**individual** stat, but not a relationship between two subjects
+like `getFeeling` above: it's one subject's own AI *detectability*. `getPerceivability(uGuid)` returns `n`
+(the current value) and `nFloor` (that subject's own engine-side floor), or `nil` if the read failed;
+`setPerceivability(uGuid, n)` drives it and returns whether the call itself succeeded.
+
+Both are new in **v0.3.1** — the 2026-07-22 "bindings-pass harvest" (`CHANGELOG.md`'s `[0.3.1]` entry), the
+same batch that mapped a set of the engine's never-called `luaL_Reg` bindings and shipped wrappers only over
+live- or corpus-confirmed calls. Verified the same way the rest of that release was: offline first
+(`checkpure` 10/10, `test_bundles` all green), then a full in-game pass on the 2026-07-22 release build.
+**Confirmed live as of 0.3.1, and specifically reversible:** that pass drove a subject's perceivability
+`90 → 30 → 90`, reading it back with `getPerceivability` between steps — the value actually moved and
+round-tripped to its exact starting point, not just "the call executed without erroring." Same fresh-spawn
+settle caveat as `getFeeling`/`setFeeling` above applies here too: wait at least one tick after spawning
+before querying a target you just created.
+
 ### Easy
 
 `Ess.Easy.Relations` tracks **one handle internally**, so only one easy-tier relation set can be active at a
@@ -180,6 +198,23 @@ mutually allied), `war(a, b)` (two factions fight each other, independent of the
 `makeHostile` can't express), `sideWith(friend, foe)` (PMC allies `friend`, is hostile to `foe`, and
 `friend`/`foe` go to war — one call for "I'm helping side A crush side B"), and `restore()`. See
 [Ess.Easy](easy) for the full catalog.
+
+A related one-liner lives in a different namespace, but it's built directly on `setPerceivability` above so
+it's worth covering here too: **`Ess.Easy.Player.ghost(bOn, i)`** (`src/93_easy_unlocks.lua`) is the
+Easy-tier stealth toggle. It floors player `i`'s (default `0`) own character detectability down to whatever
+`getPerceivability` currently reports as that character's floor — call it again, or pass `false` explicitly,
+to turn it back off; omit `bOn` entirely to just toggle. The detail worth stating plainly: turning it off
+restores your **exact original** perceivability, not a hardcoded fallback value — the actual number
+`getPerceivability` read back at the moment ghost switched on is what gets replayed, held in `Ess.State` so a
+reload-safe `OnKey` re-run toggles instead of clobbering that saved value with a second floor.
+
+New in the same **v0.3.1** "bindings-pass harvest" as `getPerceivability`/`setPerceivability` above.
+`CHANGELOG.md` is explicit that it's "Registered in the Console + playground" — it's in
+`Ess.Easy.Console`'s browsable one-liner registry and its `.play()` playground under the **Player** group
+(see [Debug & Dev Tools](dev-tools#esseasyconsoleplay) for both). **Confirmed live as of 0.3.1:** the smoke suite's
+new `control_pursuit` recipe explicitly exercises "ghost lowering perceivability then restoring the exact
+original" as part of the release's 42/42-passing in-game run on the 2026-07-22 build — the exact-restore
+behavior above is what was actually tested, not just what the source comments claim.
 
 ### Example
 
@@ -380,3 +415,5 @@ clobbering the other's gate.
 - [Contract Engine](contract) — `Ess.Contract`'s `def.waypoints`/`def.relations`/`def.support`/`def.triggers` are built on exactly these namespaces.
 - [Tracking & Cleanup](tracking) — `Ess.Track` (the `tracker` argument throughout this page) and the shared `Ess.Save` gate.
 - [Ess.Easy](easy) — the full one-liner catalog, including every `Easy` tier mentioned above.
+- [Ai](../namespaces/ai) — the native `GetPerceivability`/`SetPerceivability` primitives `Ess.Relations` wraps.
+- [Debug & Dev Tools](dev-tools#esseasyconsoleplay) — `Ess.Easy.Console`'s browsable reference and `.play()` playground, where `Ess.Easy.Player.ghost` is registered under the Player group.
