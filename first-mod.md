@@ -3,13 +3,21 @@ title: Your First Mod
 nav_order: 3
 layout: verified_page
 verified: true
-verified_note: all 3 steps live-tested (console hello-world, OnLoad, OnKey + MrxPmc.AddCashQty fix)
+verified_note: native path -- all 3 steps live-tested (console hello-world, OnLoad, OnKey + MrxPmc.AddCashQty
+  fix). Ess path uses calls already confirmed elsewhere in Ess's own test history (see the Ess repo's
+  CAPABILITIES.md / CHANGELOG.md) -- not independently re-tested on this exact page.
 ---
 
 # Your First Mod
 
 This walks you from "lua-bridge is installed" to a working hotkey mod, in three steps. If you haven't
 installed lua-bridge yet, do that first — see [Getting Started](getting-started).
+
+> **This page predates [Ess](ess/)** — the Lua framework most of this ecosystem now targets — and used to
+> be pure native-engine code end to end. It now shows both: **Using Ess** (recommended — it's what
+> [mercs2.tools' own Start Here walkthrough](https://mercs2.tools/#s-start) leads into once lua-bridge is
+> installed) for anyone who installed it, and the original **Native** version for anyone who'd rather not
+> take on the dependency. Both produce the same result on screen; pick whichever fits your mod.
 
 ## Step 1: Say hello (via the console, not raw sockets)
 
@@ -35,6 +43,8 @@ With the game running and the bridge loaded (status dot green), press **F5**. Th
 should show your returned string, cash value included. If you see a red `[bridge] ...` message instead,
 check the troubleshooting list at the bottom of [Getting Started](getting-started) — most commonly it
 means the bridge hasn't captured a live Lua state yet.
+
+This step is the same whether or not Ess is loaded yet — it's just proving the console itself works.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>
@@ -68,15 +78,27 @@ engine itself gates a lot of its own startup logic behind a specific milestone (
 returned to the player. If you're not sure whether your mod belongs in `OnBoot` or `OnLoad`, it almost
 certainly belongs in `OnLoad`.
 
-Create `scripts/OnLoad/hello_load.lua`:
+**Using Ess** — create `scripts/OnLoad/hello_load.lua` (a low `lua_loader.ini` number, after `1_Ess.lua`):
+
+```lua
+if not _G.Ess then Loader.Printf("hello_load: load Ess first (1_Ess.lua in scripts/OnLoad, before this file)") return end
+Ess.Log("[hello_load] level ready, cash = " .. Player.GetCash())
+```
+
+`Ess.Log` is a thin, always-safe wrapper over `Loader.Printf` (it no-ops instead of erroring if `Loader`
+is somehow missing) — that's the only difference from the native version below; the log line itself reads
+the same either way (Ess prefixes its own `[Ess]` tag in front of whatever you pass it, which is normal —
+every Ess recipe's log line looks like `[Ess] [recipe] ...` the same way).
+
+**Native** — create `scripts/OnLoad/hello_load.lua`:
 
 ```lua
 Loader.Printf("[hello_load] level ready, cash = " .. Player.GetCash())
 ```
 
-Load into a level. You should see the message in the game's log. Because this runs on *every* level
-load, it's the right place for anything that needs to happen "at the start of a mission" — HUD tweaks,
-spawning something, kicking off a per-level timer, etc.
+Load into a level. You should see the message in the game's log either way. Because this runs on *every*
+level load, it's the right place for anything that needs to happen "at the start of a mission" — HUD
+tweaks, spawning something, kicking off a per-level timer, etc.
 
 **When would you use `OnBoot` instead?** `OnBoot` runs earlier — as soon as the bridge captures a Lua
 state at all, before any level has loaded. The main use case is patching something in the game's
@@ -91,7 +113,22 @@ This is the one you'll probably use the most. `OnLoad` runs automatically; `OnKe
 when you press a bound hotkey — perfect for debug toggles, "give me X" cheats, or anything you want to
 fire on demand instead of every single load.
 
-Create `scripts/OnKey/give_cash.lua`:
+**Using Ess (recommended)** — create `scripts/OnKey/give_cash.lua`:
+
+```lua
+local KEYVAL = "insert"  -- must be in the first 10 lines -- this is how the script declares its own default key
+
+if not _G.Ess then Loader.Printf("give_cash: load Ess first (1_Ess.lua in scripts/OnLoad)") return end
+Ess.Player.giveCash(10000)
+Ess.Log("[give_cash] +10000 cash")
+```
+
+One call. `Ess.Player.giveCash` already routes through the same HUD-updating native path the manual
+version below has to spell out — you don't need to know `import()`, resident modules, or which of three
+possible cash-setting calls is the *correct* one exist at all. This exact call is in Ess's own confirmed
+test history (see [Ess: Core Primitives](ess/core) / the framework's `CAPABILITIES.md`).
+
+**Native (no Ess dependency)** — same file:
 
 ```lua
 local KEYVAL = "insert"  -- must be in the first 10 lines -- this is how the script declares its own default key
@@ -103,15 +140,18 @@ Loader.Printf("[give_cash] +10000 cash")
 
 That `local KEYVAL = "insert"` line is doing real work: the loader reads the first 10 lines of every
 `OnKey` script looking for it, and uses it as that script's default hotkey binding — you don't have to
-touch any config file for the common case. Load into a level and press **Insert**; you should see cash
-increase on-screen and the debug message appear.
+touch any config file for the common case (true for both versions above).
 
 Two things worth knowing here, both confirmed by live testing: `MrxPmc.AddCashQty` is used (instead of
 the lower-level `Player.SetCash`/`Player.AddCash`) specifically because it also refreshes the HUD —
 calling `Player.SetCash` directly *does* change your actual cash, but the on-screen number won't update
 to show it. And `MrxPmc` needs that `import("MrxPmc")` line because it's a `resident/` module, not a
 built-in engine namespace like `Player` — see the [Glossary](glossary#importname) if you want the full
-explanation of why.
+explanation of why. **This is exactly the kind of trap Ess exists to paper over** — the Ess version above
+never has to know any of this.
+
+Load into a level and press **Insert**; you should see cash increase on-screen and the debug message
+appear, either version.
 
 A few things worth knowing about how `OnKey` actually behaves, since it's easy to assume it works like a
 normal event handler and get confused when it doesn't:
@@ -137,6 +177,15 @@ normal event handler and get confused when it doesn't:
 
 You now have all three ways of running code: interactive (console), automatic (`OnLoad`/`OnBoot`), and
 on-demand (`OnKey`). From here:
+
+**If you're using Ess:**
+
+- [Ess Framework](ess/) — this wiki's own namespace-by-namespace reference, and the install/tiering
+  walkthrough if you skipped straight here.
+- [Ess: samples/recipes](https://github.com/loganw234/mercs2-lua-essentials/tree/master/samples/recipes) —
+  a couple dozen more "how do I *X*?" scripts in the exact same shape as this page's steps, one task each.
+
+**Either way:**
 
 - [Your First Menu](first-menu) is the very next step — a menu with a couple of toggle options that
   remembers its own state between presses, the smallest complete example of state + `pcall` + a real
