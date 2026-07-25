@@ -84,18 +84,24 @@ page for whatever you're building. The framework's own
 [`CAPABILITIES.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/CAPABILITIES.md) and
 [`FEATURE_SHEET.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/FEATURE_SHEET.md) (the
 *why*, and the full build history) remain the canonical upstream reference these pages are checked against.
+Hit an install or mod-authoring snag first?
+[`TROUBLESHOOTING.md`](https://github.com/loganw234/mercs2-lua-essentials/blob/master/TROUBLESHOOTING.md)
+(new in **0.3.2**) is a symptom-first fix list for the common failure points, before digging into any page
+below.
 
 | Page | Namespaces | What it covers |
 |---|---|---|
 | [Core Primitives](core) | `Safe`, `Table`, `Str`, `Color`, `Vec`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, string/color/vector/geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. |
 | [Identity & World Query](identity-query) | `Player`, `Object`, `Vehicle`, `Probe`, `Human`, `Impulse` | Character/camera/teleport, the everyday spawn/transform/health/label namespace, seats and riders, nearby-object collection, and mass-scaled launch/knockback. |
-| [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. |
+| [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. `Loop.stats`/`.list` (added **0.3.3**) add per-loop tick-cost introspection, purely additive. |
 | [Tracking & Cleanup](tracking) | `Track`, `Event`, `Save` | One registry for every leak-prone Add/Remove pair, a logging `Event.Create` wrapper, and the shared save-suppression gate. |
 | [Markers](mark) | `Mark` (`Raw`/Core/`Easy`) | Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets. |
 | [Ess.UI](ui) | `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog` | The nine-widget kit, native port of [UI Kit](../uilib/), on one input/focus/heartbeat engine. |
 | [Camera, Bones & Spatial](camera-bones) | `Camera`, `Bones`, `Points` | Shake/fade/FOV, the full cinematic camera take-over, the confirmed bone/hardpoint recipes, arena spawn-point selection. |
 | [Sound & HUD](sound-hud) | `Sound`, `Hud` | Cue/ambience/volume, native hint/banner/objective-tray/radio-subtitle popups. |
-| [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. `Relations.getPerceivability`/`.setPerceivability` added in **0.3.1**, live-confirmed reversible. |
+| [Encounter Toolkit](encounter-toolkit) | `AIOrders`, `Relations`, `Triggers`, `Sandbox`, `Layers` | The gameplay-scripting machinery extracted from the Contract Framework — usable standalone, without a running contract. All tiered. `Relations.getPerceivability`/`.setPerceivability` added in **0.3.1**, live-confirmed reversible. **`AIOrders`'s `follow` behavior was fundamentally rewritten in 0.3.3** (native `Ai.Role` instead of a re-issued-`MoveTo` timer) plus five more live-confirmed bug fixes across `move`/`attack`/`face`/`hold`/`enter` in 0.3.3-0.3.4 — see the page for exactly what changed. |
+| [Followers Roster](followers) | `Followers` | A lifecycle-aware "who's currently assigned to me" roster on top of stateless `AIOrders` — recruit/dismiss/order the whole roster at once, per-follower markers, natural-completion auto-resume-follow. **New in 0.3.3**, substantially extended in **0.3.4** (vehicle-aware follow, `orderEnter`, and a Follow-role-drift fix that supersedes 0.3.4's own first-cut vehicle-only version — see the page's dated Status section). |
+| [Squad — Team & Tactics Layer](squad) | `Squad` | Named teams/roles, a per-scope-safe `orderTeam`, an async multi-step `queue` with a per-step timeout watchdog, role-aware vehicle `Tactics.mountUp`/`.dismountAndSecure`, and on-foot `setFormation` — all built on `Followers` with no new native calls. **New in 0.3.4**, "visual sugar" formations explicitly not a precision tactical system — confirmed live for team-order isolation, vehicle mounting/dismounting, and a 4-unit wedge/diamond formation. |
 | [Pursuit & Wanted System](pursuit) | `Pursuit` | The wanted/heat system: start/read/clear a pursuit, the one-way `capLevel` ratchet, and why `restrictAll`/`restrictFaction` gate organic heat only rather than stopping a chase. **New in 0.3.1**, Core-tier only — confirmed live via a dedicated `control_pursuit` smoke recipe (start → state-read → clear round-trip). |
 | [Cinematic](cinematic) | `Cinematic` | A declarative cutscene timeline (cuts/dollies/orbits, spawns, AI orders, narration, fades, music) — always restores control, always ESC-skippable. |
 | [Networking](net) | `Net` | Co-op data sync, native port of [ModNet](../modnet): auto-syncing shared tables, named messages, authority model. |
@@ -164,8 +170,18 @@ framework); it will eventually *consume* `Ess.*` rather than be absorbed.
 The framework ships **42 recipes** — short "how do I X?" scripts that are each a living doc *and* a
 self-verifying smoke test. `python tools/smoke.py` reloads the current build into the running game, runs
 every recipe, and reports `PASS`/`FAIL` per recipe, so a change that breaks a public helper turns a recipe
-red before release. There are also five bind-to-a-key demos (including the in-game MissionForge mission
-author) under `scripts/OnKey/`.
+red before release.
+
+There are also **16 larger, bind-to-a-key demos** in `samples/demos/` (renamed from `samples/OnKey/` in
+**0.3.2**) — including the in-game MissionForge mission-authoring tool and `StarterMod`, a copy-me template
+covering the three patterns every OnKey mod needs (guard/state/action). **As of 0.3.2, none of these ship
+pre-installed or pre-bound** — earlier releases auto-deployed and pre-bound all of them across F1-F12 in
+the release zip, which silently claimed every F-key before a new modder had bound their own first mod (the
+exact key the framework's own `GETTING_STARTED.md` tutorial suggests). Copy whichever demo you want into
+your own `scripts/OnKey/` and bind it yourself (e.g. `MissionForge.lua=F7` under `[OnKey]` in
+`lua_loader.ini`) — each file's header comment says what it does and suggests a key. See
+[`samples/README.md`](https://github.com/loganw234/mercs2-lua-essentials/tree/master/samples#interactive-scripts-samplesdemos)
+for the full one-line-per-demo catalog.
 
 ## Where it lives
 

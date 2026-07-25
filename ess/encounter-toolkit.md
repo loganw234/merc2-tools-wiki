@@ -71,21 +71,59 @@ event (`follow`) for cleanup.
 
 | `behavior` | Does |
 |---|---|
-| `move` | `Ai.Goal{Goal="MoveToPos"}` to `opts.at` — go there and stop. `Force=true`. |
-| `face` | `Ai.Goal{Goal="Face"}` turning to face `opts.at` (`Position=true`) — no movement; staging/cutscene framing. `HiPri`. |
-| `hold` | `Ai.Anchor{AnchorRadius=0}` + `Ai.Goal{Goal="Idle"}` — stand exactly where spawned, don't give chase. `HiPri`. |
+| `move` | Spawns a disposable `TinyGeometry` anchor at `opts.at` (registered on `tracker` if given) and issues `Ai.Goal{Goal="MoveTo", Target=anchor}` at it — go there and stop. `Force=true`. **Not** a raw-coordinate `"MoveToPos"`/`Location={x,y,z}` goal — see the note below the table — the same disposable-anchor trick `defend` already used for its own `Ai.Anchor` radius. |
+| `face` | `Ai.Goal{Goal="Face"}` turning to face `opts.at` (`Position=true`) — no movement; staging/cutscene framing. `HiPri`, `Force=true` (0.3.3 fix: without it, this silently no-op'd on a unit already holding an `Ai.Anchor(AnchorRadius=0)` lock from a prior `"hold"` order — goal accepted, no error, but the unit never visibly turned). |
+| `hold` | `Ai.Anchor{AnchorRadius=0}` + `Ai.Goal{Goal="Idle"}` — stand exactly where spawned, don't give chase. `HiPri`, `Force=true` (0.3.3 fix, same gap `face` had — preempts a lingering goal left over from a prior `"defend"`/guard order instead of silently queuing behind it). |
 | `defend` | Spawns an invisible `TinyGeometry` anchor at `opts.at` (registered on `tracker` if given), moves the group there, then `Ai.Anchor`s each member to that anchor with `opts.radius` (default 12) — holds an area, fighting anything that enters it. |
-| `attack` | Hunts `opts.target` (the **first** guid of that named group, via `Ess.AIOrders.group`) if given, else the nearest local player (`Player.GetLocalCharacter`). Falls back to a plain `MoveToPos` toward `opts.at` if no target resolves at all. Default priority `"med"` (every other behavior defaults `"hi"`). |
-| `patrol` | Walks `opts.points` in order via chained `MoveToPos` goals — each goal's `Callback` re-issues the next point on arrival. Loops unless `opts.loop == false`, or there's only one point (a single-point "patrol" quietly becomes a plain one-shot move instead of a wasteful one-point loop). |
-| `follow` | Re-issues a `MoveTo` toward `opts.target`'s group (or the nearest player) every `opts.interval` seconds (default 4), via a self-rescheduling `Event.TimerRelative` — a simple re-issued tail, not a native follow behavior. **Reschedules forever** until cancelled — pass a `tracker` so the timer is cleaned up when the scene/mode ends, or it keeps ticking after the actor is no longer relevant. |
-| `flee` | A single `MoveToPos` directly away from the nearest player, `opts.distance` units (default 120) — one-shot, doesn't keep re-fleeing on a timer. `HiPri`. |
-| `enter` | Boards a vehicle: resolves `opts.target` as a group name first, falling back to `Pg.GetGuidByName`, then issues `Ai.Goal{Goal="Enter", Role=opts.role or "passenger"}` for each guid. `HiPri`, `Force=true`. |
+| `attack` | Hunts `opts.target` if given — resolved as a registered group's first guid via `Ess.AIOrders.group` **first**, then as a raw uGuid directly if that lookup misses (0.3.3 fix: `group()` returns `{}`, never `nil`, for an unknown name, so a raw guid — a reticle target, say — used to fall straight through to the player instead). Falls back to the nearest local player (`Player.GetLocalCharacter`) if `opts.target` is omitted or unresolved, and to the same disposable-anchor `"MoveTo"` trick as `move` (walking to `opts.at`) if even that fails. Default priority `"med"` (every other behavior defaults `"hi"`); `Force=true` (0.3.3 fix — a unit coming off a `defend`/guard order's `Ai.Anchor` lock otherwise ignored the goal silently). |
+| `patrol` | Walks `opts.points` in order: one disposable `TinyGeometry` anchor per waypoint (shared across every patrolling unit, not one per unit), with chained `Ai.Goal{Goal="MoveTo"}` calls — each goal's `Callback` re-issues the next point on arrival. **Not** raw-coordinate `MoveToPos` goals, same reasoning as `move`. Loops unless `opts.loop == false`, or there's only one point (a single-point "patrol" behaves like a plain one-shot move instead of a wasteful one-point loop). |
+| `follow` | Puts the group on the engine's own native "recruit" role, `Ai.Role{Role="Follow"}` — auto-holds `opts.minDistance`/`opts.maxDistance` (default 2/30) and follows `opts.target` (a registered group's first guid, else the nearest player) into and out of vehicles for free. Always (re-)applies the Role fresh on every call. See the detailed note and the `Ess.Followers` pointer below the table before using this directly for anything beyond a single one-shot order. |
+| `flee` | Spawns a disposable `TinyGeometry` anchor `opts.distance` units (default 120) directly away from the nearest player and issues `Ai.Goal{Goal="MoveTo"}` at it — one-shot, doesn't keep re-fleeing on a timer. `HiPri`, `Force=true`. Same disposable-anchor trick as `move`/`defend`/`patrol`, not a raw `MoveToPos`. |
+| `enter` | Boards a vehicle: resolves `opts.target` as a registered group's first guid, then (if a string) via `Pg.GetGuidByName`, then as a raw uGuid directly if it's neither (0.3.4 fix — the same group-name-only gap `attack`'s `target` had). Calls `Vehicle.Usable(veh, true)` once before issuing the goal (0.3.3 fix — confirmed live that a freshly `Ess.Object.spawn`'d vehicle silently refuses an `"Enter"` goal until this is called first, matching `resident/oilcon002.lua`'s own confirmed sequence; a harmless no-op on a vehicle that's already usable, which every placed-in-level vehicle already is). Then issues `Ai.Goal{Goal="Enter", Role=opts.role or "passenger"}` for each guid. `HiPri`, `Force=true`. |
 | `deploy` | `Ai.Deploy{Role="Passenger"}` on each guid — `guids` here are expected to be the transport vehicles themselves; a transport disgorges its passengers. `HiPri`, `Force=true`. |
 | `animate` | `Human.DoAction(g, opts.action or "Cower")` — plays a canned action pose. |
 
+**CONFIRMED LIVE 2026-07-24/25 (0.3.3):** every "go to this raw `{x,y,z}`" behavior above (`move`/`defend`/
+`patrol`/`flee`/`attack`'s fallback) used to hand `Ai.Goal` a `"MoveToPos"`/`Location={x,y,z}` table directly.
+That's rejected outright for an on-foot human — confirmed by direct live testing (`Ai.Goal` returns a falsy
+handle, no error since it's `pcall`-wrapped, for *any* raw-coordinate move on a walking human regardless of
+distance, while the identical unit accepts `"Idle"` fine) and by the full decompiled game script corpus, where
+`"MoveToPos"` appears in exactly one file and only ever targets a **vehicle driver**, never a human. Every one
+of those behaviors now spawns a disposable `TinyGeometry` at the destination and issues `"MoveTo"` at *that*
+instead — `defend` already did this for its own `Ai.Anchor` radius; the others were brought in line with it.
+
+**`follow`, in detail.** As of 0.3.3, `follow` no longer re-issues a plain `MoveTo` on a timer — it drives
+Mercenaries 2's own real recruit mechanic, confirmed live against `resident/mrxfollow.lua`'s own use of the
+same call. Three prerequisites are applied, in this order, before `Ai.Role` itself is called — each one
+confirmed live to silently break the whole thing if skipped: neutralize a hostile `Ai.Feeling` toward the
+target, disable the unit's ambient `Ai.LivingWorld` behavior (`"LivingWorldBehaviour"`, `false` — it fights
+the Follow role for control otherwise), and `Ai.SetState(..., "Vip", true)` — confirmed to be the one
+**missing** piece: without it, `Ai.Role` still returns a truthy handle (looks accepted) but the unit never
+actually follows. The native role auto-maintains distance and follows into/out of vehicles on its own, neither
+of which the old timer approach did. Unlike every other behavior here, `follow` hardcodes its own `"hiPri"`
+priority rather than reading `opts.priority`.
+
+**Caveat as of 0.3.4 — first engagement vs. resume.** Native Follow turned out to be reliable only on its
+*first* engagement, straight from a fresh recruit — confirmed live side-by-side against a follower left alone
+on it the whole time, which never drifted. A follower taken off Follow for any other order and put back on
+`"follow"` later (a *resume*) was confirmed to drift or snap hostile within 1–3 seconds and never reliably
+move again. `Ess.AIOrders.command` itself is stateless, though — it has no concept of "is this a first
+engagement or a resume" (every call re-passes an explicit guid list and remembers nothing) — so a bare
+`command(guids, "follow", opts)` call **always** re-applies the native Role fresh, with no memory of anything
+that came before. That's exactly right for a genuine one-shot "follow me" order issued directly through this
+namespace. For anything beyond that — an order that might later interrupt and resume following — use
+[`Ess.Followers`](../ess/followers) instead: it's what actually tracks the first-engagement-vs-resume
+distinction and routes a resume through a reissued-`MoveTo`-plus-hysteresis loop instead of re-engaging a Role
+that's confirmed unreliable the second time around.
+
 All behaviors route the acting guid through `Ess.Raw.AIOrders.actor()` first (see Raw tier above), and most
 apply `opts.speed` via `haste()`. `opts.priority` (`"hi"`/`"med"`/`"lo"`) is honored by `move`/`defend`/
-`attack`/`patrol`/`follow`.
+`attack`/`patrol` (`follow` hardcodes its own priority instead — see above).
+
+For anything beyond a single one-shot order to this section's behaviors — recruiting once and remembering who
+you've recruited, ordering "the whole current roster" without re-threading a guid list through every call, or
+just getting `follow`'s first-engagement-vs-resume distinction right — see [`Ess.Followers`](../ess/followers),
+a stateful, roster-aware layer built entirely on `Ess.AIOrders` (no new native calls of its own).
 
 ### Easy
 

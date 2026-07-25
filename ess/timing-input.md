@@ -87,12 +87,21 @@ MissionForge) — is this one implementation instead.
 | `Ess.Loop.start(id, interval, tickFn)` | `start(id, interval, tickFn)` | Registers (or **replaces**) a self-rescheduling loop under `id`. `tickFn()` runs every `interval` seconds (default `1`); return `true`/truthy to keep going, `false`/`nil` to auto-stop. |
 | `Ess.Loop.stop(id)` | `stop(id)` | Cancels a running loop early. Its next scheduled tick sees it's gone and quietly does not reschedule — no error. |
 | `Ess.Loop.isRunning(id)` | `isRunning(id) -> bool` | Whether a loop is currently registered under `id`. |
+| `Ess.Loop.stats(id)` | `stats(id) -> { interval, ticks, lastDuration, avgDuration, lastError } \| nil` | New in **0.3.3**. A snapshot (not a live reference) of one loop's own bookkeeping: `interval` and `ticks` (count since its last `start()`), `lastDuration`/`avgDuration` (real wall-clock cost of each tick, measured via `Ess.Time.stamp()`/`.elapsed()` — `avgDuration` is an EMA, weight `0.2`, so a loop that ran slow at startup but has since settled reads as settled instead of permanently dragged down), and `lastError` (the last tick's caught error, if any). `nil` if `id` isn't currently registered. |
+| `Ess.Loop.list()` | `list() -> { {id=, interval=, ticks=, lastDuration=, avgDuration=, lastError=}, ... }` | New in **0.3.3**. The same stats as `stats(id)`, for every currently-registered loop at once, sorted by `id` for stable ordering — the shape a dashboard/monitor wants to poll on an interval and just render. |
 
 Calling `start()` again with the **same `id`** immediately supersedes any previous loop registered under
 that id, via an internal generation counter — this is what makes it safe to call `Ess.Loop.start`
 unconditionally from the top of a re-run `OnKey` script without leaking a duplicate loop on every keypress.
 A tick that errors is caught (`pcall`), logged via `Ess.Log`, and treated as `keepGoing = false`, so one
 bad tick stops that loop instead of spamming errors forever.
+
+`stats`/`list` are purely additive introspection over the same registry `start`/`stop`/`isRunning` already
+used — those three are unchanged, and confirmed (by grep before the change) that every existing call site
+across the project (20+ files) only ever went through that public surface, never the registry's internal
+shape directly, so adding this is backwards-compatible by construction. The actual point: `lastDuration`/
+`avgDuration` let a monitor catch a loop whose tick is expensive relative to its own `interval` — the real,
+measurable version of "this poller feels heavy," instead of guessing from framerate.
 
 The registry resets on every `OnLoad` re-run (world reload) — that's intentional, since a reload already
 invalidates every scheduled `Event.TimerRelative` the engine was tracking.

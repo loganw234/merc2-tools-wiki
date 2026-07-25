@@ -250,6 +250,40 @@ Named calls hiding the `opts` table, for the three most common orders over [`Ess
 | `Ess.Easy.AIOrders.patrol(guids, points)` | Orders a group to patrol a list of `{x,y,z}` points. |
 | `Ess.Easy.AIOrders.guard(guids, at)` | Orders a group to hold and defend a position — the friendlier name for the underlying `"defend"` behavior. |
 
+## Followers — `Ess.Easy.Followers`
+
+**New in 0.3.3**, `orderEnter` added in **0.3.4**. Named one-liners over the whole current roster from
+[`Ess.Followers`](followers), so unlike `Ess.Easy.AIOrders` above there's no `guids` parameter to pass —
+`Ess.Followers` already knows who.
+
+| Call | Does |
+|---|---|
+| `Ess.Easy.Followers.recruit(guid)` | Adds `guid` to the roster, following the local player. |
+| `Ess.Easy.Followers.orderAttack(target)` | Orders the whole roster to attack `target`. |
+| `Ess.Easy.Followers.orderPatrol(points)` | Orders the whole roster to patrol a list of `{x,y,z}` points. |
+| `Ess.Easy.Followers.orderGuard(at)` | Orders the whole roster to hold and defend a position. |
+| `Ess.Easy.Followers.orderEnter(vehicleGuid, role)` | Orders the whole roster to board `vehicleGuid`. `role` defaults to `"driver"` — see [Followers](followers#esseasyfollowers) for why that default differs from `Ess.AIOrders`' own `"passenger"`. |
+| `Ess.Easy.Followers.showMarkers()` / `.hideMarkers()` | Toggles the floating head-icon + order-destination markers every follower gets by default. |
+
+## Squad — `Ess.Easy.Squad`
+
+**New in 0.3.4.** Mirrors the shape above, but scoped to a named team from [`Ess.Squad`](squad) instead of
+the whole roster.
+
+| Call | Does |
+|---|---|
+| `Ess.Easy.Squad.createTeam(teamName, guids)` | Defines (or redefines) a team's membership from a guid list — only guids already on the `Ess.Followers` roster are kept. |
+| `Ess.Easy.Squad.assignRole(guid, roleType)` | Tags a guid with a free-form role string (e.g. `"driver"`) — only `Tactics.mountUp` actually reads it back. |
+| `Ess.Easy.Squad.orderTeamAttack(teamName, target)` | Orders just that team to attack `target`, leaving every other team/unassigned follower undisturbed. |
+| `Ess.Easy.Squad.orderTeamPatrol(teamName, points)` | Orders just that team to patrol a list of points. |
+| `Ess.Easy.Squad.orderTeamGuard(teamName, at)` | Orders just that team to hold and defend a position. |
+| `Ess.Easy.Squad.orderTeamFollow(teamName)` | Returns just that team to following. |
+
+`Ess.Easy.Squad` also carries thin pass-throughs with no added logic for the rest of `Ess.Squad`'s surface —
+`queue`/`cancelQueue`, `mountUp`/`dismountAndSecure`, and `setFormation`/`clearFormation` — see
+[Squad](squad) for the full signatures and what each actually does; the Easy versions just fill in the
+common-case arguments.
+
 ## Sandbox — `Ess.Easy.Sandbox`
 
 Begins with every built-in provider on, no provider list to think about — the "just isolate everything for
