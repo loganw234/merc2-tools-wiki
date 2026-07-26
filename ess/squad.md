@@ -33,6 +33,7 @@ into.
 ```lua
 Ess.Squad.createTeam(teamName, guids) -> ok
 Ess.Squad.team(teamName) -> guids
+Ess.Squad.teams() -> teamNames
 Ess.Squad.teamOf(guid) -> teamName | nil
 Ess.Squad.assignRole(guid, roleType) -> ok
 Ess.Squad.roleOf(guid) -> roleType | nil
@@ -50,6 +51,14 @@ dismissed, or otherwise pruned out of the Followers roster). There's no dismiss/
 membership is filtered on *read* instead, the mirror image of `Ess.Followers.list()`'s own self-healing prune
 on *write*. Practically: a team can never hand you back a guid that's no longer a follower, but calling
 `team()` is what does the pruning, not some background listener.
+
+`teams()` answers a different question than `team(teamName)` above: it returns every **team name** currently
+defined via `createTeam` (sorted, for a stable read) — not one team's membership. It's the debugger-facing
+"what's registered" query, the same need `Ess.Followers.list()` already answers for the roster itself. It
+doesn't filter out a team that's since emptied down to zero live members — a caller who cares checks
+`#Ess.Squad.team(name)` itself. Added for a new, separate tool, `mercs2-squad-tool` — a web-based live
+map/debugger for squads, not yet documented elsewhere on this wiki — which has no other way to discover team
+names it didn't create itself.
 
 `teamOf(guid)` is a best-effort auxiliary index — "which team was this guid last assigned to via
 `createTeam`" — not a live-membership check. It's never cleared when a guid stops being a follower, so it can
@@ -298,6 +307,28 @@ stands. **It deliberately does not auto-resume Follow** — unlike `cancelQueue`
 fallback, a formation is typically cleared to hand the group off to a *different* explicit order (an
 `orderTeam` call, say), not to send everyone back to following the player. Call `orderTeam(..., "follow", {})`
 (or `Ess.Followers.order("follow", ...)`) yourself if that's actually what should happen next.
+
+## Debug accessors: follow-loop and formation anchors
+
+Two more underscore-prefixed internals, treated the same way [Followers](followers) treats
+`_orderScoped`/`_issue`/`_stopFollowLoop`: exposed on the `Ess` table, but not part of the normal public API
+surface a mod author calls day-to-day.
+
+```lua
+Ess.Followers._followLoopAnchorOf(guid) -> uGuid | nil
+Ess.Squad._formationAnchorOf(guid) -> uGuid | nil
+```
+
+Each returns the one disposable `TinyGeometry` anchor a guid's loop is currently repositioning every tick —
+`nil` if that guid isn't in one right now. `_followLoopAnchorOf` reads the private `followLoopAnchors` table
+behind a vehicle-escort or on-foot follow-resume loop (`startFollowLoop`, see [Followers](followers));
+`_formationAnchorOf` reads the private `formationAnchors` table behind a formation slot
+([`setFormation`](#setformationtargetgroup-formationtype-opts--clearformationtargetgroup) above). Neither
+table has any other way to be reached from outside its own source file.
+
+Both exist for the same reason `teams()` does (see [Teams and roles](#teams-and-roles) above): the
+`mercs2-squad-tool` web tool needs a way to read "where is this unit's current waypoint *right now*," not
+just where the unit itself is, so it can render it.
 
 ## See also
 

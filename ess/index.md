@@ -91,7 +91,7 @@ below.
 
 | Page | Namespaces | What it covers |
 |---|---|---|
-| [Core Primitives](core) | `Safe`, `Table`, `Str`, `Color`, `Vec`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, string/color/vector/geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. |
+| [Core Primitives](core) | `Safe`, `Table`, `Str`, `Color`, `Vec`, `Math`, `Guid`/`Name`, `Log`, `State`, `SaveVar`, `RNG` | The `pcall`-and-log idiom, string/color/vector/geometry helpers, reload-safe state, and the engine-safe RNG that sidesteps the 32-bit-float LCG trap. **`Ess.DEBUG`/`Ess.Safe.reject`/`.stats`/`.reset`/`Ess.lastError` (0.4.0)** open up this framework's on-purpose silent failures on demand; **`Ess.stop`/`.stopAll` (0.4.0)** add one teardown verb for any of the 27 handle shapes across Ess without deprecating any of them. |
 | [Identity & World Query](identity-query) | `Player`, `Object`, `Vehicle`, `Probe`, `Human`, `Impulse` | Character/camera/teleport, the everyday spawn/transform/health/label namespace, seats and riders, nearby-object collection, and mass-scaled launch/knockback. |
 | [Timing & Input](timing-input) | `Time`, `Loop`, `Input`, `TextConsole` | Wall-clock timing that survives world-pause, the one shared heartbeat, correct key polling, a `.gfx`-free typed console. `Loop.stats`/`.list` (added **0.3.3**) add per-loop tick-cost introspection, purely additive. |
 | [Tracking & Cleanup](tracking) | `Track`, `Event`, `Save` | One registry for every leak-prone Add/Remove pair, a logging `Event.Create` wrapper, and the shared save-suppression gate. |

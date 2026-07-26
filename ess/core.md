@@ -9,12 +9,22 @@ nav_order: 1
 ## Overview
 
 This page covers the bottom of the [Ess](index) stack: the pieces every other namespace is built out of,
-rather than the ones you'd reach for to move an object or spawn a vehicle. Seven source files:
-`00_core.lua` (`Ess.Log`, `Ess.Safe`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`),
-`02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `22_state.lua`
-(`Ess.State`, `Ess.SaveVar`), and `53_rng.lua` (`Ess.RNG`). `00_core.lua` loads first (the `00_` prefix is
+rather than the ones you'd reach for to move an object or spawn a vehicle. Eight source files:
+`00_core.lua` (`Ess.Log`, `Ess.DEBUG`, `Ess.Safe`, `Ess.lastError`, `Ess.Table`, `Ess.Guid`/`Ess.Name`),
+`01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`),
+`22_state.lua` (`Ess.State`, `Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/
+`Ess.stopAll`/`Ess.Track:any`, covered [below](#essstop)). `00_core.lua` loads first (the `00_` prefix is
 deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework
-depends on it.
+depends on it; `98_stop.lua` is the last file in the whole build, for reasons covered in its own section
+below.
+
+`Ess.Safe`'s diagnostic layer (`Ess.DEBUG`, `Ess.Safe.reject`/`.named`, `Ess.lastError`,
+`Ess.Safe.stats`/`.reset`) and the universal teardown `Ess.stop`/`Ess.stopAll`/`Ess.Track:any` are both new
+in **v0.4.0**, which `CHANGELOG.md` headlines as **"the diagnosability pass."** 0.4.1 was a pure packaging
+fix for 0.4.0's release zip — no framework code changed, so if you only ever installed 0.4.0's `1_Ess.lua`,
+nothing on this page is different. 0.4.2 is unrelated tooling: it generates node definitions for a new
+visual node-editor from the API surface, again with no framework-code change, and isn't covered on this
+page.
 
 `Ess.Str`, `Ess.Color`, and `Ess.Vec` are pure Lua — no engine calls, no dependencies on the rest of
 `Ess` — so unlike most of this framework they can be (and are) execute-verified offline, without the game
@@ -39,15 +49,27 @@ missing `Loader` global can't make `Ess.Log` itself throw.
 ## Ess.Safe
 
 The single most duplicated shape in the whole project is `local ok, r = pcall(...); if not ok then
-Loader.Printf(...) end`. `Ess.Safe` fixes it in one place. It's fixed-arity — up to 4 return values — rather
-than a generic table-pack/unpack dance: plenty for every native call in this corpus, and much easier to read.
+Loader.Printf(...) end`. `Ess.Safe` fixes it in one place — and as of **v0.4.0**, it's also the mechanism the
+whole diagnostic layer below runs through. That's a correction, not a new design: `Ess.Safe` had been
+documented since 0.1.0 as this project's most duplicated shape, but the framework's own code only actually
+routed through it **once** — an oversight, not a decision — until 0.4.0 made it the load-bearing mechanism it
+always should have been.
+
+It's fixed-arity — **up to 6 return values as of v0.4.0, up from 4** — rather than a generic
+table-pack/unpack dance, and still allocates nothing: these calls sit inside per-frame heartbeats, where a
+throwaway table per engine call would be a real cost. The widest native return anywhere in this corpus is 4
+values (`Player.GetTargetUnderReticle`'s x, y, z, guid — see
+[`Ess.Player.targetUnderReticle`](identity-query#essplayer)), so 6 is headroom rather than a fix for a
+known-truncated case — confirmed live at 6 values through the game's own VM.
 
 | Function | Signature | Notes |
 |---|---|---|
-| `call` | `Ess.Safe.call(fn, ...) -> ok, a, b, c, d` | Wraps any engine call — a function reference plus its args, or a zero-arg closure for a multi-statement body. Logs once via `Ess.Log` on failure. |
-| `quiet` | `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d` | Same shape, but never logs — for calls expected to fail sometimes as part of normal control flow (e.g. probing whether an object has a label), where a log line on every failure would just be noise. |
+| `call` | `Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f` | Wraps any engine call — a function reference plus its args, or a zero-arg closure for a multi-statement body. Logs once via `Ess.Log` on failure, `Ess.DEBUG` or not — for a call whose failure is genuinely abnormal. |
+| `quiet` | `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f` | Same shape, for calls expected to fail sometimes as part of normal control flow (e.g. probing whether an object has a label, reading a dead guid's position). **As of v0.4.0 this means "quiet unless you asked to hear it," not "invisible"** — previously these failures were unconditionally undiagnosable; now the failure is always counted, and logs once `Ess.DEBUG` is on. |
+| `named` | `Ess.Safe.named(sLabel, fn, ...) -> ok, a, b, c, d, e, f` | New in v0.4.0. `.quiet` with the label supplied up front — the only way to attribute a **closure's** failure, since a closure is a fresh function object every call and can never appear in the reverse name-map `.call`/`.quiet` use to label a failure automatically (see `Ess.DEBUG` below). |
+| `reject` | `Ess.Safe.reject(sLabel, sReason) -> nil` | New in v0.4.0. Records a **guard rejection** (see `Ess.DEBUG` below) instead of a thrown failure — call it where an Ess wrapper gives up on its own arguments, before the engine is ever touched: `if not uGuid then return Ess.Safe.reject("Ess.Object.heal", "no guid") end`. Always returns `nil`, so that stays one line. Because Ess is the one deciding, the logged reason is specific ("no guid") rather than a generic engine error string. |
 | `string` | `Ess.Safe.string(ok, val, fallback) -> s` | Only trust a native return as a string if it really is one — some calls return an unexpected type (bare userdata) on edge cases. Pass `Ess.Safe.call`'s own `(ok, val)` straight through: `Ess.Safe.string(Ess.Safe.call(Object.GetName, u))`. `fallback` defaults to `"?"`. |
-| `template` | `Ess.Safe.template(sTemplate) -> bool` | The canonical "is this actually a spawnable template name" guard: `true` only for a non-empty, non-whitespace string. |
+| `template` | `Ess.Safe.template(sTemplate) -> bool` | The canonical "is this actually a spawnable template name" guard: `true` only for a non-empty, non-whitespace string. Unaffected by anything else on this page — unchanged since 0.3.0. |
 
 `Ess.Safe.template` exists because a blank/whitespace/non-string template name makes `Pg.Spawn` (and
 everything built on it) hard-CTD the engine in native C++ — and `pcall` cannot catch a native crash, only a
@@ -58,6 +80,64 @@ copter path in `Ess.Support.reinforce` — missed it by hand before this existed
 call instead of re-deriving the guard: see [Ess.Support](support) for the `reinforce` consumer. Confirmed
 live in the 0.3.0 release pass, on top of its own offline coverage via `tools/checkpure.py`; existing inline copies aren't required to
 migrate, just new code.
+
+### Ess.DEBUG — two channels of silence
+
+```lua
+Ess.DEBUG = false   -- default; flip true from a script, or live over the bridge
+```
+
+New in **v0.4.0**. Ess's oldest structural weakness is that it fails *silently* on purpose — a wrapper's
+whole job is to return `nil` instead of propagating a problem, so a call with a stale guid or a `nil`
+argument produces no log line, no error, and no visible effect. That's the single most common "why isn't my
+mod doing anything" wall. `Ess.DEBUG` opens it up: flip it true and everything Ess quietly gave up on starts
+reporting itself. It's read at call time, not captured, so flipping it mid-session takes effect immediately,
+and it survives a level reload.
+
+There are two separate channels, because there are two genuinely different silences:
+
+- **Thrown failures** — an engine call raised a Lua error and a `pcall` swallowed it. Recorded by
+  `Ess.Safe.call`/`.quiet`/`.named` above.
+- **Guard rejections** — Ess looked at the arguments, decided the call couldn't work, and returned early
+  *without ever calling the engine* (a `nil` guid, a blank spawn template, an order with no destination).
+  Recorded by `Ess.Safe.reject()` above.
+
+**CONFIRMED LIVE 2026-07-25:** 14 deliberately-malformed native calls — nil/garbage/stale guids across
+`Object`, `Player`, `Vehicle`, `Human`, `Ai`, `Marker`, `Camera`, `Sys`, and `Pg` — threw **zero** Lua errors.
+They fail safe, returning `nil` or, for a stale guid, stale values. That's the important framing point: the
+*guard-rejection* channel is what actually answers a beginner's "nothing happened," since a diagnostic built
+only on caught errors would have been silent in exactly the case it exists for.
+
+This is **not** a reason to drop the `pcall` guards, and none were dropped: the crash cases documented
+elsewhere on this wiki and in `CONTRIBUTING.md` were recorded defensively — any observed crash written down
+as a fact, deliberate breadth over pinpoint reproduction — so a rare throw in some other location or game
+state stays entirely plausible. Both channels are load-bearing; only their relative frequency is now known.
+
+### Reading it back: Ess.lastError, Ess.Safe.stats, Ess.Safe.reset
+
+| Function | Signature | Notes |
+|---|---|---|
+| `Ess.lastError` | `Ess.lastError() -> { msg, label, count, rejected } \| nil` | The most recent swallowed failure, thrown or rejected (`rejected` is only present and `true` for a guard rejection). This is how you read the message a failed `Ess.Safe.call`/`.quiet`/`.named` deliberately doesn't hand back — see the compatibility note below. |
+| `Ess.Safe.stats` | `Ess.Safe.stats() -> tArray, nTotal` | Per-callsite tallies, worst first — but only for failures recorded while `Ess.DEBUG` was on. The second return is the *unconditional* session total, counted regardless of `Ess.DEBUG`, so a short (or empty) array next to a large total means "plenty failed, but before you turned DEBUG on." Throws and rejections share one tally on purpose, so it reads as a single "what's going wrong" list rather than two separate ones. |
+| `Ess.Safe.reset` | `Ess.Safe.reset()` | Clears the tally, the session total, and the last error. Also drops the cached function-name map described below, so it rebuilds from scratch. |
+
+The reverse name map (`function reference -> "Namespace.FnName"`, used to label a *thrown* failure when no
+explicit label was given) is a snapshot of whatever engine globals existed at first use — built lazily, on
+the first failure while `Ess.DEBUG` is on, so it costs nothing when debug is off. **CONFIRMED LIVE:** 1,889
+functions mapped, correct on 4/4 spot checks (`Object.GetPosition`, `Player.GetLocalCharacter`, `Ai.Goal`,
+`Pg.Spawn`), including one-level-deep nested tables like `Graphics.Camera`. A closure can never appear in
+this map — it's a fresh function object every call — which is exactly why `Ess.Safe.named` exists above: the
+only way to attribute one. **CONFIRMED LIVE:** `type(_G.debug)` is `nil` on this engine — the `debug` library
+is absent outright (zero occurrences anywhere in the decompiled corpus, not merely unused), so a
+`debug.getinfo` fallback for naming closures was confirmed dead code and removed rather than kept looking
+like it might work. `Ess.Safe.reset()` drops the map for exactly this reason: it's a snapshot taken once, so
+a namespace that populates after the snapshot (e.g. late in a level load) would otherwise read as an
+unhelpful `"closure"`-style miss forever.
+
+**Fully backwards compatible.** `Ess.Safe.call`/`.quiet` keep returning a bare `false` on failure —
+deliberately *not* `pcall`'s own `false, errMessage` shape. Handing the error string back in the slot every
+caller reads as "the value" would turn a clean nil-on-failure into a garbage-on-failure footgun. Read the
+message via `Ess.lastError()` instead.
 
 ## Ess.Table
 
@@ -383,6 +463,48 @@ local pick = rng:pick({ "AH1Z", "Mi35", "WZ10" })              -- one element of
                                                                 -- pass {w=} weights on table entries for weighted)
 ```
 
+## Ess.stop
+
+New in **v0.4.0** (`98_stop.lua` — the last file in the build, loading after every namespace it might need to
+dispatch to, [`Ess.Track`](tracking#esstrack) included). One teardown verb for whatever handle shape you're
+already holding, regardless of which namespace produced it.
+
+**The problem it solves:** Ess grew **27 distinct teardown verbs** across **five** structurally different
+disposal idioms, because each namespace picked whichever word read best locally — there was no learnable
+single answer to "how do I turn this off":
+
+| Shape | Construction | Its own teardown |
+|---|---|---|
+| A closure to call | `Ess.On.death(g, fn)` | the `stop()` it returns |
+| An opaque handle table | `Ess.Mark.object(g, {...})` | `Ess.Mark.clear(handle)` |
+| A caller-supplied id string | `Ess.Loop.start("id", ...)` | `Ess.Loop.stop("id")` |
+| An object with a method | `Ess.Objective.new{...}` | `:cancel()` |
+| A tracker registry | `Ess.Track.new()` | `:closeAll()` |
+
+**None of this is deprecated.** All 27 verbs still work, and each is still the most precise way to say what
+you mean inside its own namespace. `Ess.stop` is an *additional* convenience, not a replacement for any of
+them — reach for it when you're just holding a handle and want it gone, or for a teaching example that
+shouldn't need a detour into which namespace spells teardown which way.
+
+| Function | Signature | Notes |
+|---|---|---|
+| `Ess.stop` | `Ess.stop(x) -> bool` | Tears down whatever `x` is — closure, handle table, id string, or object with a method — and returns whether it actually did. `nil` or anything unrecognized is a safe no-op returning `false`; teardown never throws. |
+| `Ess.stopAll` | `Ess.stopAll(t) -> nCount` | Runs `Ess.stop` over a **dense** array of handles, in **reverse order** (mirroring `Ess.Track:closeAll`, since later setup usually depends on earlier setup), returning how many actually tore down. |
+| `Ess.Track:any` | `tracker:any(x) -> x` | `Ess.Track`'s own integration point for the same dispatch: hand a tracker any of the five shapes above and its `:closeAll()` tears it down along with everything else. Returns `x` unchanged, so it chains: `local h = tracker:any(Ess.Easy.Mark.enemy(g))`. See [Tracking & Cleanup](tracking#esstrack) for `Ess.Track` itself — this is just its dispatch hook, not a replacement for its typed registrars (`:event`/`:guid`/`:marker`/...), which stay the better choice whenever you already know what you have. |
+
+`Ess.stop` dispatches by duck-typing `x`, in this order: a `function` goes straight through
+`Ess.Safe.named`; a `string` id is resolved by *asking* `Ess.Loop`/`Ess.Sandbox` which one (if either) is
+currently running/active with that id, rather than guessing from the string itself; for a table, real
+methods (`:closeAll`/`:cancel`/`:stop`) are checked before any field shape, so an object that happens to also
+carry a matching field can't be misrouted; only then does it fall back to the same field-shape checks
+`Ess.Mark.clear`/`Ess.Relations.restore` already use internally to recognize their own handles — so these
+aren't new guesses, they're the discriminators those functions already relied on.
+
+`Ess.stopAll` walks `#tHandles`, so — like anything else in this framework that trusts `#` — the array must
+be dense. Individual `nil` entries inside it are skipped safely, but the *length* can silently lie on a
+holed table; if you built the list by nil-ing entries out as you went, run it through
+[`Ess.Table.compact`](#esstable) first.
+
 ## See also
 
 - [Essentials (Ess)](index) — the framework index this page belongs to.
@@ -390,3 +512,6 @@ local pick = rng:pick({ "AH1Z", "Mi35", "WZ10" })              -- one element of
   next tier up, built on these primitives (`Ess.Object.faceToward` uses `Ess.Math.angleTo`, `Ess.Impulse`
   uses `Ess.Player`/`Ess.Object`, and so on).
 - [Ess.Easy](easy) — the beginner-tier one-liner presets built on top of all of this.
+- [Tracking & Cleanup](tracking) — `Ess.Track`'s full registrar surface and `:closeAll`, which
+  `Ess.Track:any` (above) plugs into; also `Ess.Mark`/`Ess.Relations`, two of the handle shapes `Ess.stop`
+  recognizes by field shape.

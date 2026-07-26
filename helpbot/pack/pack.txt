@@ -1584,11 +1584,16 @@ Three tiers, reach for the highest that fits:
   Builder -- Type
 
 ### Core Primitives
-This page covers the bottom of the Ess stack: the pieces every other namespace is built out of, rather than the ones you'd reach for to move an object or spawn a vehicle. Seven source files: `00_core.lua` (`Ess.Log`, `Ess.Safe`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `22_state.lua` (`Ess.State`, `Ess.SaveVar`), and `53_rng.lua` (`Ess.RNG`). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework depends on it. `Ess.Str`, `Ess.Color`, and `Ess.Vec` are pure Lua — no engine calls, no dependencies on the rest of `Ess` — so unlike most of this framework they can be (and are) execute-verified offline, without the game running, via `tools/checkpure.py` (a lupa-embedded-Lua test harness that...
-  `Ess.Safe.call(fn, ...) -> ok, a, b, c, d`  -- Wraps any engine call — a function reference plus its args, or a zero-arg closure for a multi-statement body. Logs once via `Ess.Log` on failure.
-  `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d`  -- Same shape, but never logs — for calls expected to fail sometimes as part of normal control flow (e.g. probing whether an object has a label), where a log line on every failure would just be noise.
+This page covers the bottom of the Ess stack: the pieces every other namespace is built out of, rather than the ones you'd reach for to move an object or spawn a vehicle. Eight source files: `00_core.lua` (`Ess.Log`, `Ess.DEBUG`, `Ess.Safe`, `Ess.lastError`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `22_state.lua` (`Ess.State`, `Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/ `Ess.stopAll`/`Ess.Track:any`, covered below). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework depends on it; `98_stop.lua` is the last file in the whole build, for reasons covered in its own section below. `Ess.Safe`'s diagnostic layer (`Ess.DEBUG`, `Ess.Safe.reject`/`.named`,...
+  `Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f`  -- Wraps any engine call — a function reference plus its args, or a zero-arg closure for a multi-statement body. Logs once via `Ess.Log` on failure, `Ess.DEBUG` or not — for a call whose failure is genuinely abnormal.
+  `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f`  -- Same shape, for calls expected to fail sometimes as part of normal control flow (e.g. probing whether an object has a label, reading a dead guid's position). As of v0.4.0 this means "quiet unless you asked to hear it,"...
+  `Ess.Safe.named(sLabel, fn, ...) -> ok, a, b, c, d, e, f`  -- New in v0.4.0. `.quiet` with the label supplied up front — the only way to attribute a closure's failure, since a closure is a fresh function object every call and can never appear in the reverse name-map...
+  `Ess.Safe.reject(sLabel, sReason) -> nil`  -- New in v0.4.0. Records a guard rejection (see `Ess.DEBUG` below) instead of a thrown failure — call it where an Ess wrapper gives up on its own arguments, before the engine is ever touched: `if not uGuid then return...
   `Ess.Safe.string(ok, val, fallback) -> s`  -- Only trust a native return as a string if it really is one — some calls return an unexpected type (bare userdata) on edge cases. Pass `Ess.Safe.call`'s own `(ok, val)` straight through:...
-  `Ess.Safe.template(sTemplate) -> bool`  -- The canonical "is this actually a spawnable template name" guard: `true` only for a non-empty, non-whitespace string.
+  `Ess.Safe.template(sTemplate) -> bool`  -- The canonical "is this actually a spawnable template name" guard: `true` only for a non-empty, non-whitespace string. Unaffected by anything else on this page — unchanged since 0.3.0.
+  `Ess.lastError() -> { msg, label, count, rejected } \  -- nil`
+  `Ess.Safe.stats() -> tArray, nTotal`  -- Per-callsite tallies, worst first — but only for failures recorded while `Ess.DEBUG` was on. The second return is the *unconditional* session total, counted regardless of `Ess.DEBUG`, so a short (or empty) array next to...
+  `Ess.Safe.reset()`  -- Clears the tally, the session total, and the last error. Also drops the cached function-name map described below, so it rebuilds from scratch.
   `Ess.Table.keys(t) -> { k, ... }`  -- Every key in `t`, array or not, order unspecified.
   `Ess.Table.values(t) -> { v, ... }`  -- Every value in `t`, order unspecified.
   `Ess.Table.count(t) -> n`  -- Total number of entries via `pairs` — unlike `#t`, correct even with non-array keys or holes.
@@ -1660,15 +1665,28 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   `gen:pick(list, weightKey) -> element of list`  -- Weighted by each entry's `[weightKey]` field (default `"w"`), falling back to weight 1 for entries missing it. Collapses an accumulator-loop weighted-pick that `WaveDefense.lua` had written three separate times (same...
   `gen:shuffle(list) -> list`  -- In-place Fisher–Yates shuffle of the array part (mutates and returns the same list, for chaining) — the engine-safe way to randomize order, since a random-comparator `table.sort` is biased and can even error on some Lua...
   `gen:pickN(list, n) -> {...}`  -- `n` distinct random elements (sample without replacement), order randomized. `n >= #list` returns a shuffled copy of the whole list; `n <= 0` returns `{}`. Never mutates `list`.
+  `Ess.On.death(g, fn)`  -- the `stop()` it returns
+  `Ess.Mark.object(g, {...})`  -- `Ess.Mark.clear(handle)`
+  `Ess.Loop.start("id", ...)`  -- `Ess.Loop.stop("id")`
+  `Ess.Objective.new{...}`  -- `:cancel()`
+  `Ess.Track.new()`  -- `:closeAll()`
+  `Ess.stop(x) -> bool`  -- Tears down whatever `x` is — closure, handle table, id string, or object with a method — and returns whether it actually did. `nil` or anything unrecognized is a safe no-op returning `false`; teardown never throws.
+  `Ess.stopAll(t) -> nCount`  -- Runs `Ess.stop` over a dense array of handles, in reverse order (mirroring `Ess.Track:closeAll`, since later setup usually depends on earlier setup), returning how many actually tore down.
+  `tracker:any(x) -> x`  -- `Ess.Track`'s own integration point for the same dispatch: hand a tracker any of the five shapes above and its `:closeAll()` tears it down along with everything else. Returns `x` unchanged, so it chains: `local h =...
   Ess.Log(msg)
   Ess.Table.compact(t) -> t
   Ess.Object.setPos(u, Ess.Vec.toward(px, py, pz, tx, ty, tz, 5)) -- move it 5 units toward the target
   Ess.Object.impulse(u, Ess.Vec.scale(dx, dy, dz, 8000))
   Ess.State(name, defaults) -> persistent table
-  call -- `Ess.Safe.call(fn, ...) -> ok, a, b, c, d`
-  quiet -- `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d`
+  call -- `Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f`
+  quiet -- `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f`
+  named -- `Ess.Safe.named(sLabel, fn, ...) -> ok, a, b, c, d, e, f`
+  reject -- `Ess.Safe.reject(sLabel, sReason) -> nil`
   string -- `Ess.Safe.string(ok, val, fallback) -> s`
   template -- `Ess.Safe.template(sTemplate) -> bool`
+  Ess.lastError -- `Ess.lastError() -> { msg, label, count, rejected } \
+  Ess.Safe.stats -- `Ess.Safe.stats() -> tArray, nTotal`
+  Ess.Safe.reset -- `Ess.Safe.reset()`
   keys -- `Ess.Table.keys(t) -> { k, ... }`
   values -- `Ess.Table.values(t) -> { v, ... }`
   count -- `Ess.Table.count(t) -> n`
@@ -1741,6 +1759,10 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   :pick -- `gen:pick(list, weightKey) -> element of list`
   :shuffle -- `gen:shuffle(list) -> list`
   :pickN -- `gen:pickN(list, n) -> {...}`
+  Shape -- Construction
+  Ess.stop -- `Ess.stop(x) -> bool`
+  Ess.stopAll -- `Ess.stopAll(t) -> nCount`
+  Ess.Track:any -- `tracker:any(x) -> x`
 
 ### Debug & Dev Tools
 Two mod-author-facing tools from the same 0.3.0 batch, both pure composition of already-confirmed `Ess` pieces — no new engine calls introduced by either: a live on-screen dev overlay (`Ess.Easy.Debug`, from `src/97_easy_debug.lua`) and an interactive in-game function runner (`Ess.Easy.Console.play`, the new half of `src/96_console.lua`). Per the CHANGELOG's dated 0.3.0 verification entry, both are now **confirmed live** in-game — built from confirmed calls, offline-verified first, and since run and observed in the actual game; each section below states exactly what was checked and how.
@@ -2028,9 +2050,9 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Object.maxHealth(uGuid) -> n \  -- nil`
   `Ess.Object.heal(uGuid)`  -- The confirmed "heal to full" idiom: `Object.SetHealth(uGuid, Object.GetMaxHealth(uGuid))`.
   `Ess.Object.damage(uGuid, nAmount) -> nNewHealth \  -- nil`
-  `Ess.Object.kill(uGuid)` / `Ess.Object.remove(uGuid)`  -- Distinct verbs on purpose: `Kill` destroys (leaves a corpse/wreck), `Remove` deletes the object outright. Confirmed: `Kill` is not instantaneous — `alive(uGuid)` still reads `true` in the same tick as a kill (the death...
+  `Ess.Object.kill(uGuid)` / `Ess.Object.remove(uGuid)`  -- Distinct verbs on purpose: `Kill` destroys (leaves a corpse/wreck), `Remove` deletes the object outright. Confirmed: both are deferred, not instantaneous — `alive(uGuid)` still reads `true` in the same tick as either...
   `Ess.Object.revive(uGuid, nDelay)`  -- `nDelay` is an optional, confirmed second argument to `Object.Revive`.
-  `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool`  -- `Object.IsAlive`/`Object.IsValid`, `truthy()`-coerced.
+  `Ess.Object.alive(uGuid) -> bool` / `Ess.Object.valid(uGuid) -> bool`  -- `Object.IsAlive`/`Object.IsValid`, `truthy()`-coerced. `valid` is not a usable "is it gone yet" test, confirmed in 0.4.0: it stays `true` even after `alive()` has already flipped `false` post-removal — the guid handle...
   `Ess.Object.setInvincible(uGuid, bOn, sReason)`  -- `sReason` is required here even though the native call allows omitting it — every real call site tags one ("Survival"/"Hijack"/"HQ"), and making it mandatory means you can't accidentally ship an untagged toggle some...
   `Ess.Object.invincible(uGuid) -> bool`  -- The missing getter for `setInvincible` above, wrapping `Object.GetInvincible`. New in 0.3.1's bindings-pass harvest (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). `truthy()`-coerced like...
   `Ess.Object.visible(uGuid) -> bool` / `Ess.Object.setVisible(uGuid, bOn)`  -- `Object.IsVisible` is a real boolean-returning native here (distinct from the `FlashWidget` `GetVisible` footgun documented elsewhere in Ess).
@@ -2394,6 +2416,7 @@ Two namespaces for the other half of scripting a mod — not making something ha
   Polls `Ess.Object.vehicleOf(guid)` for every guid in the step every 0.5s, advances once all are seated in *some* vehicle (a squad might board different seats/vehicles — "seated at all" is the signal, not "seated in the same one")
   Ess.Squad.createTeam(teamName, guids) -> ok
   Ess.Squad.team(teamName) -> guids
+  Ess.Squad.teams() -> teamNames
   Ess.Squad.teamOf(guid) -> teamName | nil
   Ess.Squad.assignRole(guid, roleType) -> ok
   Ess.Squad.roleOf(guid) -> roleType | nil
@@ -2403,6 +2426,8 @@ Two namespaces for the other half of scripting a mod — not making something ha
   Ess.Squad.Tactics.dismountAndSecure(targetGroup, atPos, radius) -> ok
   Ess.Squad.setFormation(targetGroup, formationType, opts) -> ok
   Ess.Squad.clearFormation(targetGroup) -> ok
+  Ess.Followers._followLoopAnchorOf(guid) -> uGuid | nil
+  Ess.Squad._formationAnchorOf(guid) -> uGuid | nil
   move -- `opts.onComplete` — the native per-unit `Callback` fan-in (see Encounter Toolkit → AIOrders)
   attack -- `Ess.On.death(opts.target, ...)` — waits for the *target* to die, not the followers
   enter -- Polls `Ess.Object.vehicleOf(guid)` for every guid in the step every 0.5s, advances once all are seated in *some* vehicle (a squad might board...
