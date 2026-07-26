@@ -76,8 +76,14 @@ Once `pmc_bb.dll` is in place:
 1. Build or download `lua_bridge.asi` and its companion `lua_bridge.ini`.
 2. Drop both into your game's `scripts/` folder (next to `Mercenaries2.exe`).
 3. Launch the game — `pmc_bb.dll`'s ASI loader picks up `lua_bridge.asi` automatically.
-4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`,
-   `scripts/OnKey/`, and a `lua_loader.ini` config file next to the exe.
+4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`, and
+   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file next to the exe — as of v0.5.0, that
+   file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
+   is present yet), but shipping a stub ini alongside it used to silently suppress that check, so a fresh
+   install previously got a stripped ini referencing sample scripts that weren't even in the zip, and never
+   showed the generator's commented VK-code reference. A fresh v0.5.0 install now gets that full,
+   fully-commented ini instead. This only affects fresh installs — an existing `lua_loader.ini` from an
+   earlier version is left untouched.
 
 Verified working against **pmc_bb.dll v0.2.0**. If a newer loader breaks compatibility, that'll get
 called out here.
@@ -129,6 +135,40 @@ Return values are formatted per-type: `nil`, `true`/`false`, numbers via `%g`, s
 tables as `<table>`, functions as `<function>`. Anything else shows as `<tt=N val=0xADDRESS>` — you're
 looking at a raw engine type the formatter doesn't special-case, use `type()` /
 `Loader.Printf(tostring(...))` from within your chunk if you need more detail on it.
+
+#### If you're upgrading from before v0.5.0: two REPL result bugs were fixed
+
+Two long-standing correctness bugs in the executor were fixed in lua-bridge v0.5.0, and this page — since
+it documents the raw wire protocol's result format directly — is exactly where you'd run into their
+symptoms.
+
+**Every chunk execution corrupted the hooked function's stack frame**, from when the executor first
+shipped until v0.5.0. This build's `luaB_pcall` writes its pcall status to the wrong stack slot —
+`saved_base[0]`, the base of the frame belonging to the hooked C function the bridge is executing
+*inside*, not the chunk's own frame. Because each hooked function calls the real original afterward, that
+original then read a corrupted argument. Concretely, and confirmed live: **a `type(x)` call routed through
+the hooked `type` function would answer `"boolean"` regardless of what `x` actually was**, for any stock
+game script unlucky enough to share a detour call with a chunk execution around the same moment. This was
+proven across 8 live samples, and the fix's own commit calls it "a plausible contributor to the
+intermittent misbehavior the watchdog was built to survive." Fixed by snapshotting and restoring the
+affected frame slots around every execution.
+
+**The `[ok]` label above was unreachable — every result, including successful ones, was mislabeled
+`[runtime]` with a junk `<table>` prefix, on every single execution since the executor shipped.** The code
+was looking for the pcall status at the wrong memory location (one that always held a table on this build,
+matching neither the boolean nor the number branch the label logic checked), so the "did this succeed"
+signal was never actually read correctly. v0.5.0 recovers it from the correct location, confirmed by
+correlating against known-good and known-bad chunks. Smaller side effect: the result formatter separates
+values with a tab on success and a space on failure — with success permanently mis-detected as failure
+before the fix, every result used a space; from v0.5.0 on, a genuinely successful result uses a tab as
+intended. If you were parsing this output by splitting on whitespace generically, that doesn't affect you;
+if you were specifically splitting on tab, behavior changed.
+
+**If you were running any lua-bridge build before v0.5.0, treat a `type()` result or an `[ok]`/`[runtime]`
+label from that period as potentially unreliable.** Both are fixed and verified live as of v0.5.0 — 12
+stack-layout probes plus a known-good/known-bad correlation pass. This isn't a warning about code running
+now — v0.5.0 fixes both going forward — it's here so any intermittent-seeming misbehavior you saw on an
+older build has an honest explanation, and so anyone still on an older build knows to upgrade.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>

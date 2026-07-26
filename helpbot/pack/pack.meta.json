@@ -1,7 +1,7 @@
 {
-  "sha256": "f3fb9ada2c6a637b04ddb19ed2d465ab6bc27846d33130d30e6f954ce045a394",
-  "chars": 994999,
-  "est_tokens": 248749,
+  "sha256": "7e41372f901cbab3d16d7636c52e760fa2a7bdc35b4b6c2363f334cf564f6246",
+  "chars": 999773,
+  "est_tokens": 249943,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -64,8 +64,8 @@
     {
       "id": "luabridge",
       "title": "LUA-BRIDGE API",
-      "chars": 18281,
-      "est_tokens": 4570,
+      "chars": 21630,
+      "est_tokens": 5407,
       "budget": 8000,
       "over_budget": false
     },
@@ -112,8 +112,8 @@
     {
       "id": "toplevel",
       "title": "GUIDES, SNIPPETS AND SAMPLES",
-      "chars": 170855,
-      "est_tokens": 42713,
+      "chars": 172280,
+      "est_tokens": 43070,
       "budget": 60000,
       "over_budget": false
     },

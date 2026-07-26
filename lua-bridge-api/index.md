@@ -25,9 +25,17 @@ rely on depends on which build you're running, since this section has grown acro
 | v0.2.0 | The rest of `math.*` (trig, hyperbolic, `sqrt`/`log`/`log10`, low-level number manipulation, `random`/`randomseed`, `pi`/`huge`) and `assert(v, msg)`; missing-file guard for OnKey scripts |
 | v0.2.1 | Per-script OnKey reentrancy cooldown; fixes to `assert`'s error location and the stdlib polyfill's own success/failure logging |
 | v0.3.0 | `Loader.SaveVar`/`Loader.LoadVar` (key-value persistence across game restarts); a hot-path rewrite dropping `Loader`'s input functions and every `math.*` function to sub-microsecond, measured-safe-in-a-per-frame-loop cost |
+| v0.3.1 | Watchdog reliability patch — a new detection path catches the bridge hanging *inside* a native call from Lua (e.g. a wedged D3D call, an infinite loop) that previously blocked the very detours the watchdog relied on to notice; no user-facing API change |
+| v0.4.0 | WebSocket transport (same port as the raw-TCP REPL, auto-detected) plus the `Loader.WsSend` global — see [WebSocket Transport](websocket) |
+| v0.4.1 | Concurrent WebSocket clients (up to 16 at once) — same wire contract, no user-facing API change, no config change |
+| v0.5.0 | Reliability pass on the loader half: `OnBoot`/`OnLoad` now correctly re-run after a main-menu round trip (previously a startup script silently never ran again once you'd visited the main menu, until the game process restarted); two long-standing REPL correctness bugs fixed — a stack-frame corruption bug and the `[ok]`/`[runtime]` result-label bug (see [Getting Started](../getting-started#1-the-repl-fastest-for-iterating)); `Loader.GetLoadPhase()`/`Loader.LoadFile()` added (see [Loader](loader)); OnKey fixes for background-focus gating, modifier-key support (`ctrl+`/`shift+`/`alt+`), and many more bindable keys; `lua_loader.ini` no longer shipped — auto-generated on first run instead |
 
 If you're relying on anything past the keyboard API and basic trig, confirm you're on **v0.2.0 or later**;
-for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**.
+for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**; for the WebSocket
+transport, confirm **v0.4.0 or later** (**v0.4.1 or later** for more than one simultaneous client); and if
+you need the loader half to actually be reliable — `OnLoad`/`OnBoot` surviving a main-menu round-trip, or
+accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**. That last one is a correctness bar,
+not a feature bar: the bugs it fixes were silently wrong on every earlier version, not merely absent.
 
 ## Available namespaces
 

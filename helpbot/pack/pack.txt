@@ -2840,9 +2840,17 @@ rely on depends on which build you're running, since this section has grown acro
 | v0.2.0 | The rest of `math.*` (trig, hyperbolic, `sqrt`/`log`/`log10`, low-level number manipulation, `random`/`randomseed`, `pi`/`huge`) and `assert(v, msg)`; missing-file guard for OnKey scripts |
 | v0.2.1 | Per-script OnKey reentrancy cooldown; fixes to `assert`'s error location and the stdlib polyfill's own success/failure logging |
 | v0.3.0 | `Loader.SaveVar`/`Loader.LoadVar` (key-value persistence across game restarts); a hot-path rewrite dropping `Loader`'s input functions and every `math.*` function to sub-microsecond, measured-safe-in-a-per-frame-loop cost |
+| v0.3.1 | Watchdog reliability patch — a new detection path catches the bridge hanging *inside* a native call from Lua (e.g. a wedged D3D call, an infinite loop) that previously blocked the very detours the watchdog relied on to notice; no user-facing API change |
+| v0.4.0 | WebSocket transport (same port as the raw-TCP REPL, auto-detected) plus the `Loader.WsSend` global — see WebSocket Transport |
+| v0.4.1 | Concurrent WebSocket clients (up to 16 at once) — same wire contract, no user-facing API change, no config change |
+| v0.5.0 | Reliability pass on the loader half: `OnBoot`/`OnLoad` now correctly re-run after a main-menu round trip (previously a startup script silently never ran again once you'd visited the main menu, until the game process restarted); two long-standing REPL correctness bugs fixed — a stack-frame corruption bug and the `[ok]`/`[runtime]` result-label bug (see Getting Started); `Loader.GetLoadPhase()`/`Loader.LoadFile()` added (see Loader); OnKey fixes for background-focus gating, modifier-key support (`ctrl+`/`shift+`/`alt+`), and many more bindable keys; `lua_loader.ini` no longer shipped — auto-generated on first run instead |
 
 If you're relying on anything past the keyboard API and basic trig, confirm you're on **v0.2.0 or later**;
-for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**.
+for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**; for the WebSocket
+transport, confirm **v0.4.0 or later** (**v0.4.1 or later** for more than one simultaneous client); and if
+you need the loader half to actually be reliable — `OnLoad`/`OnBoot` surviving a main-menu round-trip, or
+accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**. That last one is a correctness bar,
+not a feature bar: the bugs it fixes were silently wrong on every earlier version, not merely absent.
 
 ## Available namespaces
 
@@ -2901,72 +2909,20 @@ function wouldn't have provided on its own.
 | `IsGameFocused` | `b = Loader.IsGameFocused()` | Returns whether the foreground window belongs to the game's own process, via process-ID match rather than window-handle/style checks — so it stays correct regardless of borderless/fullscreen/multi-window setups. This is the same check gating `PopKeyEvents` internally, exposed directly in case a script wants to branch on focus state itself (e.g. pause a typing UI rather than silently losing keystrokes). |
 | `SaveVar` | `Loader.SaveVar(sKey, xValue)` | **New in v0.3.0.** Persists a number, string, or boolean under `sKey`, surviving a full game restart. See Persistence below. |
 | `LoadVar` | `x = Loader.LoadVar(sKey)` | **New in v0.3.0.** Reads back a value saved with `SaveVar`, preserving its original type. Returns `nil` for a key that was never saved. |
+| `GetLoadPhase` | `nIndex, sName = Loader.GetLoadPhase()` | **New in v0.5.0.** Where the current world load has gotten to on loadprobe's 0..20 phase ladder — e.g. `11` is `"Player spawn"`, `20` is `"World fully loaded (GlobalExit)"` — so a script can confirm it's actually in a world before touching entities, instead of inferring that from whether an `OnLoad` hook has fired. Returns `-1, "none"` before any load has been observed, or whenever tracking is off, and resets at the start of each new load so it tracks the *current* load rather than a process-wide high-water mark. The scan feeding this is confined to the duration of an actual load — it stops once the fully-loaded phase is reached and re-arms for the next load — so the cost sits inside a loading screen, not the steady-state per-frame loop. Ini lever: `loader_track_phase = 0` disables tracking (and this then always reports `-1`). |
+| `LoadFile` | `bLoaded = Loader.LoadFile(sRelPath)` | **New in v0.5.0.** Executes another `.lua` file, resolved relative to `<game>/scripts/`, synchronously, on the calling VM — a way for two scripts to share library code, previously only possible via `_G` pollution from an `OnBoot` script (see the re-arm fix below for why that's fragile). Rejects absolute paths and any `..` segment, and refuses to run while another `LoadFile` is already in progress — which also stops a file from loading itself. Pairs with `_`-prefixed directories (below): put shared helpers somewhere like `scripts/OnLoad/_lib/`, which the folder scanner skips, then pull one in with `Loader.LoadFile("OnLoad/_lib/util.lua")`. Returns `true` once the file is found and handed to the executor — a runtime error *inside* the loaded file doesn't make this `false`; that error is logged and reaches the same live Printf/WebSocket feed as `OnBoot`/`OnLoad` (see below), through its own separate 4 KB result buffer. |
 
-## Persistence
+## OnBoot and OnLoad re-arm after a menu round-trip
 
-The first lua-bridge addition that lets a script do something previously impossible on this platform:
-survive a game restart with saved state, without touching (or risking corrupting) the actual game save —
-see Contract Framework's save-safety writeup for why touching the real save file
-is a real, cited risk this sidesteps entirely for anything that doesn't need to persist *inside* a
-specific save slot.
+This is the single most important fix in v0.5.0 — worth its own section rather than a line in the table above, because of how completely it was broken and how quietly it broke.
 
-```lua
-Loader.SaveVar("MyMod_Progress", 18)
-Loader.SaveVar("MyMod_TutorialSeen", true)
-Loader.SaveVar("MyMod_Setting", "hardcore")
+**The bug, present in every lua-bridge build before v0.5.0:** exiting to the main menu wipes `_G`, and the next load builds fresh Lua VMs — confirmed live, two new `lua_State`s per load. `OnBoot` and `OnLoad` were each guarded by a once-per-process flag, so after that first menu round-trip, neither one ever ran again for the rest of the process's life. Whatever a startup script had installed — functions, tables, hooks, an entire framework — was silently gone and stayed gone, not just for the rest of that level, but until the whole game process was restarted. This was confirmed live two independent ways in the same session: a sentinel value planted directly in `_G`, and a real 616 KB framework loaded from `OnLoad`, were both `nil` after a single trip to the main menu and back.
 
-local nProgress = Loader.LoadVar("MyMod_Progress") or 0   -- standard nil-default idiom for a fresh install
-```
+This is a different mechanism from the `Loader` table's own re-registration described in the Overview above, and that part was never broken — `Loader.Printf` and every other `Loader.*` function kept working fine after a menu trip, because lua-bridge re-registers its own globals against every newly-seen VM regardless of this bug. What broke was anything a *script* put into `_G` (or anywhere else) from inside `OnBoot`/`OnLoad` — because the once-per-process guard meant those scripts themselves never got a second chance to run and reinstall it.
 
-- **Types are preserved across the round trip** — `SaveVar("count", 5)` then `LoadVar("count")` returns the
-  *number* `5`, not the string `"5"`. Same for booleans and strings.
-- **Stored on disk** as `lua_loader_data.ini`, in the same `scripts/` folder as `lua_bridge.asi` itself
-  (alongside `lua_loader_printf.log`/`lua_bridge_DEV.ini`) — human-readable and safe to hand-edit while the
-  game is closed:
-  ```ini
-  ; Format: key=type:value  (n=number, s=string, b=boolean 0/1)
-  MasterCheatMenu_Progress=n:18
-  MyMod_TutorialSeen=b:1
-  MyMod_Setting=s:hardcore
-  ```
-- **Atomic writes.** Each save writes to a temporary file first, then swaps it in
-  (`MoveFileExA(MOVEFILE_REPLACE_EXISTING)`) — a crash mid-write can't leave a truncated, unparseable file
-  behind.
-- **Flat, shared namespace** — every script's keys live in the same file. **Prefix your keys with your
-  script's own name** (`MyMod_progress`, not `progress`) to avoid colliding with another mod's data; there's
-  no per-script isolation enforced for you.
-- **String memory is bounded, not free.** Each `SaveVar` call with a string value allocates a fresh
-  internal string; an *older* value stays valid for as long as some Lua variable still holds a reference to
-  a prior `LoadVar` result (ordinary Lua semantics — nothing special about this API), so memory grows with
-  write *frequency*, not just key count. In practice this is small (roughly 100 KB for 1,000 writes of a
-  100-character string) and bounded for a normal session — worth knowing if a script saves the same key in
-  a tight loop rather than on meaningful state changes.
+**Practical effect: this means any framework or mod relying on `OnLoad` to install itself — including Ess itself — was silently non-functional after the player returned to the main menu even once, on any lua-bridge build before v0.5.0.** If a mod or framework "just stopped working" mid-session with nothing obviously wrong and no error, a main-menu trip is the first thing to suspect on a pre-0.5.0 build.
 
-## OnKey dispatch behavior
-
-Separate from the `Loader` table's own functions above, this section covers `LoaderKeyThread` — the
-background thread that actually detects a hotkey press and runs the matching `scripts/OnKey/*.lua` file.
-Two safety features were added here across v0.2.0/v0.2.1, both worth knowing since they change what
-happens around a keypress rather than anything a script calls directly.
-
-- **Per-script reentrancy cooldown (v0.2.1).** Rapid double-presses of the same hotkey used to queue two
-  back-to-back runs of a script — sequential, not concurrent, but many OnKey scripts on this wiki aren't
-  written to be reentrant, and a second run executing on state the first run left behind (a half-open
-  menu, a partially-typed console buffer) could destabilize the engine. `LoaderKeyThread` now tracks
-  `last_fired_tick` per script and skips re-firing if the last fire was within
-  `loader_onkey_cooldown_ms` (default **250 ms**) of the current one. The *first* time this throttles a
-  given script in a session, it logs `[!] lua_bridge: OnKey '<key>' throttled (...)` so you notice the
-  cooldown engaging instead of silently wondering why a press didn't register; subsequent throttles for
-  that same script are silent, to avoid log spam. Set `loader_onkey_cooldown_ms = 0` in
-  `lua_bridge_DEV.ini` to disable it entirely. Implemented with unsigned subtraction, so it's correct
-  across `GetTickCount` wraparound (~49.7-day uptime cycle) rather than glitching once every 49 days.
-- **Missing-file guard (v0.2.0).** Pressing a hotkey whose backing `.lua` file had been deleted after the
-  game booted (e.g. mid-session cleanup, a renamed script) could destabilize the game. `GetFileAttributesA`
-  now runs before every `fopen`; a missing file logs a clear
-  `[!] lua_bridge: OnKey '<key>' bound to missing file: <name> (skipped)` warning and is safely skipped
-  instead.
-
-**Practical effect for scripts on this wiki:** none of the persistent, `_G`-guarded OnKey...
+**The fix:** both `OnBoot` and `OnLoad` now re-arm correctly. Detection hangs off `CaptureL` (the function that validates and registers a Lua VM the first time lua-bridge sees it) noticing a genuinely fresh `lua_State`: since a menu round-trip demonstrably builds new VMs, a previously-unseen `L` arriving after a load cycle has already completed *is* the "we started over" signal, and checking...
 
 ### Stdlib Additions
 # Stdlib Additions
@@ -3029,6 +2985,31 @@ Two small polyfill nits, both caught in the v0.2.0 code review and fixed one rel
   error. Fixed to check the result buffer for those prefixes and log `[!] polyfill FAILED to apply: ...`
   instead when that happens — so a broken polyfill can't hide behind a misleading success line in the log.
 
+## String escapes are octal, not decimal
+
+This is not a lua-bridge polyfill, fix, or feature — it's a property of the game's own embedded Lua
+interpreter's lexer, true with or without lua-bridge installed, and not something lua-bridge could change
+even if it wanted to. It's documented here anyway because it's the same category of fact as the
+`math.randf` vs `math.random` distinction in the table above: how this specific Lua build actually
+behaves, as distinct from what stock Lua 5.1 would lead you to expect.
+
+Stock Lua 5.1 reads a `"\ddd"` string escape as **decimal**, and rejects the digits `8`/`9` in that
+position. This build's lexer reads the same `"\ddd"` escape as **octal** (base 8) instead — real base-8
+arithmetic, not a decimal read that merely tolerates `8`/`9`.
+
+Confirmed live during the lua-bridge v0.5.0 reliability pass:
+
+- `ö` is `"\366"` — 366 octal = 246 decimal = `0xF6`, `ö` in CP1252 — not `"\246"`, which this build's
+  octal lexer reads as decimal 166 (`0xA6`), the wrong byte.
+- `"\9"` is a tab character.
+- `"\195"` evaluates to byte `0x8D`.
+- `"\101"` evaluates to `"A"` (65 decimal) — a stock-Lua decimal reading would have predicted `"e"` (101
+  decimal) instead.
+
+Practical upshot: `"M\366bius"`, typed in a plain ASCII-encoded `.lua` file with no special editor or
+encoding support needed, is the dependency-free way to put an accented character like `ö` into a string
+literal on this engine.
+
 ## Notes for modders
 
 - **Don't assume any of this is present without checking your lua-bridge version.** Everything here is
@@ -3044,6 +3025,10 @@ Two small polyfill nits, both caught in the v0.2.0 code review and fixed one rel
   (see the cross-links in the table above), it's safe to delete and replace with real `math.sin`/`math.cos`
   once you've confirmed lua-bridge v0.1.6+ — nothing about keeping the workaround is harmful, it's just
   unnecessary now.
+- **String escapes on this engine are octal, not decimal** — it's a property of the engine's own Lua
+  lexer, not a lua-bridge polyfill, so — unlike everything else on this page — it isn't gated to any
+  lua-bridge version; it applies whether or not lua-bridge is even installed. See
+  the section above.
 
 ==============================================================================
 ## SPAWN REFERENCE LISTS
@@ -6753,8 +6738,14 @@ Once `pmc_bb.dll` is in place:
 1. Build or download `lua_bridge.asi` and its companion `lua_bridge.ini`.
 2. Drop both into your game's `scripts/` folder (next to `Mercenaries2.exe`).
 3. Launch the game — `pmc_bb.dll`'s ASI loader picks up `lua_bridge.asi` automatically.
-4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`,
-   `scripts/OnKey/`, and a `lua_loader.ini` config file next to the exe.
+4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`, and
+   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file next to the exe — as of v0.5.0, that
+   file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
+   is present yet), but shipping a stub ini alongside it used to silently suppress that check, so a fresh
+   install previously got a stripped ini referencing sample scripts that weren't even in the zip, and never
+   showed the generator's commented VK-code reference. A fresh v0.5.0 install now gets that full,
+   fully-commented ini instead. This only affects fresh installs — an existing `lua_loader.ini` from an
+   earlier version is left untouched.
 
 Verified working against **pmc_bb.dll v0.2.0**. If a newer loader breaks compatibility, that'll get
 called out here.
@@ -6806,6 +6797,40 @@ Return values are formatted per-type: `nil`, `true`/`false`, numbers via `%g`, s
 tables as `<table>`, functions as `<function>`. Anything else shows as `<tt=N val=0xADDRESS>` — you're
 looking at a raw engine type the formatter doesn't special-case, use `type()` /
 `Loader.Printf(tostring(...))` from within your chunk if you need more detail on it.
+
+#### If you're upgrading from before v0.5.0: two REPL result bugs were fixed
+
+Two long-standing correctness bugs in the executor were fixed in lua-bridge v0.5.0, and this page — since
+it documents the raw wire protocol's result format directly — is exactly where you'd run into their
+symptoms.
+
+**Every chunk execution corrupted the hooked function's stack frame**, from when the executor first
+shipped until v0.5.0. This build's `luaB_pcall` writes its pcall status to the wrong stack slot —
+`saved_base[0]`, the base of the frame belonging to the hooked C function the bridge is executing
+*inside*, not the chunk's own frame. Because each hooked function calls the real original afterward, that
+original then read a corrupted argument. Concretely, and confirmed live: **a `type(x)` call routed through
+the hooked `type` function would answer `"boolean"` regardless of what `x` actually was**, for any stock
+game script unlucky enough to share a detour call with a chunk execution around the same moment. This was
+proven across 8 live samples, and the fix's own commit calls it "a plausible contributor to the
+intermittent misbehavior the watchdog was built to survive." Fixed by snapshotting and restoring the
+affected frame slots around every execution.
+
+**The `[ok]` label above was unreachable — every result, including successful ones, was mislabeled
+`[runtime]` with a junk `<table>` prefix, on every single execution since the executor shipped.** The code
+was looking for the pcall status at the wrong memory location (one that always held a table on this build,
+matching neither the boolean nor the number branch the label logic checked), so the "did this succeed"
+signal was never actually read correctly. v0.5.0 recovers it from the correct location, confirmed by
+correlating against known-good and known-bad chunks. Smaller side effect: the result formatter separates
+values with a tab on success and a space on failure — with success permanently mis-detected as failure
+before the fix, every result used a space; from v0.5.0 on, a genuinely successful result uses a tab as
+intended. If you were parsing this output by splitting on whitespace generically, that doesn't affect you;
+if you were specifically splitting on tab, behavior changed.
+
+**If you were running any lua-bridge build before v0.5.0, treat a `type()` result or an `[ok]`/`[runtime]`
+label from that period as potentially unreliable.** Both are fixed and verified live as of v0.5.0 — 12
+stack-layout probes plus a known-good/known-bad correlation pass. This isn't a warning about code running
+now — v0.5.0 fixes both going forward — it's here so any intermittent-seeming misbehavior you saw on an
+older build has an honest explanation, and so anyone still on an older build knows to upgrade.
 
 <details class="lua101" markdown="1">
 <summary>New to Lua? Click to expand</summary>
@@ -6895,34 +6920,7 @@ Every script (REPL or loader) has access to a global:
 Tcp.Send(host, port, message)
 ```
 
-Fires a one-way TCP message. **Restricted to `127.0.0.0/8` (localhost) destinations** — this is
-intentional, to stop a script from port-scanning your LAN or phoning home over the internet. Useful for
-piping game state to a local companion tool (a logger, an overlay, a second bridge instance) without
-building that plumbing into the engine hook itself.
-
-## What can I actually call?
-
-Once you can get code running, the next question is *what's there to call*. That's what the rest of
-this wiki is for — reference docs for the game's own Lua modules (`resident/`), covering the object
-model, lifecycle hooks, and the engine's built-in namespaces (`Object`, `Event`, `Player`, `Marker`,
-etc. — always global, no setup needed) as well as the `resident/` modules themselves (`MrxPmc`,
-`MrxTransit`, and 226 others — these need an `import("Name")` call before use outside their own file, see
-the Glossary). Start with Resident Modules — its landing page
-explains the game's module/inheritance pattern before you hit the per-module pages — or jump straight to
-a specific module if you already know what you're looking for.
-
-## Troubleshooting checklist
-
-- **Nothing happens when I connect to the REPL** → confirm `lua_bridge.asi` is actually loaded (check
-  the pmc_bb.dll loader's own log) and that `lua_bridge.ini`'s `[repl]` section wasn't edited to a
-  different port.
-- **`[bridge] no L` forever** → the bridge hasn't seen the Lua VM yet. Get further into the game (past
-  the main menu) and retry.
-- **My `OnLoad` script isn't running** → it only fires once the `GlobalExit - Complete` milestone is
-  hit, i.e. after a level has actually finished loading, not on menu load. If you edited
-  `lua_loader.ini` by hand, make sure the section header is exactly `[OnLoad]`.
-- **My hotkey isn't firing** → check `lua_loader.ini`'s `[OnKey]` section has your exact filename mapped
-  to a recognized key name, or that `local KEYVAL = "..."` is within the first 10 lines of the script.
+Fires a one-way TCP message....
 
 ### Your First Mod
 # Your First Mod

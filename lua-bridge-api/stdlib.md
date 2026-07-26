@@ -64,6 +64,31 @@ Two small polyfill nits, both caught in the v0.2.0 code review and fixed one rel
   error. Fixed to check the result buffer for those prefixes and log `[!] polyfill FAILED to apply: ...`
   instead when that happens — so a broken polyfill can't hide behind a misleading success line in the log.
 
+## String escapes are octal, not decimal
+
+This is not a lua-bridge polyfill, fix, or feature — it's a property of the game's own embedded Lua
+interpreter's lexer, true with or without lua-bridge installed, and not something lua-bridge could change
+even if it wanted to. It's documented here anyway because it's the same category of fact as the
+`math.randf` vs `math.random` distinction in the table above: how this specific Lua build actually
+behaves, as distinct from what stock Lua 5.1 would lead you to expect.
+
+Stock Lua 5.1 reads a `"\ddd"` string escape as **decimal**, and rejects the digits `8`/`9` in that
+position. This build's lexer reads the same `"\ddd"` escape as **octal** (base 8) instead — real base-8
+arithmetic, not a decimal read that merely tolerates `8`/`9`.
+
+Confirmed live during the lua-bridge v0.5.0 reliability pass:
+
+- `ö` is `"\366"` — 366 octal = 246 decimal = `0xF6`, `ö` in CP1252 — not `"\246"`, which this build's
+  octal lexer reads as decimal 166 (`0xA6`), the wrong byte.
+- `"\9"` is a tab character.
+- `"\195"` evaluates to byte `0x8D`.
+- `"\101"` evaluates to `"A"` (65 decimal) — a stock-Lua decimal reading would have predicted `"e"` (101
+  decimal) instead.
+
+Practical upshot: `"M\366bius"`, typed in a plain ASCII-encoded `.lua` file with no special editor or
+encoding support needed, is the dependency-free way to put an accented character like `ö` into a string
+literal on this engine.
+
 ## Notes for modders
 
 - **Don't assume any of this is present without checking your lua-bridge version.** Everything here is
@@ -79,3 +104,7 @@ Two small polyfill nits, both caught in the v0.2.0 code review and fixed one rel
   (see the cross-links in the table above), it's safe to delete and replace with real `math.sin`/`math.cos`
   once you've confirmed lua-bridge v0.1.6+ — nothing about keeping the workaround is harmful, it's just
   unnecessary now.
+- **String escapes on this engine are octal, not decimal** — it's a property of the engine's own Lua
+  lexer, not a lua-bridge polyfill, so — unlike everything else on this page — it isn't gated to any
+  lua-bridge version; it applies whether or not lua-bridge is even installed. See
+  [the section above](#string-escapes-are-octal-not-decimal).

@@ -8,9 +8,13 @@ nav_order: 3
 
 ## Overview
 
-Current version **v0.4.1**. The WebSocket transport was introduced in v0.4.0 and patched the same day in
-v0.4.1 — both dated 2026-07-17 in `CHANGELOG.md`; git confirms the same-day cycle
-(`199fa8e` v0.4.0 at 15:15, `1f40d7f` v0.4.1 at 19:32, both 2026-07-17).
+Current version **v0.5.0**. The WebSocket transport itself — the handshake, framing, and
+`Loader.WsSend` — was introduced in v0.4.0. Concurrent multi-client support followed the same day as a
+separate release, v0.4.1 — same wire contract, no API change, just the `WS_MAX_CLIENTS` cap and listener
+backlog increase covered under [Concurrency](#concurrency) below. Git confirms the same-day cycle:
+`199fa8e` (v0.4.0) at 15:15, `1f40d7f` (v0.4.1) at 19:32, both 2026-07-17. v0.5.0 (2026-07-25) left the
+transport and wire contract untouched — its only change here is a new producer onto the existing
+`{"type":"log"}` feed, covered below under Loader.WsSend.
 
 It's a **hand-rolled RFC 6455 WebSocket server** — accepts inbound connections only, never opens outbound
 ones. There is no vendored WebSocket library involved. It runs *inside* the existing raw-TCP REPL listener,
@@ -86,6 +90,15 @@ iterates zero clients).
 as `{"type":"log","line":"..."}`. This is the "live console feed" a browser client watches. Nothing about
 raw-TCP or file-logging behavior changed — `Printf` never wrote to the raw-TCP output path in the first
 place.
+
+**New in v0.5.0:** `OnBoot`/`OnLoad`/`Loader.LoadFile` results now reach connected WS clients too. Before
+v0.5.0 these results only went to `lua_bridge_DEV.log` on disk; as of v0.5.0 they're routed through this
+same `Loader.Printf` pathway, so they land in `lua_loader_printf.log` and get mirrored to every connected
+WS client as `{"type":"log","line":"..."}`, exactly like a manual `Loader.Printf` call. Concretely: a
+connected browser client (the [Lua Web IDE](../live-tools/web-ide), for instance) previously had no way to
+see that a startup script had failed — it simply wasn't on the WS feed — and now does. The buffer behind
+these results (`result_buf`) also grew from 4 KB to 16 KB, matching `PumpQueue`'s buffer, since longer
+results and error messages were being silently truncated before.
 
 ## Wire contract
 

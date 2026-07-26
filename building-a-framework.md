@@ -140,8 +140,14 @@ on specific behavior, a version string is how they (or you, later) can tell drif
 
 - **Assuming your init code runs exactly once per session.** It doesn't, reliably — `Loader`'s own docs
   note it re-registers its globals "on every queue pump specifically so a `_G` wipe across a game-state
-  transition (level load, menu transition) can't strand" them. Your framework can face the same reset. The
-  idempotent `_G.Name = _G.Name or {}` pattern above is the direct defense — write your init so running it
+  transition (level load, menu transition) can't strand" them. Your framework can face the same reset.
+  **Concrete, confirmed history behind this caution**: until lua-bridge **v0.5.0**, `OnLoad` itself had a
+  real bug where it silently never re-ran at all after a main-menu round-trip (both `OnBoot` and `OnLoad`
+  were guarded by once-per-process statics that never reset) — meaning any framework installed that way,
+  Ess included, went silently dead the moment a player returned to the main menu even once, recoverable
+  only by restarting the whole game process. Fixed now, but it's the exact failure mode this warning is
+  about, not a hypothetical — see [Loader](lua-bridge-api/loader#onboot-and-onload-re-arm-after-a-menu-round-trip)
+  for the full writeup. The idempotent `_G.Name = _G.Name or {}` pattern above is the direct defense — write your init so running it
   twice is harmless, because it might run twice.
 - **Trusting `pcall` to catch a bad call.** It only catches Lua-level errors. Two real, confirmed failure
   modes on this engine don't behave like a Lua error at all:
