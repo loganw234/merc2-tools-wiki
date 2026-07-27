@@ -625,16 +625,16 @@ SECTIONS = [
     ("guide",      "GAME OVERVIEW (SECONDARY SOURCE)", curated("06_guide.md")            , 7_000),
     ("gotchas",    "ENGINE FACTS AND GOTCHAS",      curated("10_gotchas.md")          , 5_000),
     ("namespaces", "ENGINE NAMESPACE REFERENCE",    build_namespaces,                      36_000),
-    ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             28_000),
+    ("ess",        "ESSENTIALS (Ess) FRAMEWORK",    build_ess,                             40_000),
     ("resident",   "RESIDENT MODULE INDEX",         build_resident,                        31_000),
     ("luabridge",  "LUA-BRIDGE API",                build_luabridge,                        8_000),
-    ("spawn",      "SPAWN REFERENCE LISTS",         build_spawn,                           20_000),
+    ("spawn",      "SPAWN REFERENCE LISTS",         build_spawn,                           18_000),
     ("templates",  "AUTHORITATIVE TEMPLATE NAMES",  build_templates,                       45_000),
-    ("contracts",  "CONTRACT FRAMEWORK",            build_contract_framework,              30_000),
-    ("world",      "GAME WORLD AND STORY CONTEXT",  build_world,                           20_000),
+    ("contracts",  "CONTRACT FRAMEWORK",            build_contract_framework,              21_000),
+    ("world",      "GAME WORLD AND STORY CONTEXT",  build_world,                           15_000),
     ("tutorials",  "TUTORIALS",                     build_tutorials,                        8_000),
-    ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        60_000),
-    ("idioms",     "CANONICAL CODE PATTERNS",       curated("90_idioms.md")           ,  4_000),
+    ("toplevel",   "GUIDES, SNIPPETS AND SAMPLES",  build_toplevel,                        48_000),
+    ("idioms",     "CANONICAL CODE PATTERNS",       curated("90_idioms.md")           ,  2_000),
 ]
 
 # Pack tiers. The Worker gets the full pack; smaller-context and local models
@@ -746,7 +746,13 @@ def tier_banner(missing: list[str]) -> str:
 # top-level page) was never in the pack. DeepSeek V4 Pro has a 1M context
 # window, and cached prefix tokens cost ~$0.0036/M, so breadth is close to free
 # -- completeness matters more here than compactness.
-TARGET_TOKENS = 250_000
+# Raised 250k -> 280k on 2026-07-26. Ess grew 434 -> 720 public functions in its
+# 0.5.0 release and is now the wiki's recommended starting point, so its section
+# went 28k -> 40k; the reference sections it sits alongside did not shrink to pay
+# for it. Same reasoning as the 112k -> 250k raise above: the ceiling is self-imposed,
+# the window is 1M, and cached prefix tokens are ~$0.0036/M, so coverage beats
+# compactness. Revert this line to 250_000 to restore the old ceiling.
+TARGET_TOKENS = 280_000
 
 # Symbols that MUST survive extraction. Every entry here is something the
 # assistant got wrong in production because the extractor silently dropped the
