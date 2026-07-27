@@ -1,6 +1,6 @@
 ---
 title: Live Tools
-nav_order: 16
+nav_order: 5
 has_children: true
 has_toc: false
 ---
@@ -8,9 +8,9 @@ has_toc: false
 # Live Tools
 
 End-user **web apps** — normal pages in a normal browser tab — that connect live to a running copy of the
-game. Distinct from [Frameworks](../frameworks), which is for Lua *libraries* other mods build on (like
-[Essentials (Ess)](../ess/)): a framework ships as a `.lua` file you drop into your own mod, while a Live
-Tool ships as a page you just open, with no Lua of your own to write.
+game. Distinct from a Lua *library* you build a mod on — [Essentials (Ess)](../ess/), or anything under
+[Frameworks](../frameworks): a library ships as a `.lua` file you drop into your own mod, while a Live Tool
+ships as a page you just open, with no Lua of your own to write.
 
 The shared thread behind all three tools below: `lua-bridge` (repo `Merc2-Mods-Exp`, mod `lua-bridge-DEV`)
 added a hand-rolled **WebSocket server** in v0.4.1, riding the same `127.0.0.1:27050` socket its raw-TCP REPL

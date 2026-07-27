@@ -1,11 +1,20 @@
 ---
 title: Resident Modules
-nav_order: 7
+nav_order: 10
 has_children: true
 has_toc: false
 ---
 
 # Resident Modules
+
+> **This is the game's own source, not a modding API.** These 228 pages document what Pandemic wrote —
+> invaluable for understanding how the game actually works, and for lifting a proven technique out of a
+> real shipped mission. But calling into these modules directly means matching their `import()` rules,
+> their init order and their assumptions, none of which are documented anywhere except here.
+>
+> If your goal is to *build something*, [Essentials (Ess)](../ess/) already wraps the patterns these
+> modules made possible, and is where a new mod should start. Come here when you need to know **why**
+> something behaves the way it does, or when you're reaching for a capability nothing wraps yet.
 
 Reference pages for the modules in `src/resident/` — the game's core reusable engine/library modules
 and world-entity scripts (as opposed to `src/vz/`, which is mostly per-mission/level content, and

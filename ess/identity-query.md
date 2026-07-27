@@ -26,6 +26,11 @@ in-game pass on the release build on 2026-07-22 — the whole smoke suite at **4
 a new dedicated recipe, `control_pursuit` (covered on its own page, not this one). Individual live-measured
 numbers are cited inline below.
 
+**0.5.0** adds `Ess.Object.angularImpulse` (under [Physics](#physics)) and `Ess.Human.setState` (under
+[Ess.Human](#esshuman)) to this page. Each carries a defect the `CHANGELOG` calls out by name — a
+coordinate-space default that contradicted its own doc comment, and a posture string the engine cannot
+validate for you — and both are written up where they sit rather than in this overview.
+
 ## Ess.Player
 
 Player/character identity, without the 8-getter native sprawl (`GetLocalCharacter`/`GetPrimaryCharacter`/
@@ -113,8 +118,23 @@ Ess.Object.alive(g)` could otherwise be fooled by a `0`.
 |---|---|---|
 | `enablePhysics` / `disablePhysics` | `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)` | |
 | `impulse` | `Ess.Object.impulse(uGuid, x, y, z, bLocal)` | `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger push. `bLocal` defaults to `true` (impulse in the object's own space). This is the bare call — for mass-scaling + directional + `speedBoost`/`launch`/`knockback` presets, see [Ess.Impulse](#essimpulse) below. |
+| `angularImpulse` | `Ess.Object.angularImpulse(uGuid, x, y, z, bLocal) -> bool` | **New in 0.5.0.** `Object.ApplyAngularImpulse` — **spins** an object where `impulse` shoves it. `y` is the yaw axis, so `angularImpulse(u, 0, 500, 0, true)` is a flat spin. Same argument shape as `impulse`: a vector plus a local/world flag, `bLocal` defaulting to `true` — but see the coordinate-space note below, because that was only made true in 0.5.0. Not mass-scaled by the wrapper (an impulse is `mass * Δvelocity`, so a heavier object needs a proportionally larger value). Returns whether the call went through, which — as with every "did not throw" return in this namespace — is not a claim that anything visibly moved. |
 | `velocity` | `Ess.Object.velocity(uGuid) -> vx, vy, vz \| nil` | Wraps `Object.GetVelocityVector` — Ess's first motion API. **New in 0.3.1's bindings-pass harvest** (zero corpus call sites; signature came from the 2026-07-22 live-probe pass). Feeds race checks, chase-camera damping, "has it stopped yet." See the fresh-spawn caveat under [Geometry](#geometry) below. |
 | `speed` / `speedSq` | `Ess.Object.speed(uGuid) -> n \| nil` / `Ess.Object.speedSq(uGuid) -> n \| nil` | Scalar speed, both built on `Object.GetVelocitySquared` — `speed` adds a `sqrt`, `speedSq` skips it for a cheap threshold check (no sqrt needed when you're only comparing distances). Same 0.3.1 harvest as `velocity`, same fresh-spawn caveat. |
+
+**Coordinate-space fix, 0.5.0 — `angularImpulse` and `impulse` now agree.** `angularImpulse` was written
+under a source comment promising "same argument shape as `.impulse`" while actually defaulting to **world**
+space. The cause is a Lua idiom worth recognizing in your own code: it used `bLocal and true or false`,
+which silently turns an *omitted* argument into `false`, where `impulse` explicitly tests `if bLocal == nil
+then bLocal = true end` and so defaults to `true`. The two functions therefore disagreed on the one flag
+they share, and the comment above them asserted they didn't. 0.5.0 aligned `angularImpulse` on local space
+rather than documenting the split as a quirk — the reasoning recorded in source being that a claim of
+sameness which is false is worse than either default.
+
+Confirmed against current source (0.5.2): both functions now use the explicit `nil` test and both default to
+local space. `angularImpulse` did not exist at all in 0.4.2, so there is no long-standing behavior to
+migrate — but if you are on an early 0.5.0 build, or reading code written against one, **pass `bLocal`
+explicitly** rather than relying on the default.
 
 ### Geometry
 
@@ -248,11 +268,43 @@ own getters return — one home instead of a third tiny namespace).
 | `setAllWeapons` | `Ess.Human.setAllWeapons(uChar, tWeaponGuids) -> ok` | `Human.Inventory.SetAllWeapons`. |
 | `reloadAll` | `Ess.Human.reloadAll(uChar)` | `Human.Inventory.ReloadAll(uChar, false)`. |
 | `doAction` | `Ess.Human.doAction(uChar, sActionName)` | `Human.DoAction` — e.g. `"Cower"`/`"Stand"`/`"Proximity"`. No-ops on a blank/non-string action name. |
+| `setState` | `Ess.Human.setState(uChar, sPosture, sAnim) -> bool` | **New in 0.5.0.** `Human.SetState` — the character state machine, and the most-used mutator in this namespace. `sPosture` must be one of `"Upright"`, `"InVehicle"`, `"Subdued"`, `"Cower"` and is **validated wrapper-side** (see below). `sAnim` is `"Idle"` — the default when omitted — or a named animation clip. `"Upright"` + `"Idle"` is the shipped idiom for "put this character back to normal," e.g. after a cutscene or a `Cower`. |
 | `disableWeapons` / `enableWeapons` | `Ess.Human.disableWeapons(uChar)` / `.enableWeapons(uChar)` | |
 | `knockdown` | `Ess.Human.knockdown(uChar, nDuration)` | `Human.Knockdown`; `nDuration` defaults to 0.5. |
 | `ammo` / `setAmmo` / `maxAmmo` | `Ess.Human.ammo(uWeapon) -> n` / `.setAmmo(uWeapon, n)` / `.maxAmmo(uWeapon) -> n` | `Weapon.GetReserveAmmo`/`SetReserveAmmo`/`GetMaxReserveAmmo`. `ammo`/`maxAmmo` return 0 rather than `nil` on failure. |
 | `refillAmmo` | `Ess.Human.refillAmmo(uWeapon)` | The confirmed "set to `GetMaxReserveAmmo`" one-liner, independently duplicated across `pmccon001.lua`/`vzacon001.lua`. |
 | `setInfiniteAmmo` | `Ess.Human.setInfiniteAmmo(uChar, bOn)` | `Object.SetInfiniteAmmo` — note this one is actually on the `Object` namespace (a character guid), not `Human`/`Weapon`, but is kept here as squarely a "character ammo" concern. **Confirmed live-tested:** it keeps *reserve* ammo maxed forever; the magazine currently being fired still empties normally and still needs a reload (grenades: infinite reserve, still thrown one at a time). |
+
+**`setState` validates the posture, because nothing else in the chain can (0.5.0).** `Human.SetState` gives
+**no feedback whatsoever**: it reports nothing for a valid state *and* nothing for a garbage one — verified
+by passing `"NotAReal"`, which is indistinguishable from success. So the wrapper's `true` means "the call
+did not throw," never "the state was applied," and a misspelled posture would otherwise fail silently
+forever. `Ess` normally passes strings straight through and lets the engine judge them; here the engine
+*cannot* judge, so a whitelist in the wrapper is the only point in the entire chain where a typo can ever be
+caught. An unrecognized posture returns `false` without touching the engine and files a rejection on the
+[`Ess.DEBUG` guard-rejection channel](core#essdebug--two-channels-of-silence), naming the offending string
+and listing the four that are valid.
+
+The vocabulary was harvested from every call site in the decompiled corpus — there is no way to enumerate it
+at runtime — and is exported as `Ess.Human.POSTURES` so a caller can offer the four rather than retype them.
+The "seen in" column is a straight count of literal-string `Human.SetState` calls in this wiki's own
+decompiled **base-game** corpus (the DLC corpus adds three further `"Upright"` calls and nothing else), and
+the example is the call site the meaning is read off:
+
+| Posture | Seen in | What the call site is doing |
+|---|---|---|
+| `"Upright"` | 6 | The normal standing state. `setState(char, "Upright", "Idle")` is the shipped "put them back to normal" call. |
+| `"InVehicle"` | 12 | The seated/mounted state, and the one that carries the interesting animation clips — the hijack sequence (`resident/mrxactionhijack.lua`) puts hijacker, hijackee and extra actors into it with per-role clips. **It is not literally vehicles:** an arm-wrestling *table* set-piece (`resident/lifestyle_oillif001_table.lua`) uses `"InVehicle"` for both seated participants. Read it as "in a mounted slot." |
+| `"Subdued"` | 1 | `resident/mrxtaskobjectiverelease.lua` — the prisoner state. Set on the target in the same loop that strips its context action and adds a `[ContextAction.ReleasePrisoner]` prompt, so it is "captive, awaiting rescue." |
+| `"Cower"` | 1 | `vz/allcon001.lua` — set on the four jailed civilians of a site. The same word also exists as a `doAction` name above; these are two different engine entry points, not aliases. |
+
+**The animation name is deliberately *not* checked.** Clip names are open-ended (a real corpus example is
+`"lifestylejobPlayerArmwrestlingWinningloop01"`) and there is no list to validate against, so `sAnim` is
+passed through as given — a typo there is still silent. The whitelist covers the closed vocabulary only.
+
+The 0.5.0 mutator pass that added this was **live-verified 2026-07-26 against a spawned throwaway NPC rather
+than the player**, on the source's own reasoning that a bad posture can leave a character stuck. Worth
+copying that habit before experimenting with postures on yourself.
 
 Real usage, from the shipped `give_weapons` recipe:
 

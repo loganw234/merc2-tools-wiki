@@ -32,7 +32,7 @@ icon and the ground ring are keyed by a real `Marker.Add*` handle instead.
 |---|---|---|
 | `Ess.Raw.Mark.radar(uGuid, tex, rgb)` | `radar(uGuid, tex, rgb) -> sName \| nil` | `Hud.Radar:AddObjective(...)`. `tex` defaults to `"objective_action"`; `rgb` defaults to `{255, 200, 0}`. Fixed icon size (`10.667 x 10.667`) and sort order `5`. |
 | `Ess.Raw.Mark.removeRadar(sName)` | `removeRadar(sName)` | `Hud.Radar:RemoveObjective({sName=sName})`. |
-| `Ess.Raw.Mark.pda(uGuid, tex)` | `pda(uGuid, tex) -> sName \| nil` | `Pda.Map:AddBlip(...)`. `tex` defaults to `"icon_yellow_mc"`. Sort order `2`. |
+| `Ess.Raw.Mark.pda(uGuid, tex, sLabel)` | `pda(uGuid, tex, sLabel) -> sName \| nil` | `Pda.Map:AddBlip(...)`. `tex` defaults to `"icon_action_1_mc"`; `sLabel` defaults to the guid string. Sort order `2`. Both defaults exist because omitting either makes the blip look like the call never happened — see [Why the PDA blips were never visible](#why-the-pda-blips-were-never-visible). |
 | `Ess.Raw.Mark.removePda(sName)` | `removePda(sName)` | `Pda.Map:RemoveBlip({sName=sName})`. |
 | `Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist)` | `world(uGuid, tex, rgb, size, dist) -> handle \| nil` | The floating in-world icon — `Marker.AddBlip`. Returns a real handle, **not** a name. `tex` defaults to `"HUD_objective_action"`, `size` (on-screen icon size) defaults to `32`, `dist` (draw distance) defaults to `175` — real shipped call sites vary that between roughly `175` and `220`, so both are exposed rather than hardcoded. |
 | `Ess.Raw.Mark.removeWorld(handle)` | `removeWorld(handle)` | `Marker.Remove(handle)`. Also used to remove a `worldDisc` handle (both are `Marker.Remove`-compatible). |
@@ -42,7 +42,33 @@ icon and the ground ring are keyed by a real `Marker.Add*` handle instead.
 | `Ess.Raw.Mark.showPlayerMarkers(bOn)` | `showPlayerMarkers(bOn)` | `Gui.EnablePlayerMarkers(bOn)` — a **global** on/off toggle for whether *other players'* HUD markers render at all, not per-guid like everything else here. Confirmed (`mrxbriefing.lua`): hide during a cutscene/briefing, restore after. |
 
 `rgb` throughout is a plain `{r, g, b}` table; when omitted every function falls back to the same default
-color, `{255, 200, 0}` (amber).
+color, `{255, 200, 0}` (amber). It does **not** reach the PDA layer —
+see [Color reaches two of the three layers](#color-reaches-two-of-the-three-layers).
+
+### Why the PDA blips were never visible
+
+**`icon_yellow_mc` draws nothing.** It is a registered icon name that resolves to no art. Confirmed live
+(2026-07-26) with four otherwise-identical blips side by side: `icon_action_1_mc` and
+`icon_deliverable_1_mc` rendered, while `icon_yellow_mc` and a blip with *no* texture at all were both
+blank.
+
+That matters more than one bad name in a list, because `icon_yellow_mc` is the engine's own last-resort
+fallback — the render path is `tBlip.sTexture or tMissionData.sDefaultBlipTexture or "icon_yellow_mc"`. Any
+blip that falls all the way through that chain is invisible by construction, so passing nothing is exactly
+as blank as passing the fallback. (`mrxutil.lua`'s `tObjPdaMarker` lists the name twice, first and last, and
+also carries an empty string; it is in the engine's own vocabulary, it simply has no art behind it.)
+
+It was also Ess's own default in three places — two of them on this page (`Ess.Raw.Mark.pda`'s `tex`
+default and the `generic` kind's PDA leg; the third is `Ess.Pda.blip`'s `sTexture` default). That, not
+anything about the call itself, is the real reason `Ess.Mark`'s PDA blips were never visible.
+
+**An earlier pass diagnosed this as a missing label, and that was only half the story.** The label half is
+real: a blip with no `sLabel` displays its *texture name*, because the render path's label slot is
+`tBlip.sLabel or tMissionData.sDefaultBlipLabel` and with no label and no owning mission that goes nil, at
+which point the movie shows the texture instead (confirmed live). But the text `icon_yellow_mc` people saw
+on screen was the label fallback naming an icon that was never rendering in the first place — the blip was
+not "an unlabelled dot," it was no dot at all. Both halves are fixed by the two defaults above: a texture
+that actually draws, and a label that at least identifies the object.
 
 ## Ess.Mark (Core)
 
@@ -55,16 +81,86 @@ One call per "thing," with every surface an independent opt. `Ess.Mark.object` t
 | `Ess.Mark.zone(x, y, z, radius, opts)` | `zone(x, y, z, radius, opts) -> handle \| nil` | Spawns a `TinyGeometry` anchor at `(x, y, z)` via `Ess.Object.spawn` (see [Identity & World Query](identity-query)) and marks it. Returns `nil` if the anchor fails to spawn. The zone **owns** its anchor — `Ess.Mark.clear` removes the prop for you. |
 | `Ess.Mark.clear(handle)` | `clear(handle)` | Tears down every surface a handle actually used, plus the zone anchor prop if there was one. Safe on a partial handle — any missing/nil field is just skipped. |
 
-`opts.kind` picks an icon set on both `object` and `zone`, from a fixed table (`OBJ_ICONS`, ported straight
-from the Contract Framework's own `OBJ_ICONS` — the base game's `MrxTaskObjective` family):
+### Kinds: one name, three icons
 
-| `kind` | Radar texture | World texture |
-|---|---|---|
-| `destroy` | `objective_destroy` | `HUD_objective_destroy` |
-| `verify` | `objective_verify` | `HUD_objective_verify` |
-| `defend` | `objective_defend` | `HUD_objective_defend` |
-| `action` | `objective_action` | `HUD_objective_action` |
-| `destination` | `objective_deliverable` | `HUD_objective_deliverable` |
+The three surfaces do **not** share an icon namespace. The same objective is `HUD_objective_destroy` in the
+world, `objective_destroy` on the radar and `icon_destroy_1_mc` on the PDA, and each name is validated
+against a different fixed table in `mrxutil.lua` — `tObjWorldMarkers`, `tObjRadarMaker`, `tObjPdaMarker` —
+by a different lookup function. Nothing in the engine relates the three; the correspondence is purely a
+naming convention, which is why it has to be written down somewhere at all.
+
+The table `Ess.Mark` inherited from the Contract Framework named only **two** of the three and hardcoded
+the PDA leg — the call was literally `Ess.Raw.Mark.pda(uGuid, "icon_yellow_mc")` — so every kind disagreed
+with itself: a `destroy` objective drew a destroy icon in the world, a destroy icon on the radar, and
+nothing you could see on the map, because [that texture draws no art at
+all](#why-the-pda-blips-were-never-visible). `Ess.Mark.KINDS` now names all three for every
+kind — it is the public, iterable vocabulary, so `Ess.Mark.KINDS.destroy.pda` is a legal answer to "what
+icon does a destroy objective use on the map," and iterating it beats guessing what kinds exist.
+
+| `kind` | Radar (`rdr`) | World (`wld`) | PDA (`pda`) |
+|---|---|---|---|
+| `action` | `objective_action` | `HUD_objective_action` | `icon_action_1_mc` |
+| `destroy` | `objective_destroy` | `HUD_objective_destroy` | `icon_destroy_1_mc` |
+| `defend` | `objective_defend` | `HUD_objective_defend` | `icon_defend_1_mc` |
+| `verify` | `objective_verify` | `HUD_objective_verify` | `icon_verify_1_mc` |
+| `deliverable` | `objective_deliverable` | `HUD_objective_deliverable` | `icon_deliverable_1_mc` |
+| `outpost` | `objective_outpost` | `HUD_objective_outpost` | `icon_outpost_1_mc` |
+| `generic` | `MiniMap_Icon_Symbol_Yellow` | `MiniMap_Icon_Symbol_Yellow` | `icon_action_1_mc` |
+
+Every name above is confirmed present in the `mrxutil.lua` table for **its own** layer — the radar column
+in `tObjRadarMaker`, the world column in `tObjWorldMarkers`, the PDA column in `tObjPdaMarker` — so none of
+these kinds leaves a layer without a texture. Being in the table is a *naming* check, not a promise of art:
+`icon_yellow_mc` is in `tObjPdaMarker` and still [draws nothing](#why-the-pda-blips-were-never-visible).
+Two notes on the odd ones out:
+
+- **`destination` is an alias for `deliverable`** — the same table, not a copy. It predates the three-layer
+  rewrite and is `Ess.Mark.zone`'s default kind, so it stayed rather than being renamed, and it picked up
+  the PDA leg for free.
+- **`generic` is the one kind that is not a naming set.** `MiniMap_Icon_Symbol_Yellow` is in both the world
+  and radar tables, so those two line up despite the naming. The PDA leg deliberately does *not* use
+  `icon_yellow_mc`, its apparent counterpart, because [that name draws
+  nothing](#why-the-pda-blips-were-never-visible) — pairing it here would make `generic` the one kind that
+  silently vanishes on the map. It uses `icon_action_1_mc` instead.
+
+Seven faction kinds line up the same way, named `faction_<code>`:
+
+| `kind` | Radar (`rdr`) | World (`wld`) | PDA (`pda`) |
+|---|---|---|---|
+| `faction_gr` | `MiniMap_Icon_Faction_GR` | `HUD_faction_GR` | `icon_gr_mc` |
+| `faction_oc` | `MiniMap_Icon_Faction_OC` | `HUD_faction_OC` | `icon_oc_mc` |
+| `faction_pr` | `MiniMap_Icon_Faction_PR` | `HUD_faction_PR` | `icon_pr_mc` |
+| `faction_an` | `MiniMap_Icon_Faction_AN` | `HUD_faction_AN` | `icon_an_mc` |
+| `faction_ch` | `MiniMap_Icon_Faction_CH` | `HUD_faction_CH` | `icon_ch_mc` |
+| `faction_pmc` | `MiniMap_Icon_Faction_PMC` | `HUD_HQ_PMC` | `icon_pmc_mc` |
+| `faction_vz` | `MiniMap_Icon_Faction_VZ` | *(none)* | `icon_vz_mc` |
+
+The world layer is the incomplete one, confirmed against `tObjWorldMarkers`: there is no `HUD_faction_PMC`
+(PMC borrows its HQ icon) and no `HUD_faction_VZ` at all. Radar and PDA have all seven. `faction_vz`
+therefore carries no world texture, and the world layer falls through to `Ess.Raw.Mark.world`'s own default
+— `HUD_objective_action`, a plain objective icon, not a VZ one. It is the one kind that half-resolves, and
+it does so on the world layer only.
+
+### Color reaches two of the three layers
+
+This asymmetry is the thing here most likely to be mistaken for a bug. `opts.rgb` tints the **radar** dot
+(`Hud.Radar:AddObjective` takes `nR`/`nG`/`nB`) and the **world** icon and ring (`Marker.AddBlip`/`AddDisc`
+take `r, g, b`), and arbitrary colors work on both — verified live 2026-07-26 with three markers identical
+but for `rgb`, which rendered red, green and blue on the minimap and in the world.
+
+**The PDA map has no color parameter at all.** `AddMapBlip` takes thirteen arguments and not one of them is
+rgb, so those same three markers were visually identical on the map. A PDA blip's only color axis is which
+texture you pick — which is exactly why the faction kinds matter: on the map, `faction_gr` *is* the color.
+
+A `kind` is a default, not a straitjacket. `opts.radarIcon` / `opts.pdaIcon` / `opts.worldIcon` each
+override one layer and leave the rest of the kind intact, so you can color the PDA leg on its own
+(confirmed live: `kind = "destroy"` with `pdaIcon = "icon_gr_mc"` shows a destroy icon on the radar and in
+the world, and the guerrilla icon on the map):
+
+```lua
+Ess.Mark.object(uGuid, { kind = "destroy", pdaIcon = "icon_gr_mc" })
+```
+
+An override is only honoured if it is a non-empty string; anything else falls back to the kind's own icon.
 
 ### The opts, in full — and a naming gotcha
 
@@ -76,16 +172,24 @@ instead:
 - `opts.world` (default `true`) — **the floating in-world icon.**
 - `opts.disc` (default `false`) — **a ground ring** around the object (`opts.radius` default `15`,
   `opts.discAlpha` its fill).
-- `opts.kind` (default `"action"`), `opts.rgb`, `opts.size`/`opts.dist` — passed through to the floating
-  icon.
+- `opts.kind` (default `"action"`) — picks all three icons at once, from
+  [`Ess.Mark.KINDS`](#kinds-one-name-three-icons).
+- `opts.radarIcon` / `opts.pdaIcon` / `opts.worldIcon` — override one layer's texture without disturbing
+  the other two.
+- `opts.label` — the PDA blip's label; defaults to the guid string.
+- `opts.rgb` — tints the radar dot, the floating icon and the ring, but
+  [not the PDA blip](#color-reaches-two-of-the-three-layers).
+- `opts.size` / `opts.dist` — the floating icon's on-screen size and draw distance.
 
 `zone()`'s opts:
 
-- `opts.world` (default `true`) — **the ground ring** (`Marker.AddDisc`, `opts.discAlpha` its fill).
+- `opts.world` (default `true`) — **the ground ring** (`Marker.AddDisc`; `opts.discAlpha`, or `opts.alpha`,
+  its fill).
 - `opts.radar` / `opts.pda` (default `true` each) — the round-radar/PDA blip on the same anchor.
 - `opts.icon` (default `false`) — **also** drops a floating in-world icon on the anchor.
-- `opts.kind` (default `"destination"`) picks the icon set for both the radar blip and the floating icon;
-  `opts.size`/`opts.dist` tune the floating icon.
+- `opts.kind` (default `"destination"`) picks the icon set for all three layers — the radar blip, the PDA
+  blip and the floating icon. `opts.radarIcon`/`pdaIcon`/`worldIcon`, `opts.label`, `opts.rgb` and
+  `opts.size`/`opts.dist` behave exactly as on `object()`.
 
 **The word `world` means opposite things on the two functions** — this is a genuine gotcha worth reading
 twice, not a typo: on `object()`, `opts.world` is the *floating icon* and the ground ring is the separate
@@ -124,6 +228,11 @@ end
 | `Ess.Easy.Mark.enemy(uGuid)` | `enemy(uGuid) -> handle` | Radar + PDA, **no** floating world icon. Kind `"action"`. |
 | `Ess.Easy.Mark.objective(uGuid)` | `objective(uGuid) -> handle` | All three surfaces (radar, PDA, floating icon). Kind `"action"`. |
 | `Ess.Easy.Mark.zone(x, y, z, r)` | `zone(x, y, z, r) -> handle \| nil` | Ground ring only — no radar/PDA clutter. (Remember: on `zone()`, `world = true` *is* the ring.) |
+
+Kind `"action"` resolves on the PDA as well (`icon_action_1_mc`), so `enemy` and `objective` put a real icon
+on the map and not just on the radar and in the world. Neither preset passes a label, so their blips are
+labelled with the object's guid string — drop to `Ess.Mark.object` with `opts.label` if the blip should read
+as something a player recognises.
 
 ## Worked example
 

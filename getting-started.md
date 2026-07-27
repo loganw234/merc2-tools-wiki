@@ -77,8 +77,8 @@ Once `pmc_bb.dll` is in place:
 2. Drop both into your game's `scripts/` folder (next to `Mercenaries2.exe`).
 3. Launch the game — `pmc_bb.dll`'s ASI loader picks up `lua_bridge.asi` automatically.
 4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`, and
-   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file next to the exe — as of v0.5.0, that
-   file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
+   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file in `scripts/`, next to the `.asi` — as
+   of v0.5.0, that file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
    is present yet), but shipping a stub ini alongside it used to silently suppress that check, so a fresh
    install previously got a stripped ini referencing sample scripts that weren't even in the zip, and never
    showed the generator's commented VK-code reference. A fresh v0.5.0 install now gets that full,
@@ -97,20 +97,33 @@ loopback connections — this is a hard security restriction, not just a default
 reach it from another machine.
 
 **Protocol:** open a TCP connection, write your Lua chunk, then write the literal line `<<<RUN>>>` to
-mark the end of the chunk. The bridge queues it, runs it on the next engine frame it gets a pump
-opportunity on, and writes the result back followed by a literal `<<<END>>>` line.
+mark the end of the chunk. The bridge answers `[queued]` straight away, runs the chunk on the next engine
+frame it gets a pump opportunity on, and writes the result back followed by a literal `<<<END>>>` line.
+Those two replies come from different threads — the acknowledgement from the socket thread, the result from
+the game thread once the chunk actually executes — which is what made the pre-v0.5.1 transport bug
+described below possible.
 
 You don't need to hand-roll this — use `tools/lua_console.py` (interactive) or `tools/lua_repl.py`
 (scriptable) from the parent project. But it's worth knowing the wire format if you're writing your own
 tooling (e.g. driving the game from a build script or a bot).
 
 If you're working in the `Ess`/lua-bridge ecosystem specifically, `mercs2-lua-essentials/tools/lua_repl.py`
-is a separate, newer script with the same name but a more reliable design: rather than trusting whatever
-comes back immediately on the raw socket (which can be one execution behind — it flushes chunk N's result
-on the *next* connection), it treats `lua_loader_printf.log` as the authoritative result channel, tags each
-chunk with a random nonce, and polls the log for that tag. It also adds `--probe` (bridge up/down) and
-`--wait-log TEXT` (block until a string like `"[Ess]"` appears, to confirm `OnLoad` actually ran). See that
-repo's own `tools/README.md` for the full flag list.
+is a separate, newer script with the same name and a different design: instead of reading the answer off
+the socket, it wraps your chunk in a `pcall` that reports its own result through `Loader.Printf` tagged
+with a per-call random nonce, then polls `lua_loader_printf.log` for that tag. The socket is used only to
+*send* the code; whatever comes back on it immediately is surfaced as advisory. It also adds `--probe`
+(bridge up/down), `--log-size`, and `--wait-log TEXT` (block until a string like `"[Ess]"` appears, to
+confirm `OnLoad` actually ran). See that repo's own `tools/README.md` for the full flag list.
+
+That design was a response to a real bug — the tool's own header calls anything read off the socket
+"advisory, possibly-stale" because, on the builds it was written against, it genuinely was. **On lua-bridge
+v0.5.1 and later that rationale is historical**: the socket is a trustworthy result channel again (see
+[the upgrade note below](#if-youre-upgrading-from-before-v051-the-socket-result-channel-was-one-execution-behind)).
+The tool still works and is still worth using — `--probe` reports whether the bridge is accepting
+connections at all without running a chunk, `--wait-log` reports whether `OnLoad` has actually finished
+(something no reply on the result channel could ever have told you), and a chunk's own `Loader.Printf`
+output lands in that log regardless — but read its log-polling as a deliberate feature now rather than as
+a workaround for a live defect.
 
 That same repo's `tools/webrepl.py` + `tools/webrepl.html` turn this raw-TCP protocol into a **browser**
 tool: since a browser page can't open a raw TCP socket itself, `webrepl.py` runs a tiny local HTTP relay
@@ -206,6 +219,47 @@ this is usually why.
 | `chunk too large` | Your chunk is at or past the 1MB buffer limit. Split it up. |
 | `executor fn pointers not resolved` | The bridge couldn't resolve the engine's internal Lua exec functions for this game binary — a build-compatibility problem, not something you can fix from Lua. |
 
+#### If you're upgrading from before v0.5.1: the socket result channel was one execution behind
+
+On every build before lua-bridge v0.5.1, a result read straight off the raw socket could belong to the
+*previous* chunk — and once a connection was one behind, it stayed one behind for every request it made
+after that. This is the bug `mercs2-lua-essentials`' `lua_repl.py` was rewritten around.
+
+The cause is the thread split described under **Protocol** above. `g_outBuf`, the bridge's single raw-TCP
+output buffer, carried no association between a result and the connection that asked for it, and results
+are produced asynchronously, later, on the game thread. v0.4.0 added a buffer clear at accept time, which
+could not fix it — the race isn't stale data sitting in the buffer when a client connects, it's a result
+arriving *after* the next client has already connected:
+
+```
+conn A submits chunk N, reads [queued], disconnects
+conn B is accepted        -> g_outBuf cleared (nothing pending yet)
+the pump finally runs N   -> result_N appended to g_outBuf
+conn B's flush            -> B receives A's result, then its own
+```
+
+B reads to the first `<<<END>>>`, takes A's answer as its own, and is one execution behind from then on.
+
+**v0.5.1 fixes it at the source.** Each queued chunk is now tagged with the raw-TCP *session id* of the
+connection that submitted it — a counter incremented on every `accept`. The pump writes a result to the
+socket only if that session is still the current one (i.e. no newer connection has been accepted since);
+a result whose requester has gone is dropped and logged — `dropped result for session N (client gone;
+current session N+1)` — rather than misdelivered to whoever connected next. The accept-time clear stays,
+and the two cover different halves of the same problem: the clear handles output already sitting in the
+buffer, the session id handles output that hasn't been produced yet. Verified live by reproduction: four
+chunks submitted with `lua_repl.py`'s close-early pattern produced exactly two of those drop lines — the
+precise condition that used to cause a misdelivery — with zero cross-request leakage.
+
+**Behavior change worth knowing: `OnKey` results no longer reach the raw-TCP channel.** Pressing a hotkey
+while a REPL was connected used to inject an unsolicited result into that client's stream, which is the
+same desync by a different route. A loader-fired `OnKey` chunk is queued with no session id at all, so from
+v0.5.1 its result is simply not written to the socket (silently — the drop line above is logged only for a
+stale *client* session). An `OnKey` script's result still appears in `lua_bridge_DEV.log`, and anything the
+script prints for itself with `Loader.Printf` still reaches `lua_loader_printf.log` and the WebSocket
+`{"type":"log"}` feed exactly as before. `OnBoot`/`OnLoad` are unaffected in practice: they run
+synchronously through the loader rather than through the chunk queue, so their results never travelled this
+channel — since v0.5.0 they go to the `Loader.Printf` log and the WebSocket feed.
+
 ### 2. The script loader (for anything that should run automatically)
 
 Drop `.lua` files into one of three folders under `scripts/`:
@@ -245,8 +299,8 @@ Every script instead has access to a global:
 Loader.Printf(message)
 ```
 
-Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_printf.log`, next
-to the game exe — instead of the shared, noisy engine log. Everything in that file is something a script
+Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_printf.log`, in
+`scripts/` next to the `.asi` — instead of the shared, noisy engine log. Everything in that file is something a script
 explicitly asked to log; nothing from the base game leaks in. Use this for anything you actually want to
 find again later.
 
@@ -281,6 +335,8 @@ a specific module if you already know what you're looking for.
   different port.
 - **`[bridge] no L` forever** → the bridge hasn't seen the Lua VM yet. Get further into the game (past
   the main menu) and retry.
+- **The REPL keeps answering my *previous* command** → you're on a build before v0.5.1. Upgrade; see
+  [the note above](#if-youre-upgrading-from-before-v051-the-socket-result-channel-was-one-execution-behind).
 - **My `OnLoad` script isn't running** → it only fires once the `GlobalExit - Complete` milestone is
   hit, i.e. after a level has actually finished loading, not on menu load. If you edited
   `lua_loader.ini` by hand, make sure the section header is exactly `[OnLoad]`.

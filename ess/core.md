@@ -9,14 +9,14 @@ nav_order: 1
 ## Overview
 
 This page covers the bottom of the [Ess](index) stack: the pieces every other namespace is built out of,
-rather than the ones you'd reach for to move an object or spawn a vehicle. Eight source files:
+rather than the ones you'd reach for to move an object or spawn a vehicle. Ten source files:
 `00_core.lua` (`Ess.Log`, `Ess.DEBUG`, `Ess.Safe`, `Ess.lastError`, `Ess.Table`, `Ess.Guid`/`Ess.Name`),
 `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`),
-`22_state.lua` (`Ess.State`, `Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/
-`Ess.stopAll`/`Ess.Track:any`, covered [below](#essstop)). `00_core.lua` loads first (the `00_` prefix is
-deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework
-depends on it; `98_stop.lua` is the last file in the whole build, for reasons covered in its own section
-below.
+`05_sys.lua` (`Ess.Sys`), `06_atmosphere.lua` (`Ess.Atmosphere`), `22_state.lua` (`Ess.State`,
+`Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/`Ess.stopAll`/`Ess.Track:any`,
+covered [below](#essstop)). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero
+dependencies on the rest of Ess — literally everything else in the framework depends on it; `98_stop.lua`
+is the last file in the whole build, for reasons covered in its own section below.
 
 `Ess.Safe`'s diagnostic layer (`Ess.DEBUG`, `Ess.Safe.reject`/`.named`, `Ess.lastError`,
 `Ess.Safe.stats`/`.reset`) and the universal teardown `Ess.stop`/`Ess.stopAll`/`Ess.Track:any` are both new
@@ -26,6 +26,13 @@ nothing on this page is different. 0.4.2 is unrelated tooling: it generates node
 visual node-editor from the API surface, again with no framework-code change, and isn't covered on this
 page.
 
+**v0.5.0** adds two whole namespaces to this page — [`Ess.Sys`](#esssys) and
+[`Ess.Atmosphere`](#essatmosphere), neither of which existed in 0.4.2 — and substantially widens the
+`Ess.DEBUG` guard-rejection channel across the whole framework (see [below](#essdebug--two-channels-of-silence)).
+0.5.1 and 0.5.2 change nothing here: 0.5.1 is a data-only release (a field added to `api/natives.json` for
+downstream tooling) and 0.5.2 ships the UI kit's missing `ess_ui.gfx` movie in `vz-patch.wad`. Confirmed
+against the repo: the only change to `src/` between 0.5.1 and 0.5.2 is the version string itself.
+
 `Ess.Str`, `Ess.Color`, and `Ess.Vec` are pure Lua — no engine calls, no dependencies on the rest of
 `Ess` — so unlike most of this framework they can be (and are) execute-verified offline, without the game
 running, via `tools/checkpure.py` (a [lupa](https://pypi.org/project/lupa/)-embedded-Lua test harness that
@@ -33,8 +40,10 @@ loads the real `src/*.lua` files and asserts against them). Where this page says
 "execute-verified offline," that's the method: real source, run outside the game, not a claim of a live
 in-game test.
 
-None of these namespaces carry a three-tier `Raw`/Core/`Easy` split — they're small, single-purpose
-utilities where a beginner/advanced gap doesn't really exist. You just call them.
+Almost none of these namespaces carry a three-tier `Raw`/Core/`Easy` split — they're small, single-purpose
+utilities where a beginner/advanced gap doesn't really exist. You just call them. The one exception is
+[`Ess.Atmosphere`](#essatmosphere), which genuinely is the Core tier beneath a handful of `Ess.Easy.World`
+one-liners; there is still no `Raw` tier under it.
 
 ## Ess.Log
 
@@ -112,6 +121,41 @@ This is **not** a reason to drop the `pcall` guards, and none were dropped: the 
 elsewhere on this wiki and in `CONTRIBUTING.md` were recorded defensively — any observed crash written down
 as a fact, deliberate breadth over pinpoint reproduction — so a rare throw in some other location or game
 state stays entirely plausible. Both channels are load-bearing; only their relative frequency is now known.
+
+**v0.5.0 widened the guard-rejection channel a great deal.** `CHANGELOG.md` records it in a single line —
+"several silent-failure paths now report on the `Ess.DEBUG` channel instead of returning a bare `false`" —
+but the scale is worth stating, because it changes how much of the framework `Ess.DEBUG` can actually
+explain. Counted against the real `src/`, `Ess.Safe.reject` call sites went from **18 across 7 files** in
+0.4.2 to **87 across 16 files** in 0.5.2. Nothing about the two-channel model changed; there is simply far
+more reaching the guard-rejection channel than there was.
+
+Most of the growth is in the HUD/UI-facing namespaces 0.5.0 built out — `Ess.Hud` (20 rejection sites),
+`Ess.Pda` (16), `Ess.Sound` (9), `Ess.Minimap` (8), `Ess.Shop` (5). Only `Ess.Pda`, `Ess.Minimap` and
+`Ess.Shop` are *new* files in 0.5.0; `Ess.Hud` and `Ess.Sound` already existed in 0.4.2 and carried **zero**
+rejection sites between them, so those 29 are growth inside existing namespaces. Older namespaces gained
+them too: [`Ess.On`](reactive-hotkeys) went 5 → 8 and `Ess.Raw.Mark` ([Markers](mark)) 0 → 5. Two related
+sweeps land in the same release:
+
+- **Bare `pcall` around engine calls was converted to `Ess.Safe.*`.** The sweep found 45 bare-`pcall` sites
+  in that release's own code and converted the **26** that wrapped an *engine* call. A bare `pcall` swallows
+  the failure completely: no counter, no `Ess.lastError`, nothing under `Ess.DEBUG`. The 19 it deliberately
+  left are all `pcall(userCallback, ...)`, wrapping a **mod author's own callback** — a bug in your code is
+  not an `Ess` failure, and recording it would make `Ess.Safe.stats()` blame the framework for it.
+- **37 closures that were being passed to `Ess.Safe.quiet` moved to `Ess.Safe.named`.** This is the subtle
+  one, because the old form looks correct. A closure is a fresh function object on every call, so it can
+  never appear in the reverse name map and every one of them tallied as an undifferentiated `"closure"` —
+  recorded, but nearly as undiagnosable as not recorded. This matters most for the colon-called natives
+  (the entire `Hud`/`Pda` surface), which cannot be passed as a function reference at all.
+
+**The sweep is not total, and the wiki should not imply it is.** Checked against current `src/`, several
+older files still wrap *engine* calls in a bare `pcall` — `21_input.lua`'s PDA-widget calls and
+`30_track.lua`'s `Hud.Radar:RemoveObjective`/`Pda.Map:RemoveBlip` teardowns among them. A failure in one of
+those is still invisible to `Ess.DEBUG`, exactly as it was before 0.4.0.
+
+A worked example of what a rejection buys you is [`Ess.Human.setState`](identity-query#esshuman), added in
+the same release: the native reports nothing for a valid posture *and* nothing for garbage, so the
+wrapper's whitelist rejection is the only place in the entire chain where a misspelled posture can ever
+surface.
 
 ### Reading it back: Ess.lastError, Ess.Safe.stats, Ess.Safe.reset
 
@@ -368,6 +412,177 @@ them). `angleTo`/`pointAhead` are correct either way; which yaw you feed them is
 | `within2D` | `Ess.Math.within2D(x1, z1, x2, z2, r) -> bool` | Is the second point within radius `r` of the first, on the ground plane? The `dx*dx + dz*dz <= r*r` range test, named — no `sqrt`, no chance to fumble the squaring. This is the check every proximity trigger / "reached the zone" poll open-codes; here once. |
 | `within3D` | `Ess.Math.within3D(x1, y1, z1, x2, y2, z2, r) -> bool` | Same, including the height term. |
 
+## Ess.Sys
+
+New in **v0.5.0** (`05_sys.lua`). The "what game am I running in, and how is it configured?" namespace. The
+engine's [`Sys`](../namespaces/sys) namespace is 64 functions of thoroughly mixed concerns — timing,
+autosave, asset streaming, save versioning, and a large pile of environment/settings getters. `Ess` already
+covered the timing half ([`Ess.Time`](timing-input#esstime), over `Sys.RealTimeStamp`/`MainTimeStamp`/
+`TimeStampMark`) and the autosave half ([`Ess.Save`](tracking#esssave)); `Ess.Sys` is the **environment**
+half: level identity, build identity, and the player's own option settings. All of it previously meant
+dropping to raw natives.
+
+**Everything here is read-only and side-effect free.** The `Sys` *mutators* (`RequestGameState`,
+`SetLevelName`, `StartSingleplayer`, `AddStringDb`, …) are deliberately excluded — several of them drive the
+game's own state machine — and are recorded in the framework's own `docs/deferred-setters.md` instead.
+
+| Function | Signature | Notes |
+|---|---|---|
+| `level` | `Ess.Sys.level() -> sLevel, sMasterScript` | **Two values.** Both read `"vz"` in freeplay. At the bare shell menu they can come back as **empty strings rather than `nil`**, so test with `~= ""` and not just for nil-ness. |
+| `version` | `Ess.Sys.version() -> sCode, sData` | **Two values, not one** — a build code *and* a data version. The corpus reads it as `local sCode, sData = Sys.GetVersion()`; taking only the first is a common misread. Both come back `"100000"` on this build. |
+| `platform` | `Ess.Sys.platform() -> n \| nil` | The engine's own platform **enum**, not a string (`3` on this PC build). Deliberately left raw rather than mapped to a name: only the one value has ever been observed, and inventing labels for the rest would be fiction. |
+| `language` | `Ess.Sys.language() -> s \| nil` | `"English"` here. Worth branching on in any script that puts text on screen. |
+| `uptime` | `Ess.Sys.uptime() -> n` | Seconds of **main-loop** time since the process started (`Sys.MainTime` — 1354.7 in a session that had been up a while). `05_sys.lua`'s rationale for wrapping it is that it's the game's own clock and so doesn't advance while paused or loading, which would make it the right base for "how long has the player actually been *playing*" — but note that [Sys](../namespaces/sys) records `Sys.MainTime`'s pause/time-scale behaviour as **presumed, not confirmed**, so treat that as the reason it was chosen rather than a measured fact. Returns `0` rather than `nil` if unreadable. |
+| `isLoading` | `Ess.Sys.isLoading() -> bool` | Is the engine loading or streaming right now? Wait on it before spawning into a world mid-stream. The shipped scripts pair it with a character check — `not Player.GetLocalCharacter() or Sys.IsLoadingOrStreaming()` — as their "world isn't ready yet" test; that idiom is worth copying rather than using this flag alone. |
+| `settings` | `Ess.Sys.settings() -> t` | The player's own option settings, in one table (below). |
+| `build` | `Ess.Sys.build() -> t` | What *kind* of build this is (below). |
+
+`settings()` returns six booleans in one table. They're grouped rather than exposed as six predicates
+because they're read together far more often than singly:
+
+| Key | Meaning |
+|---|---|
+| `tutorials` | Tutorial hints are enabled. |
+| `subtitles` | Subtitles are on — **respect this one.** A mod that shows custom dialogue and ignores it is a bug. |
+| `rumble` | Controller rumble is enabled. |
+| `invertY` | The player inverts the Y axis. |
+| `confirmOnCircle` | Confirm is bound to circle rather than cross — it changes how you should word a prompt. |
+| `noHud` | The HUD is hidden, so don't draw HUD-anchored UI. |
+
+`build()` returns five booleans: `demo` (demo mode), `german` (the censored German SKU, which has different
+gore/content rules), `finalConfig` (a release build rather than a dev one), `hasProfile` (an active player
+profile is loaded), and `autoLoad` (the auto-load-last-save path is armed). Several of these are called
+*defensively* in the shipped scripts — `Sys.IsDemoMode and Sys.IsDemoMode()` — i.e. Pandemic did not trust
+them to exist in every build. `Ess.Safe.quiet` makes that moot (a missing binding yields `false` instead of
+throwing), but it's a standing hint that these vary by build: branch on them, don't assert them.
+
+The specific values quoted above (`3`, `"English"`, `"100000"`, the 1354.7 uptime) are recorded in
+`05_sys.lua` as observations from the 0.5.0 live-probe pass against a running game, not derived from the
+decompiled corpus. They describe **this** PC build; treat them as example readings rather than constants.
+
+## Ess.Atmosphere
+
+New in **v0.5.0** (`06_atmosphere.lua`). Sky, light and time-of-day — and an honest account of the region
+system that keeps overwriting them. This is the *Core* tier underneath the `Ess.Easy.World` one-liners
+(`tint`/`brightness`/`hellscape`, covered on [Ess.Easy](easy#world--esseasyworld)), which sit on the same
+native [`Graphics.Atmosphere`](../namespaces/graphics#graphicsatmosphere) surface: the transaction model,
+the value vocabulary, and the reasons an atmosphere change doesn't stick. All of it was **established by
+live measurement on 2026-07-26**; the source is explicit that none of it is guessable from the native names.
+
+**A note on where this lives.** `Ess.Atmosphere` is the odd entry on this page: it isn't a primitive the
+rest of `Ess` is built out of, it's an engine-facing world-control namespace. It's documented here because
+it loads in the same low-numbered core block (`06_`, immediately after `Ess.Sys`) and because this wiki has
+no world/environment page yet. If one is ever added, this section belongs there.
+
+### The three things that make this namespace confusing
+
+**1. It is transactional.** `Graphics.Atmosphere.GetValue` returns `nil` outside a `Begin()`/`End()` pair —
+not an error, just `nil`. The one call site in the decompiled corpus reads like an ordinary standalone
+getter, so copying it verbatim silently returns nothing. Every function below opens and closes the
+transaction for you, which is most of the reason the file exists.
+
+**2. Value keys are not validated.** A nonsense key raises no error and returns no failure signal — inside a
+transaction it simply reads `0`. Since `0` is a legitimate value for several *real* keys, you cannot use
+that to test whether a key exists: a typo is a silent no-op forever. Worse, **the engine's own spelling
+contains a mistake you have to reproduce** — it is `fBloomContastMultiplier` and `fBloomContastLimit`
+(*Contast*, not *Contrast*). Spell it correctly and it silently does nothing. Use `Ess.Atmosphere.KEYS`
+rather than typing any of these by hand; the aliases map to the misspelled engine strings deliberately.
+
+**3. The region system owns the atmosphere, not you.** The map is divided into named atmosphere regions
+(`rgn_atmo_caracas`, `rgn_atmo_Maracaibo`, `rgn_atmo_interior`, …). **There are forty-odd of them, not the
+six the script corpus happens to name** — the full set lives in the *level* data (`layers_static`), which is
+why an earlier pass concluded the other 34 "cannot be addressed." They can: 20 were checked live against
+`Pg.GetGuidByName` and every one resolved, with a deliberately bogus name in the same batch as the control.
+Name lookup is **case-insensitive**.
+
+On the exact count, the wiki can only report what's checkable. `06_atmosphere.lua`'s header says "41 strings
+for 40 regions," the extra string being a case-duplicate (`rgn_atmo_caracas` / `rgn_atmo_Caracas`) — but
+only the lowercase spelling is actually in the exported `REGIONS` table, and its 41 entries are all distinct
+even compared case-insensitively. **41 names is the verified figure**; the "40 regions" reduction is the
+source's own, and this page does not stand behind it.
+
+Crossing into a region starts an **interpolated blend**, roughly a second long, from wherever the atmosphere
+currently is toward that region's own settings. So a manual change isn't so much "overwritten" as used as
+the *starting point* of a blend the engine is driving somewhere else. Measured across one crossing:
+`fLightIntensity` 1.15 → 1.02 → 1.0 and `fAtmosphereForce` 1.0 → 2.30 → 2.5, settling over about a second,
+with a night sky fading back to daylight over the same interval.
+
+### The surface
+
+| Function | Signature | Notes |
+|---|---|---|
+| `get` | `Ess.Atmosphere.get(sKey) -> n \| nil` | Reads one float, opening and closing the transaction around it (without which the native returns `nil`). Accepts either a raw engine key (`"fLightIntensity"`) or a `KEYS` alias (`"lightIntensity"`). `nil` for a non-string key. |
+| `set` | `Ess.Atmosphere.set(tKeyToValue, nFadeSeconds) -> bool` | Sets one or many values in **one** transaction — which matters, because the fade duration is a property of `End()`, so separate transactions mean separate fades and a visibly staggered result. `nFadeSeconds` defaults to **0.5**. Keys may be aliases or raw engine names. **The return says the transaction completed, not that the keys were real** — the engine never reports an unknown key. |
+| `setColor` | `Ess.Atmosphere.setColor(sKey, r, g, b, a, nFadeSeconds) -> bool` | Color channels are **0–255**; each of `r`/`g`/`b`/`a` defaults to `255` and `nFadeSeconds` to `0.5`, matching every corpus call site. `sKey` may be a `COLOR_KEYS` alias. |
+| `setTime` | `Ess.Atmosphere.setTime(n) -> bool` | Time of day as **0..1**; `0.95` is night. Not a `SetValue` key — it has its own native and takes no part in the `Begin`/`End` transaction. Pair it with `setTimeSpeed(0)` or the cycle carries on from wherever you put it. |
+| `setTimeSpeed` | `Ess.Atmosphere.setTimeSpeed(n) -> bool` | The rate of the day/night cycle; `0` freezes it. There is **no** `GetTimeSpeed`, so the original rate cannot be read back or restored — record it yourself if you intend to put it back. |
+| `blending` | `Ess.Atmosphere.blending() -> bool` | Is a region blend running *right now*? The same guard the shipped scripts use (`bSafeToBegin = not Graphics.Atmosphere.IsInterpolating()`) before beginning their own changes. **Read the same-frame trap below before using it.** |
+| `setting` | `Ess.Atmosphere.setting() -> uSetting \| nil` | A handle for the currently-active atmosphere setting; compare handles with `==` to detect a transition. The native returns **two** userdata values and only the first changes on a region crossing, so this returns that one. Do **not** `tostring()` the raw native result — `tostring()` with two arguments returns a *function* on this build, which is an easy way to convince yourself a stored handle has changed into something else. |
+| `region` | `Ess.Atmosphere.region(sName) -> uGuid \| nil` | Resolves an `rgn_atmo_*` name to its guid (it's [`Ess.Guid`](#essguid--essname) with a type check). Provided for future `ChangeLineRegionSetting` work — as of 0.5.2 there is nothing else in `Ess` to do with the guid. |
+
+Three exported vocabularies exist so that nothing has to be typed by hand:
+
+- **`Ess.Atmosphere.KEYS`** — 13 float keys under readable aliases: `lightIntensity`, `atmosphereForce`,
+  `atmosphereLimit`, `timeRestore`, `bloomAmount`, `bloomMultiplier`, `bloomThreshold`, `bloomBlurRadius`,
+  `bloomTargetLuminance`, `bloomContrastMultiplier`, `bloomContrastLimit`,
+  `bloomAdaptiveLuminanceScale`, `bloomAdaptiveLuminancePct`. Note the two `bloomContrast*` aliases are
+  spelled *correctly* and map to the engine's misspelled `fBloomContast*` strings — that's the whole point
+  of the table.
+- **`Ess.Atmosphere.COLOR_KEYS`** — `ambient` (`uiAmbientColor`), `rim` (`uiRimColor`), and `ambientCube`,
+  which is a **table of six** key names rather than a single string. `setColor` guards against being handed
+  that table alias and returns `false` rather than doing something surprising with it.
+- **`Ess.Atmosphere.REGIONS`** — the 41 extracted region-name strings described above.
+
+```lua
+Ess.Atmosphere.set({ lightIntensity = 0.2, bloomAmount = 2 }, 1.5)   -- both keys, one 1.5s fade
+local lit = Ess.Atmosphere.get("lightIntensity")                     -- alias or "fLightIntensity"
+```
+
+**The `blending()` same-frame trap (measured, and a real footgun).** `get`/`set`/`setColor` all open a
+transaction, and *a transaction leaves the interpolating flag set for the remainder of that frame* — it does
+not clear until the next one. Measured: a bare call reads `false`, the same call immediately after a `get()`
+reads `true`, and a bare call one chunk later reads `false` again. So this always takes the wrong branch:
+
+```lua
+local v = Ess.Atmosphere.get("lightIntensity")
+if not Ess.Atmosphere.blending() then ... end     -- ALWAYS false, every time
+```
+
+Sample `blending()` **first**, before touching anything else, or sample it on a later tick — an
+[`Ess.Loop`](timing-input#essloop) heartbeat is the natural place, since that's where you'd be waiting for a
+blend to finish anyway.
+
+**Correction to an earlier finding on this wiki.** [Ess.Easy](easy) states that the global
+`SetTime`/`SetSky`/`SetTimeSpeed` setters were "confirmed inert in live play." The 2026-07-26 measurement
+says that is **wrong for `SetTime` and `SetTimeSpeed`**, and the error mattered — it steered work away from
+the only interface that actually moves the sky. `Graphics.Atmosphere.SetTime(0.95)` visibly turns the sky to
+night (confirmed on screen by a human, and confirmed again by watching it fade back over ~1s on a zone
+crossing), and `SetTimeSpeed(0)` freezes the cycle. What *is* true is that neither is a `SetValue` key and
+neither takes part in the `Begin`/`End` transaction, so they need their own keeper. `SetSky` remains
+untested and **is** one of the 61 no-op stubs in the verified EXE audit, so that part of the old claim may
+well hold.
+
+**Time and region atmosphere are separate systems, so pinning the time is not map-wide.** Measured
+2026-07-26 with a keeper confirmed ticking 1,299 times at 10 Hz and the lock holding at `0.95` throughout —
+and the sky still full daylight on one side of a region boundary. A region's authored atmosphere preset
+paints the sky *directly*; it is not derived from the time-of-day clock, so `SetTime` moves a clock that any
+region with its own preset simply overrides, and re-asserting faster cannot win because the clock is not the
+thing being contested. Where a time lock *does* hold: the gaps **between** atmosphere regions (a large part
+of the map, where the engine falls back to a global default the clock does drive), and regions whose preset
+follows the clock rather than overriding it. That's a property of the engine's data, not a bug.
+
+**`Graphics.Atmosphere.ChangeLineRegionSetting` is deliberately not wrapped.** Reconfiguring what a region
+*applies* is the obviously nicer mechanism — crossing the boundary would then do the right thing unaided —
+and the call does work on the region you're standing in. It's held back for reasons that survived testing:
+the second argument is an **authored preset name**, not a value you control, and there is no way to
+enumerate or create one; and six calls batched into one chunk caused a **measured 13-second engine stall**,
+so a blanket apply across every region would have to be paced out over seconds and would still leave the region-less
+gaps untouched. Preset names attested in the decompiled corpus include `"default"`, `"pmc"`,
+`"day"`, `"warzone"`, `"warzonemar"` and `"WarzoneSolano"` (see
+[Graphics](../namespaces/graphics#graphicsatmosphere)); `"night"` is attested on exactly one region and
+reads as late evening rather than true night. `Ess.Atmosphere.region()` exists so that work can start from
+resolved guids rather than guesses.
+
 ## Ess.State
 
 ```lua
@@ -514,4 +729,7 @@ holed table; if you built the list by nil-ing entries out as you went, run it th
 - [Ess.Easy](easy) — the beginner-tier one-liner presets built on top of all of this.
 - [Tracking & Cleanup](tracking) — `Ess.Track`'s full registrar surface and `:closeAll`, which
   `Ess.Track:any` (above) plugs into; also `Ess.Mark`/`Ess.Relations`, two of the handle shapes `Ess.stop`
-  recognizes by field shape.
+  recognizes by field shape. `Ess.Save` (the savegame gate) lives there too — the other half of the engine
+  `Sys` namespace that [`Ess.Sys`](#esssys) deliberately doesn't cover.
+- [Sys](../namespaces/sys) and [Graphics](../namespaces/graphics) — the raw engine namespaces `Ess.Sys` and
+  `Ess.Atmosphere` wrap, including the natives neither wrapper exposes.

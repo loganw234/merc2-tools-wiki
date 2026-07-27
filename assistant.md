@@ -1,6 +1,6 @@
 ---
 title: Assistant
-nav_order: 3
+nav_order: 18
 # Soft launch: reachable at /assistant but kept out of the sidebar nav while the
 # provider path is being verified. Remove this line to list it.
 nav_exclude: true

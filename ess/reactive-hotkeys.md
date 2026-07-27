@@ -34,15 +34,23 @@ The other 7 `Ess.On` hooks, and all of `Ess.Keys`, have moved past that status a
 in **v0.3.1**'s "bindings-pass harvest" (2026-07-22, `CHANGELOG.md`'s `[0.3.1]` entry) — a ninth hook with its
 own, narrower verification status; see its row in the table below and the note underneath it.
 
+**`Ess.On.script` is later still, and is a different *kind* of hook.** It shipped in **0.5.0**'s engine-native
+sweep — a tenth entry that neither polls nor watches an engine signal, but listens for the named events the
+shipped game's own scripts broadcast. No `Ess.*` function reached that channel before 0.5.0 (the raw
+`Event.ScriptEvent` registration was always available by hand); it gets
+[its own section](#essonscript--the-shipped-games-own-script-events) below, with its own verification status.
+
 ## Ess.On — reactive world hooks
 
 Source: `src/32_on.lua`. Built entirely on already-confirmed pieces — `Event.ObjectDeath`,
-`Ess.Object.pos`/`health`, `Ess.Player`, `Ess.Loop`, `Ess.Object.pollVehicleChange`, `Ess.Math.within2D`, and
-(for the 0.3.1-added `labeled` hook) `ObjectFilter` + `Event.ObjectProximity` — `Ess.On` just wraps them under
-an intent-named hook instead of you wiring the primitive yourself. **Every hook returns a `stop()`** you call
-to cancel it. 7 of the (now) 9 hooks below are confirmed live as of 0.3.0 — see [Overview](#overview) for the
-one exception from that pass (`exitArea`); the ninth, `labeled`, arrived later in 0.3.1 with its own status
-(see its row and the note below the table).
+`Ess.Object.pos`/`health`, `Ess.Player`, `Ess.Loop`, `Ess.Object.pollVehicleChange`, `Ess.Math.within2D`,
+(for the 0.3.1-added `labeled` hook) `ObjectFilter` + `Event.ObjectProximity`, and (for the 0.5.0-added
+`script` hook) `Event.ScriptEvent` — `Ess.On` just wraps them under an intent-named hook instead of you
+wiring the primitive yourself. **Every hook returns a `stop()`** you call to cancel it. 7 of the (now) 10
+hooks below are confirmed live as of 0.3.0 — see [Overview](#overview) for the one exception from that pass
+(`exitArea`); the ninth, `labeled`, arrived later in 0.3.1 with its own status (see its row and the note
+below the table), and the tenth, `script`, later still in 0.5.0
+([its own section](#essonscript--the-shipped-games-own-script-events) covers it).
 
 | Function | Signature | Fires | Notes |
 |---|---|---|---|
@@ -55,6 +63,7 @@ one exception from that pass (`exitArea`); the ninth, `labeled`, arrived later i
 | `Ess.On.vehicle(fn [,i])` | `vehicle(fn [,i]) -> stop()` | Repeats | A thin pass-through: resolves player `i`'s character via `Ess.Player.character(i or 0)`, then returns `Ess.Object.pollVehicleChange(char, fn)` directly — that call's own `stop()` is what you get back. If there's no character, returns a no-op `stop()` instead. See [Vehicle-entry watch](identity-query#essvehicle) for `pollVehicleChange`'s own default poll interval (0.5s) and the `(uVehicleOrNil, uPrevVehicleOrNil)` signature `fn` receives. |
 | `Ess.On.tick(interval, fn)` | `tick(interval, fn) -> stop()` | Repeats | Just a named, reload-safe `Ess.Loop.start(id, interval or 1, fn)` under an auto-generated id (`"Ess.On.tick:<n>"`) — every call gets its **own** id, so multiple `Ess.On.tick` hooks never collide with each other or with `Ess.Loop` ids you manage yourself elsewhere. `fn()` runs every `interval` seconds (default `1`); its return value is ignored — the loop always keeps going until `stop()`. |
 | `Ess.On.labeled(label, r, fn [,i])` | `labeled(label, r, fn [,i]) -> stop()` | Once per object | **New in 0.3.1.** Wraps the confirmed `ObjectFilter` + `Event.ObjectProximity` discovery idiom (see [ObjectFilter](../namespaces/objectfilter)): arms a filter on world label `label` (`ObjectFilter.Create` + `SetFilter`), then a persistent `Event.ObjectProximity` calls `fn(uGuid)` once for each matching object as it streams within radius `r` (default `300`) of player `i`'s (default `0`) character — immediately excluding that guid from the filter (`AddObject(filter, uGuid, true)`) so it can never re-fire; the exclusion **is** the dedupe, not a separate seen-set. Returns a no-op `stop()` immediately if `label` isn't a non-empty string, player `i` has no character, or `ObjectFilter.Create` itself fails. Promoted from the `CollectibleFinder` sample's inline version (see [Debug & Dev Tools](dev-tools#other-new-onkey-demos-built-on-these-pieces)), which stays as the hand-written worked example. |
+| `Ess.On.script(name, fn)` | `script(name, fn) -> stop()` | Repeats | **New in 0.5.0**, and the only hook here that neither polls nor watches an engine signal: it listens for a **named script event the shipped game itself posts** (`Event.Post("PDA Open", {uPlayer = ...})` and 30 more). `fn(tPayload)` receives the posted table, and keeps receiving it — this is an `Event.CreatePersistent(Event.ScriptEvent, ...)` registration, so it fires on every post until `stop()`. A name the game never posts isn't an error; it just never fires. See [its own section](#essonscript--the-shipped-games-own-script-events) for the argument-order trap, the guard rails, and the table of real names. |
 
 Every callback in the table above is `pcall`-guarded internally (`pcall(fn, ...)`), so one throwing handler
 can't kill the poll loop it's attached to.
@@ -83,6 +92,158 @@ In practice that means: `Ess.On.death` can only ever tell you about a death you 
 must already hold its `guid`) — there's no "notify me about any death" hook, because no such event exists to
 hook. And there's no attacker-identification event either, which is why `playerHurt` reports *that* health
 dropped and by how much, not who caused it.
+
+## Ess.On.script — the shipped game's own script events
+
+**New in 0.5.0** (`CHANGELOG.md`'s `[0.5.0]` entry, the engine-native sweep). Source: `src/32_on.lua:186`,
+`function Ess.On.script(sName, fn)`, returning a `stop()` like every other hook on this page.
+
+Everything else here watches the world from the outside: `enterArea` polls a position, `playerHurt` polls a
+health value, `death` registers for the engine's `Event.ObjectDeath` signal. `Ess.On.script` does none of
+that. It
+listens for the **named script events the shipped game's own Lua broadcasts** — `resident/mrxguipda.lua:125`
+really does call `Event.Post("PDA Open", {uPlayer = ...})` every time the player opens the PDA, and the
+satellite, support-menu, transit, munitions and medevac systems all announce themselves the same way.
+**Before 0.5.0, Ess could not hear a single one of them** — no `Ess.*` function reached this channel. The
+raw idiom was always available to a mod that wrote it by hand (`Event.CreatePersistent(Event.ScriptEvent,
+{name, validationFn}, cb, {})` — the shipped game does exactly that at `resident/alarm.lua:64` for
+`"mpPlayerJoin"`), and the [Event](../namespaces/event) page documents it. What 0.5.0 adds is the wrapper,
+the argument-order measurement below, and a checked list of names worth listening for.
+
+The registration it makes, from the source (the real call is wrapped — `Ess.Safe.quiet(Event.CreatePersistent,
+...)` — which is what the guard-rail note below is about):
+
+```lua
+Event.CreatePersistent(Event.ScriptEvent,
+    { sName, function() return true end },
+    function(tPayload) pcall(fn, tPayload) end, {})
+```
+
+- **Persistent, so it repeats.** Unlike `Ess.On.death` (which goes through `Ess.Event.on` → `Event.Create`),
+  this registers with `Event.CreatePersistent` and keeps firing on every post until `stop()` calls
+  `Event.Delete`. `stop()` nils its own handle right after deleting (`if ev then Event.Delete(ev); ev = nil
+  end`), so calling it twice is harmless — the second call sees `nil` and does nothing.
+- **The second filter slot is a validation function**, required by `Event.ScriptEvent` — it decides which
+  posts you care about. Ess passes an accept-everything `function() return true end`, matching what the
+  game's simplest call sites do. The game's *careful* call sites use it as a filter: `vz/oilcon020.lua:147`
+  listens for `"PDA Open"` with `return Player.GetLocalPlayer() == tData.uPlayer`, i.e. "only when *this*
+  player opened it". `Ess.On.script` gives you no way to supply your own — do that filtering inside `fn`.
+- **Not registered with `Ess.Event` or `Ess.Track`.** The handle never enters Ess's event registry, so the
+  returned `stop()` is the only teardown. Hand it to a tracker (`tracker:add(stop)`) if you want it swept
+  with everything else — see [Tracking & Cleanup](tracking).
+- **Guard rails, and the one they don't cover.** A `sName` that isn't a non-empty string, or an `fn` that
+  isn't a function, is rejected via `Ess.Safe.reject` (which only prints under `Ess.DEBUG`) and returns a
+  no-op `stop()` — the hook is *not* armed. But the `Event.CreatePersistent` check only catches a **thrown**
+  error: if that call returns nothing without erroring, the guard passes, the stored handle is `nil`, and you
+  get a `stop()` that silently does nothing. `Ess.On.labeled` has the identical exposure on *its*
+  `Event.CreatePersistent` (`if oke then ev = e end`) — the explicit handle check it does have is on
+  `ObjectFilter.Create`, not on the event registration — so this is a shared pattern, not a `script`-only
+  slip.
+- **A name the game never posts is not an error.** Registration succeeds and the hook simply never fires —
+  the quietest possible failure, and the reason to copy names out of the table below rather than type them.
+
+Minimal shape (illustrative; the `uPlayer` field is source-confirmed at the call site cited above):
+
+```lua
+local stopPda = Ess.On.script("PDA Open", function(t)
+    Ess.Log("PDA opened by " .. tostring(t and t.uPlayer))
+end)
+-- later, when you're done listening:
+stopPda()
+```
+
+**Verification status, stated precisely.** The *mechanism* is confirmed live: the delivery order was measured
+in-game on **2026-07-26** with a purpose-built probe event (see the next section). Two *names* are confirmed
+live through this exact hook — `Ess.Gps` arms `"GPS Beacon Set"` and `"GPS Beacon Cleared"` via
+`Ess.On.script` at load, and `src/57_gps.lua` reports them firing **four in a row across two set/clear
+cycles, in order, with the right coordinates**. The other 29 names in the table below are **confirmed from
+the decompiled source only** — each has a real `Event.Post` call site (cited), but none has been observed
+firing through `Ess.On.script` in a live pass.
+
+### The callback argument — where the payload actually lands
+
+`Event.CreatePersistent`'s **callback data comes first and the posted table arrives after it.** Getting that
+backwards is a silent nil-index, not an error. Measured in-game on **2026-07-26** with a probe event: a
+callback data of `"CALLBACKDATA"` landed in **argument 1**, and the posted `{marker = "PAYLOAD"}` in
+**argument 2** (recorded in the comment above the function in `src/32_on.lua`).
+
+`Ess.On.script` sidesteps this by passing an **empty** callback-data table, which puts the posted payload in
+argument 1 — so `fn(tPayload)` reads the way you'd expect.
+
+The game's own code shows what the confusing version looks like, and it is worth reading before you write a
+raw `Event.ScriptEvent` registration by hand. `vz/oilcon020.lua:194` registers `BeaconUsed` for
+`"GPS Beacon Set"` with callback data `{self, tBeaconData}` — and `tBeaconData` there is an **undeclared
+global**, so it is `nil` and the array is really just `{self}`. The posted payload therefore lands in the
+second slot, which `function BeaconUsed(self, tBeaconData)` (line 207) names `tBeaconData` and reads `.nX` /
+`.nY` off. It works entirely by accident of that nil.
+
+This also settles a question [the `Event` page](../namespaces/event#the-4-core-functions) currently records as
+open — whether `Event.ScriptEvent` listeners receive `Event.Post`ed names. **They do**, measured live, and
+`Ess.Gps` has run on that fact since 0.5.0.
+
+### The event names the game posts
+
+`src/32_on.lua`'s header lists **31 exact strings** — spaces and capitals included, because these are literal
+names and a typo just buys you silence. (`CHANGELOG.md`'s `[0.5.0]` entry rounds the same list to "~28"; the
+source list is the one to trust, and it is the one below.) Every name here was checked against a real
+`Event.Post` call site in the decompiled base-game scripts, and the call site is cited so you can read what it
+actually sends.
+
+**The payload shapes below are from the decompiled source, not from a live capture** — they are what the
+posting call site passes, which is the best available evidence for every row except the two GPS events (see
+the note under the table).
+
+| Event name | What the call site posts | Posted by |
+|---|---|---|
+| `"GPS Beacon Set"` | `{nX = ..., nY = ...}` — the field named `nY` holds a **Z** coordinate | `resident/mrxguipda.lua:780` |
+| `"GPS Beacon Cleared"` | The same two fields at the call site — but measured live as carrying no coordinates; see the note under this table | `resident/mrxguipda.lua:789` |
+| `"PDA Open"` | `{uPlayer = ...}` | `resident/mrxguipda.lua:125`, and `:35` on the net path |
+| `"PDA Close"` | `{uPlayer = ...}` at `:170`; an **empty** `{}` on the net path at `:39` | `resident/mrxguipda.lua:170`, `:39` |
+| `"Support Menu Open"` | `{uPlayer = ...}` | `resident/mrxguihudsupportmenu.lua:259`, `:1740` |
+| `"Support Menu Close"` | `{uPlayer = ...}` | `resident/mrxguihudsupportmenu.lua:327` |
+| `"SupportUsed"` | The support module object itself (`Event.Post("SupportUsed", self)`) — not a plain data table | `resident/mrxsupport.lua:215` |
+| `"Satellite Targetting Start"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:47` |
+| `"Satellite Targetting Success"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:600` |
+| `"Satellite Targetting Cancelled"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:61` |
+| `"Satellite Minigame Start"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:522` |
+| `"Satellite Minigame Sector Hit"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:639` |
+| `"Satellite Minigame Sector Miss"` | `{uPlayer = ...}` | `resident/mrxguisatellite.lua:657` |
+| `"Transit Interface Open"` | `{uPlayer = ...}` | `resident/mrxguipda.lua:819` |
+| `"Transit Interface Success"` | `{uPlayer = ...}` | `resident/mrxguipda.lua:905` |
+| `"transitStart"` | `{uHeli}` | `resident/mrxsupporttransit.lua:339` |
+| `"transitEnd"` | `{uHeli}` | `resident/mrxsupporttransit.lua:398` |
+| `"MunitionsPickup"` | `{vStock, uGuid}` on the support-pickup path — but the fuel and cash paths post the literal strings `{"Fuel", uGuid}` (`:572`) and `{"Cash", uGuid}` (`:576`), so slot 1 is not always the same kind of value | `resident/munitions.lua:560`, `:572`, `:576`, `resident/laptop.lua:112` |
+| `"NoMunitions"` | `{}` — nothing at all | `resident/munitions.lua:424` |
+| `"UntagMunitions"` | `{uGuid}` | `resident/munitions.lua:386` |
+| `"mpPlayerJoin"` | `{uPlayerGuid, uCharacterGuid}` | `resident/mrxplayer.lua:210` |
+| `"mpPlayerLeft"` | `{uPlayerGuid, uCharacterGuid}` | `resident/mrxplayer.lua:300` |
+| `"InFocus"` | `{uTarget = ..., uViewer = ..., bSniper = ...}` — `bSniper` is `false` from the binoculars, `true` from the sniper scope | `resident/mrxguibinoculars.lua:206`, `resident/mrxguisniperscope.lua:195` |
+| `"Airstrike"` | `{sStage = "DesignationComplete", sType = "None"}` — both call sites post exactly these values | `resident/mrxsupport.lua:423`, `resident/mrxsupportdesignator.lua:329` |
+| `"RecruitAvailable"` | `{sRecruit}` | `resident/mrxsupportmanager.lua:265` |
+| `"HeroReported"` | `{sFactionTemplate, uGuid}` (array, faction template first) | `resident/mrxfactionmanager.lua:1236` |
+| `"MedevacComplete"` | `Player.GetAllPlayers()` — a plain array of player guids, not a keyed table | `resident/mrxplayer.lua:517` |
+| `"SurvivalMode"` | `{uGuid}` | `resident/hero.lua:222` |
+| `"SurvivalCooldownEnded"` | `{uGuid}` | `resident/hero.lua:240` |
+| `"parkingLotStart"` | Two different shapes across four call sites: three positional guids (entrance, parking-lot point, heli point), or a bare `{false}` | Guids: `resident/mrxhq.lua:743`, `vz/wifpmcinterior.lua:2110`. `{false}`: `vz/wifpmcinterior.lua:2102`, `vz/xQ!L.lua:845` |
+| `"oilrigDestroyed"` | `{uiGuid}` | `resident/oilrig.lua:62` |
+
+**Two notes to carry into your handler.** `"GPS Beacon Set"`'s payload field named `nY` holds a **Z**
+coordinate (`nX = tEvent.PosX, nY = tEvent.PosZ` at the call site) — `Ess.Gps.onSet` untangles that and hands
+its `fn` a plain `(x, z)`. And although `"GPS Beacon Cleared"` is posted with the same two fields, Ess's live
+run measured them as **nil** (`src/57_gps.lua`: the clear payload "carries no coordinates at all"), which is
+why `Ess.Gps.onClear`'s `fn` takes no arguments. Where the decompiled source and a live measurement disagree,
+the measurement wins.
+
+**This list is a curated starting point, not the closed set.** A sweep of literal `Event.Post("...")` call
+sites across the decompiled base-game scripts finds **41** distinct names — the 31 above plus
+`"ActionHijackStart"` / `"ActionHijackFinish"` / `"ActionHijackComplete"`, `"Ammo low"` / `"Ammo not low"`,
+`"Attitude"`, `"Busted"`, `"CashAdded"`, `"ClientKill"` and `"CollateralDamage"`. Even 41 undercounts:
+`resident/mrxbunkerbuster.lua:91` posts `"Nuked"` by handing `Event.Post` *itself* to a timer as the callback
+(`Event.Create(Event.TimerRelative, {2}, Event.Post, {"Nuked", ...})`), which no grep for `Event.Post("`
+will catch. And `vz/pmccon004.lua:316` and `:323` *listen* for `"SolanoHijackComplete"` /
+`"SolanoHijackFailed"` with no matching post anywhere in the decompile, so some posts evidently originate
+outside the script layer. **Inferred, not tested:** the hook has no per-name logic, so any posted name should
+work — but only the two GPS names have actually been observed firing through `Ess.On.script`.
 
 ## Ess.Keys — multi-hotkey panel
 
@@ -148,6 +309,10 @@ in-game is a manual follow-up, per the recipe's own logged instruction ("now pre
   (the edge/held-key polling primitive `Ess.Keys` and `Ess.On.playerHurt`-style polling ultimately read).
 - [Identity & World Query](identity-query) — `Ess.Object.pollVehicleChange`, the call `Ess.On.vehicle` wraps
   directly.
+- [Event](../namespaces/event) — `Event.ScriptEvent`, `Event.CreatePersistent` and `Event.Post`, the raw
+  primitives `Ess.On.script` sits on. Read it if you want to register one by hand; note the page's own
+  "delivery mechanism not confirmed" caveat on `Event.Post` predates the 2026-07-26 live measurement recorded
+  [above](#the-callback-argument--where-the-payload-actually-lands).
 - [ObjectFilter](../namespaces/objectfilter) — the native engine namespace `Ess.On.labeled` wraps
   (`Create`/`SetFilter`/`AddObject`), including the corpus-cross-reference + live-probe provenance behind
   those signatures.

@@ -1,7 +1,7 @@
 {
-  "sha256": "7e41372f901cbab3d16d7636c52e760fa2a7bdc35b4b6c2363f334cf564f6246",
-  "chars": 999773,
-  "est_tokens": 249943,
+  "sha256": "e23a895af75fe07ed92cbe52206594db7c568ccc5254e5cf481fd6d6cbe22d6d",
+  "chars": 1035889,
+  "est_tokens": 258972,
   "target_tokens": 250000,
   "chars_per_token_assumed": 4,
   "sections": [
@@ -48,8 +48,8 @@
     {
       "id": "ess",
       "title": "ESSENTIALS (Ess) FRAMEWORK",
-      "chars": 121228,
-      "est_tokens": 30307,
+      "chars": 155006,
+      "est_tokens": 38751,
       "budget": 28000,
       "over_budget": true
     },
@@ -64,8 +64,8 @@
     {
       "id": "luabridge",
       "title": "LUA-BRIDGE API",
-      "chars": 21630,
-      "est_tokens": 5407,
+      "chars": 23910,
+      "est_tokens": 5977,
       "budget": 8000,
       "over_budget": false
     },
@@ -112,8 +112,8 @@
     {
       "id": "toplevel",
       "title": "GUIDES, SNIPPETS AND SAMPLES",
-      "chars": 172280,
-      "est_tokens": 43070,
+      "chars": 172338,
+      "est_tokens": 43084,
       "budget": 60000,
       "over_budget": false
     },

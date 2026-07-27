@@ -44,7 +44,7 @@ function wouldn't have provided on its own.
 | `IsGameFocused` | `b = Loader.IsGameFocused()` | Returns whether the foreground window belongs to the game's own process, via process-ID match rather than window-handle/style checks — so it stays correct regardless of borderless/fullscreen/multi-window setups. This is the same check gating `PopKeyEvents` internally, exposed directly in case a script wants to branch on focus state itself (e.g. pause a typing UI rather than silently losing keystrokes). |
 | `SaveVar` | `Loader.SaveVar(sKey, xValue)` | **New in v0.3.0.** Persists a number, string, or boolean under `sKey`, surviving a full game restart. See [Persistence](#persistence) below. |
 | `LoadVar` | `x = Loader.LoadVar(sKey)` | **New in v0.3.0.** Reads back a value saved with `SaveVar`, preserving its original type. Returns `nil` for a key that was never saved. |
-| `GetLoadPhase` | `nIndex, sName = Loader.GetLoadPhase()` | **New in v0.5.0.** Where the current world load has gotten to on loadprobe's 0..20 phase ladder — e.g. `11` is `"Player spawn"`, `20` is `"World fully loaded (GlobalExit)"` — so a script can confirm it's actually in a world before touching entities, instead of inferring that from whether an `OnLoad` hook has fired. Returns `-1, "none"` before any load has been observed, or whenever tracking is off, and resets at the start of each new load so it tracks the *current* load rather than a process-wide high-water mark. The scan feeding this is confined to the duration of an actual load — it stops once the fully-loaded phase is reached and re-arms for the next load — so the cost sits inside a loading screen, not the steady-state per-frame loop. Ini lever: `loader_track_phase = 0` disables tracking (and this then always reports `-1`). |
+| `GetLoadPhase` | `nIndex, sName = Loader.GetLoadPhase()` | **New in v0.5.0.** Where the current world load has gotten to on loadprobe's 0..20 phase ladder — e.g. `11` is `"Player spawn"`, `20` is `"World fully loaded (GlobalExit)"` — so a script can confirm it's actually in a world before touching entities, instead of inferring that from whether an `OnLoad` hook has fired. Returns `-1, "none"` before any load has been observed, or whenever tracking is off, and resets at the start of each new load so it tracks the *current* load rather than a process-wide high-water mark. The scan feeding this is confined to the duration of an actual load — it stops once the fully-loaded phase is reached and re-arms for the next load — so the cost sits inside a loading screen, not the steady-state per-frame loop. As of v0.5.2 that scan also carries a wall-clock backstop (60 s, raised to 300 s in v0.5.3) — if it ever trips, phase tracking stops advancing along with the `OnLoad` trigger until the next load cycle clears it; see [the alt-tab fix](#onload-never-fired-if-you-alt-tabbed-during-a-level-load-v053) below for why that backstop needs both a generous budget and a recovery path. Ini lever: `loader_track_phase = 0` disables tracking (and this then always reports `-1`). |
 | `LoadFile` | `bLoaded = Loader.LoadFile(sRelPath)` | **New in v0.5.0.** Executes another `.lua` file, resolved relative to `<game>/scripts/`, synchronously, on the calling VM — a way for two scripts to share library code, previously only possible via `_G` pollution from an `OnBoot` script (see the re-arm fix below for why that's fragile). Rejects absolute paths and any `..` segment, and refuses to run while another `LoadFile` is already in progress — which also stops a file from loading itself. Pairs with `_`-prefixed directories (below): put shared helpers somewhere like `scripts/OnLoad/_lib/`, which the folder scanner skips, then pull one in with `Loader.LoadFile("OnLoad/_lib/util.lua")`. Returns `true` once the file is found and handed to the executor — a runtime error *inside* the loaded file doesn't make this `false`; that error is logged and reaches the same live Printf/WebSocket feed as `OnBoot`/`OnLoad` (see below), through its own separate 4 KB result buffer. |
 
 ## OnBoot and OnLoad re-arm after a menu round-trip
@@ -66,6 +66,107 @@ Ini lever: `loader_rearm_on_menu = 0` restores the old, broken, once-per-process
 **Also fixed in the same release: loader script results now reach live clients.** `OnBoot`/`OnLoad`/`LoadFile` results and errors now also go out through the `Loader.Printf` log and the WebSocket `{"type":"log"}` feed (see [WebSocket Transport](websocket)) — previously they only reached the local `lua_bridge_DEV.log` file, so a connected REPL or browser client never saw a startup-script failure at all. `OnBoot`/`OnLoad`'s own result buffer also grew from 4 KB to 16 KB, matching the main execution queue's buffer, since it was silently truncating longer results and error messages before. (`LoadFile`'s result buffer, noted above, is separate and is still 4 KB.)
 
 **Also deprecated in the same release: `loader_delay_ms`.** This used to `Sleep()` the game thread between scripts within one `OnBoot`/`OnLoad` batch. It's now a documented no-op: `ExecuteLuaFolder` runs *on* the game thread, so sleeping there could only freeze the engine — there was never anything else running for the sleep to let "settle." The setting is still parsed so an existing `lua_bridge_DEV.ini` with it set doesn't break; it just no longer does anything.
+
+## The first Lua chunk of a session could permanently halve the framerate (v0.5.2)
+
+**Anyone on v0.5.0 or v0.5.1 should update.** No API changes and no config changes come with this — it is
+purely a fix, and two of its three causes are direct follow-ons from the re-arm described above.
+
+The report: "60 fps stable, then the moment any Lua runs it drops to ~25 and never recovers." What made it
+diagnosable is that it reproduced on `return 1+1` — a chunk that touches no engine function at all — which
+is what ruled the executed script out as the cause. Three defects had to chain:
+
+1. **The watchdog fired on the very first chunk.** `g_lastPumpProgressTick`, the "last pump progress" clock
+   the bridge's self-healing watchdog reads, only advanced when a chunk actually *drained* — so after any
+   idle period it read as a stall, because nothing had drained on account of nothing ever having been
+   queued. A REPL sitting unused for three minutes after boot, which is the *normal* case, made the first
+   chunk queued look like a 186-second hang. The watchdog's own diagnostic said so, logging
+   `since_progress=186047ms` next to `PendingScripts=1`. **This defect dates to v0.2.2**, the release that
+   introduced the watchdog and its three timestamp probes, and had always misfired — it was invisible
+   because the reset then cost only one re-capture cycle and nothing else.
+2. **The watchdog's reset counterfeited a "new VM" event.** That reset clears `g_seenL` by design, to force
+   a clean re-capture. But v0.5.0's main-menu re-arm keys off exactly "a `lua_State` that isn't in
+   `g_seenL`" — so wiping the set made the VM the bridge had been using for minutes look brand new, and the
+   re-arm fired in a session that had never been anywhere near the main menu.
+3. **The re-arm re-enabled a scan with no reachable exit.** Re-arming clears `g_OnLoadTriggered`, which
+   switches the noop-stub detour back to joining and substring-scanning every captured log line for
+   `"GlobalExit - Complete"`. With the level already loaded, that milestone cannot reappear without a real
+   level load — so the scan ran forever: a string join plus a 21-entry phase-ladder match, on a stub that
+   fires thousands of times per frame. That is the ~25 fps, and it is why it never recovered.
+
+Fixed at all three layers:
+
+- **The stall clock now starts when work *arrives***, on the empty→non-empty transition in the queue push,
+  so `since_progress` measures how long a chunk has actually been waiting — the question the watchdog was
+  trying to ask in the first place. Only on the transition: resetting it on every push would let a steady
+  stream of chunks reset the clock forever and mask a genuine stall.
+- **The re-arm now tests a separate "ever seen" table that nothing ever clears**, rather than the
+  watchdog-wipeable `g_seenL`, so a watchdog reset can no longer forge a load-cycle event. That table fails
+  *safe* when full (32 slots): a full table answers "seen before," because a missed re-arm costs one stale
+  OnLoad while a false one costs the framerate.
+- **A 60-second wall-clock ceiling on the milestone scan**, after which it disables itself and logs why.
+  Defense in depth rather than a root-cause fix — it did not engage during verification, which is the
+  point. (This ceiling turned out to be too tight, and is itself what the v0.5.3 fix below had to
+  correct.)
+
+**Verification.** Reproduced and fixed against a clean boot — PC restarted, game left idle two minutes
+before the first chunk, since the idle gap is what arms the bug:
+
+| | v0.5.1 | v0.5.2 |
+|---|---|---|
+| Watchdog fires | 1 | **0** |
+| Spurious re-arms | 1 | **0** |
+| OnKey rescans | 1 | **0** |
+| Framerate after first chunk | 60 → ~25, permanent | **60, stable** |
+
+"OnKey rescans" is in that table because a re-arm also re-scans `scripts/OnKey/`, as the
+[re-arm section](#onboot-and-onload-re-arm-after-a-menu-round-trip) above describes — so the counterfeit
+re-arm was silently re-scanning that folder too, in a session that had never left the level.
+
+Escalated afterwards with framerate held at 60 throughout: nine pure-Lua chunks, then a first engine native
+(`Player.GetCash`), then the [Ess](../ess/) framework layer, then an object spawn — the call originally
+suspected. The 60-second scan ceiling never engaged, confirming the two root-cause fixes carry the case on
+their own.
+
+## OnLoad never fired if you alt-tabbed during a level load (v0.5.3)
+
+**Anyone who alt-tabs during a level load should update.** Reproduced, not theorized: pick **Continue**,
+alt-tab immediately, and `OnLoad` never fires — [Ess](../ess/) simply never loads. Reliably.
+
+The cause is the third fix listed in v0.5.2 above. That 60-second wall-clock ceiling on the milestone scan
+was justified by "a real load reaches the milestone in seconds, so a 60-second ceiling cannot cut a
+legitimate load short." That holds while the game is in the **foreground**. Backgrounded, the game throttles
+hard while `GetTickCount` keeps counting — so a perfectly ordinary load blew a wall-clock budget it would
+never have approached on screen. The scan switched itself off, `"GlobalExit - Complete"` was never matched,
+`g_OnLoadTriggered` stayed 0, and `OnLoad` never ran.
+
+Worse, **the give-up was terminal for the session.** The give-up flag was a static local inside the detour,
+so nothing outside that function could clear it — including the load-cycle re-arm. Its own log line promised
+that "a real level load will re-enable it," and that was untrue: the branch that resets the budget only runs
+when *neither* consumer wants the scan, and the OnLoad consumer keeps wanting it precisely because OnLoad
+never fired. One alt-tab poisoned the whole session, until the game process was restarted.
+
+Fixed two ways, and the two depend on each other:
+
+- **The ceiling is 300 seconds rather than 60**, which a throttled load fits inside comfortably.
+- **The give-up is now recoverable.** A generation counter is bumped by the load-cycle re-arm and compared
+  by the scan, so a new load cycle clears the give-up and that log line's promise finally becomes true.
+  That is what makes the more generous ceiling safe: if it ever does trip, the next load recovers instead
+  of the session staying broken.
+
+Verified against the original repro: alt-tab during load, Ess loads. Hot-path cost versus v0.5.2 is one
+additional volatile compare.
+
+**Recorded dead end — do not "fix" this by making the budget focus-aware.** Not spending the budget while
+the window is unfocused is the obviously correct fix, it was tried, and it **crashed the game before the
+menu ever appeared**. Two reasons, both recorded in the source so nobody repeats it. First, that stub fires
+thousands of times per frame, so the two `user32` calls behind `IsGameFocused` (`GetForegroundWindow` plus
+`GetWindowThreadProcessId`) are not a small addition per fire. Second, during early boot — before the window
+is foreground at all — the budget would never elapse, leaving the scan running at full cost: the same
+pathology as the 60 → ~25 collapse above, and as the ~2 FPS cost measured on the first v0.5.0 cut that ran
+the log-line join unconditionally. If focus ever does need consulting there, the recorded approach is to
+sample it on the watchdog thread, which already wakes every ~2 s, into a volatile flag and read *that* from
+the stub — never syscall from that function.
 
 ## `lua_loader.ini` and shared library code
 
@@ -215,6 +316,19 @@ input source, not normal play.
   — see [OnKey dispatch behavior](#onkey-dispatch-behavior) above. If a hotkey "does nothing," checking the
   exact spelling against [Microsoft's Virtual-Key reference](https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
   is the first thing to try.
+- **Three distinct "my framework stopped working" symptoms are bridge bugs, not script bugs** — worth ruling
+  out before debugging your own code, and each one is fixed by updating rather than by changing anything you
+  wrote:
+  - Worked, then vanished after a trip to the main menu — the
+    [`OnBoot`/`OnLoad` re-arm bug](#onboot-and-onload-re-arm-after-a-menu-round-trip), present before
+    v0.5.0, fixed in **v0.5.0**.
+  - Never loaded *at all* in a session where you alt-tabbed during the load — the
+    [alt-tab bug](#onload-never-fired-if-you-alt-tabbed-during-a-level-load-v053), present in v0.5.2, fixed
+    in **v0.5.3**.
+  - Framerate collapses the instant any Lua runs and never recovers — the
+    [watchdog chain](#the-first-lua-chunk-of-a-session-could-permanently-halve-the-framerate-v052), present
+    in v0.5.0 and v0.5.1, fixed in **v0.5.2**. Even `return 1+1` triggers it, which is the fastest way to
+    tell it apart from something your own script does.
 - **These are lua-bridge additions, not engine features** — the keyboard input functions shipped in the
   stock install as of **v0.1.6**; `SaveVar`/`LoadVar` and the hot-path performance guarantee above are
   **v0.3.0+** only; `GetLoadPhase`, `LoadFile`, the `_`-prefixed-directory convention, per-script disable,

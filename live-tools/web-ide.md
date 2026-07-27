@@ -89,6 +89,18 @@ checker tuned for first-script mistakes runs:
   is the one that actually matters. Engine natives, Ess, and lua-bridge's own calls need no import and are
   never flagged.
 
+  **Published globals are exempt too, and getting that right needed a change upstream.** `Cheat`, `Pda`,
+  `MapLabel`, `MessageBox`, `ObjectiveTray`, `SubtitleBuffer` and the whole `Hud.*` family *are* resident
+  Lua with readable source — Ess's `natives.json` reclassified them from "engine native" to `game_script` in
+  Ess 0.5.0, correctly — but they are assigned straight into `_G` (`_G.Hud = HudInterface`, in
+  `resident/mrxguiinterface.lua`) rather than exposed through the module system. They exist from load with
+  nothing to import, and `import("Cheat")` is meaningless because no module answers to that name. Because
+  this check reads `game_script` as "a module you must import first", it briefly advised exactly that.
+  **Ess 0.5.1 added a `published_global` flag** to `natives.json` for this specific call — 38 namespaces
+  carry it — and `tools/gen_natives.py` now drops those namespaces rather than recording them in the
+  `modules` table this check reads. The check still covers the 18 canonical top-level resident modules and
+  their 562 functions; the published globals are simply never flagged.
+
 ## Running code
 
 **Ctrl/Cmd+Enter** runs the selection (or the whole file). This sends the code over a real WebSocket to

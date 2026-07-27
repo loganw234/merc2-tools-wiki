@@ -8,13 +8,21 @@ nav_order: 3
 
 ## Overview
 
-Current version **v0.5.0**. The WebSocket transport itself — the handshake, framing, and
+Current version **v0.5.3**. The WebSocket transport itself — the handshake, framing, and
 `Loader.WsSend` — was introduced in v0.4.0. Concurrent multi-client support followed the same day as a
 separate release, v0.4.1 — same wire contract, no API change, just the `WS_MAX_CLIENTS` cap and listener
 backlog increase covered under [Concurrency](#concurrency) below. Git confirms the same-day cycle:
 `199fa8e` (v0.4.0) at 15:15, `1f40d7f` (v0.4.1) at 19:32, both 2026-07-17. v0.5.0 (2026-07-25) left the
 transport and wire contract untouched — its only change here is a new producer onto the existing
 `{"type":"log"}` feed, covered below under Loader.WsSend.
+
+**v0.5.1** (2026-07-26) is the first release since v0.4.1 to change how a broadcast line is *encoded* on the
+wire: its bytes are now escaped so a TEXT frame can never carry invalid UTF-8. No API change, no
+config change, no change to the message shapes — see [Text frame encoding](#text-frame-encoding) below.
+**v0.5.2** and **v0.5.3** (both 2026-07-26) are loader-side fixes — a framerate regression, and an `OnLoad`
+that never fired if you alt-tabbed during a level load — and touch nothing in this transport: not the
+handshake, not the framing, not the wire contract. Note that v0.5.3 has no `CHANGELOG.md` entry as of this
+writing; its detail lives in the release commit message (`2818bd8`).
 
 It's a **hand-rolled RFC 6455 WebSocket server** — accepts inbound connections only, never opens outbound
 ones. There is no vendored WebSocket library involved. It runs *inside* the existing raw-TCP REPL listener,
@@ -57,6 +65,72 @@ Protocols` response carrying `Sec-WebSocket-Accept`; on any parse failure the co
   interleaved with a fragmented data message.
 - Message cap is `WS_MAX_MSG` = 1 MB, matching the raw-TCP `chunk_buf` cap so a WS client can send an
   equivalently large chunk.
+
+## Text frame encoding
+
+Everything the bridge broadcasts leaves as a **TEXT** frame, and RFC 6455 §5.6 requires a TEXT payload to be
+valid UTF-8. Until **v0.5.1** it wasn't, in one specific and very reachable case.
+
+`js_escape_into` — the JSON string escaper every `{"type":"log"}` and `{"type":"ws"}` line is built with —
+escaped backslash, double quote and the control range, then passed **bytes `0x80`–`0xFF` through
+untouched**. But the strings the bridge broadcasts are single-byte **CP1252**, the engine's own text
+encoding (the same encoding behind `loader_source_encoding` on the [Loader](loader) page, and behind `ö`
+being `"\366"` on [Stdlib Additions](stdlib)). So a lone `0xF6` went onto the wire as a lone `0xF6`, which is
+not valid UTF-8, and any accented character in a `Loader.Printf` line produced a malformed frame. The
+consequence isn't a mojibake character on screen — a conforming browser is entitled to **fail the connection
+with protocol error 1007** rather than display the line at all.
+
+Since v0.5.1 a high byte is emitted as a `\uXXXX` escape instead, which keeps the frame **pure ASCII** and
+therefore always valid UTF-8. Confirmed in source: `js_escape_into` gained a `ch >= 0x80` branch that writes
+six characters via `"\\u%04x"` — lowercase hex.
+
+### The mapping is real CP1252, not a naive `\u00XX`
+
+This is the detail that would have been easy to get wrong, and it is worth stating because the naive fix
+looks correct. CP1252's `0x80`–`0x9F` range is **not** Latin-1: byte `0x92` is a right single quote
+(**U+2019**), not U+0092 — so `\u00XX` would have turned every apostrophe the engine emits into an invisible
+C1 control character. The source carries a 32-entry `kCp1252High[]` lookup covering exactly `0x80`–`0x9F`;
+`0xA0`–`0xFF` is genuine Latin-1 and maps to the same codepoint, so it is handled by identity:
+
+```c
+unsigned int cp = (ch < 0xA0) ? kCp1252High[ch - 0x80] : ch;
+```
+
+The five positions CP1252 leaves unassigned (`0x81`, `0x8D`, `0x8F`, `0x90`, `0x9D`) sit in that table as
+their own numeric value, i.e. they fall back to the Latin-1 reading rather than being rejected or
+substituted.
+
+| byte in | escape emitted | renders as | note |
+|---|---|---|---|
+| `0xF6` | `\u00f6` | `ö` | identity — Latin-1 range, naive form happens to agree |
+| `0x92` | `\u2019` | `’` | CP1252-specific — naive form would have given U+0092 |
+
+### The broadcast buffer grew with it
+
+`ws_broadcast_typed_line` builds the whole envelope into one stack buffer before fanning out. That buffer
+was **2560 bytes**, commented in v0.5.0 as "enough for a full 2 KB `Loader.Printf` line + envelope" — sized
+for 1:1 passthrough. With worst-case 6× expansion a 2 KB line of accented text no longer fits, and
+`js_escape_into` returning 0 on overflow makes the broadcaster **drop the entire line**, not truncate it —
+which would have been a worse failure than the malformed frame the escaping replaced. It is now
+`(2048 * 6) + 128` = **12,416 bytes**: worst-case expansion of a full 2 KB line, plus envelope.
+
+**Raw TCP is unaffected either way.** The `<<<RUN>>>`/`<<<END>>>` channel is a byte stream with no encoding
+contract, so it never had this problem and nothing about it changed here.
+
+This fix is **confirmed live**, tested over a real WebSocket handshake with a minimal stdlib client:
+`0xF6` → `ö`, `0x92` → `’`, frames decoding as valid UTF-8 and parsing as valid JSON. See
+[Status](#status).
+
+### Two traps for anyone reimplementing the escape client-side
+
+- **The block comment directly above `js_escape_into` in `lua_bridge_DEV.c` still describes the pre-0.5.1
+  behavior** — it says non-ASCII bytes are passed through raw because the upstream data is already valid
+  UTF-8. The code beneath it does not do that any more. Read the branch, not the header comment.
+- `mercs2-lua-essentials`' `tools/test_bridge_client.js` carries a deliberate line-for-line port of
+  `js_escape_into` that was **not** updated with this fix. It still says everything else passes through, and
+  no test input uses a high byte, so it no longer mirrors the C and would not catch a regression in
+  high-byte escaping. lua-bridge's own `CHANGELOG.md` records this as a known gap and states the C side is
+  the correct one.
 
 ## Concurrency
 
@@ -127,8 +201,9 @@ hasn't mattered, but don't assume it tolerates an arbitrary JSON body glued onto
 
 The game's Lua VM is single-threaded and tick-driven — nothing changes that. A WS client's socket thread
 **never touches Lua directly**. It only parses the incoming JSON, then pushes the extracted code string onto
-the exact same cross-thread chunk queue that raw-TCP, `OnKey`, `OnLoad`, and `OnBoot` scripts already share
-(tagged with a `from_ws` provenance bit on the queue node). That queue is drained on the main thread by the
+the exact same cross-thread chunk queue that raw-TCP submissions and `OnKey` scripts already share (tagged
+with a `from_ws` provenance bit on the queue node). `OnBoot`/`OnLoad` do *not* use this queue — the loader
+runs those inline on the game thread. That queue is drained on the main thread by the
 same pump mechanism described in [Getting Started](../getting-started#two-ways-to-run-code) — a WS request
 doesn't get a dedicated execution path, it rides the existing one.
 
@@ -152,30 +227,53 @@ v0.4.1's "Fixed" entry addresses (`CHANGELOG.md`): previously every chunk's resu
 disconnected from) a chunk could see that chunk's stale result appear before its own `[queued]` ack.
 v0.4.1 also clears `g_outBuf` at raw-TCP accept-time as a second layer against exactly this leakage.
 
+**v0.5.1 tightened the same boundary from the other side**, and it is worth knowing about here because the
+rule it added is stated in terms of the same queue node. Each raw-TCP `accept` now increments
+`g_rawSessionId`, the queue node records the id it was submitted under, and a result is only written to
+`g_outBuf` when that session is *still* the connected one. A chunk with no raw-TCP requester at all —
+session `0`, which covers every WS submission **and** every queued `OnKey` script — no longer reaches
+`g_outBuf` at all; previously a hotkey pressed while a REPL was connected injected an unsolicited result
+into that client's stream. (`OnBoot`/`OnLoad` are not affected by this rule because they never entered the
+queue in the first place — `ExecuteLuaFolder` runs them inline on the game thread, so their results never
+travelled the raw-TCP channel. Both lua-bridge's `ChunkNode` comment and its v0.4.1 changelog entry lump
+them in with `OnKey` here; the code does not — `InQueuePush` has exactly three call sites, and they are
+raw-TCP, WS, and `OnKey`.) Nothing on the WS side changed: loader results still reach the
+`{"type":"log"}` feed exactly as described above, and `g_outBuf` was never a WS output path in the first
+place.
+
 ## Status
 
 Both v0.4.0 and v0.4.1's `CHANGELOG.md` entries are plain "Added"/"Changed"/"Fixed" sections — neither
 carries a "Verification" section (the kind v0.3.0's entry has, citing stress-suite pass counts and measured
-`IsKeyDown` throughput), and that's still true as of this writing.
+`IsKeyDown` throughput), and that's still true of those two entries.
 
-That said, real live-client evidence for the transport does now exist — just not recorded in lua-bridge's
-own docs. Two commit messages in `mercs2-lua-essentials` describe testing it directly against a running
-game: adding `tools/dashboard.html` (a standalone WS bridge test page — send Lua, read the log/`ws` feeds
-live) was recorded as confirmed working ("version/math/char/rng returns, Toast/banner in-game, `Loader.Printf`
-feed, and runtime-error surfacing all working"), and a same-day follow-up adding `tools/bonemon.html` (a live
-bone-position stress test streaming ~80 xyz values over the hidden channel) states it was "confirmed live...
+**v0.5.1's entry does carry one, and part of it exercises this transport directly** — the first time that
+has happened in lua-bridge's own docs. (v0.5.0's Verification section is substantial but entirely
+loader-side: stack-layout probes, a menu round-trip, the CP1252 render comparison.) For the framing fix
+above it records a **minimal stdlib WebSocket client** written for the purpose, covering the handshake,
+frame decode, UTF-8 validation, JSON validation, and CP1252 mapping spot-checks, with `0xF6` → `ö` and
+`0x92` → `’` called out by byte. The same entry records the Ess framework smoke suite re-run against the
+rebuilt bridge at **49/49**. Read that as a recorded verification of the escaping and framing specifically —
+not as a blanket "the transport is verified," and still not a captured transcript checked into this repo.
+
+Older, broader evidence for the transport sits outside lua-bridge's own docs. Two commit messages in
+`mercs2-lua-essentials` describe testing it directly against a running game: adding `tools/dashboard.html`
+(a standalone WS bridge test page — send Lua, read the log/`ws` feeds live) was recorded as confirmed
+working ("version/math/char/rng returns, Toast/banner in-game, `Loader.Printf` feed, and runtime-error
+surfacing all working"), and a same-day follow-up adding `tools/bonemon.html` (a live bone-position stress
+test streaming ~80 xyz values over the hidden channel) states it was "confirmed live...
 `GetHardpointPosition` returns animated character bone positions, and the WS push path takes ~0 perf hit at
 100Hz/60ups." `mercs2-lua-web-ide`'s own `ROADMAP.md` separately claims its own live-execution path was
 "browser-verified" against a running game.
 
-None of this is a captured log/transcript — it's developer testimony recorded in commit messages and a
-roadmap note, checked into git but never written up as a dedicated verification report in *any* of the
-three repos. Treat the transport as having real, if informally recorded, live-test evidence behind it —
-attributed to those client repos above — rather than either "definitely untested" or a from-this-page
-"confirmed working" banner, which would overstate what's actually on record here. There is still no sample
-`.lua` script in *this* repo that exercises `Loader.WsSend` directly — the reference clients that do
-(`tools/dashboard.html`, `tools/bonemon.html`, `tools/ess-bridge.js`) live in the separate
-`mercs2-lua-essentials` repo.
+None of *that* older evidence is a captured log/transcript — it's developer testimony recorded in commit
+messages and a roadmap note, checked into git but, outside v0.5.1's framing-fix entry above, never written
+up as a dedicated verification report in *any* of the three repos. Treat the transport as having real, if
+informally recorded, live-test evidence behind it — attributed to those client repos above — rather than
+either "definitely untested" or a from-this-page "confirmed working" banner, which would overstate what's
+actually on record here. There is still no sample `.lua` script in *this* repo that exercises
+`Loader.WsSend` directly — the reference clients that do (`tools/dashboard.html`, `tools/bonemon.html`,
+`tools/ess-bridge.js`) live in the separate `mercs2-lua-essentials` repo.
 
 ## See also
 

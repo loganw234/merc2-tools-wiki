@@ -1,11 +1,20 @@
 ---
 title: Engine Namespaces
-nav_order: 10
+nav_order: 9
 has_children: true
 has_toc: false
 ---
 
 # Engine Namespaces
+
+> **Most mods never call these directly.** [Essentials (Ess)](../ess/) wraps the hard parts of this
+> surface — the silent-nil failures, the crash-on-a-bad-name spawns, the handles that leak if you forget to
+> release them — behind one-line calls that are safe by default. If you're building a mod, start there.
+>
+> This section is for the two things Ess can't be: **coverage** (the engine surface is far larger than any
+> wrapper, and a namespace page is how you find something Ess hasn't reached yet) and **understanding**
+> (when an Ess call behaves oddly, this is what's underneath it). It's also the most thoroughly
+> reverse-engineered part of this wiki, and where the original research lives.
 
 Everything in [Resident Modules](../resident/) is backed by a real, readable `.lua` file — a genuine
 decompiled module we can quote and cross-check. **Engine namespaces** are different: things like

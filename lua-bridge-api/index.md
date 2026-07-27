@@ -1,6 +1,6 @@
 ---
 title: lua-bridge API
-nav_order: 11
+nav_order: 13
 has_children: true
 has_toc: false
 ---
@@ -29,13 +29,26 @@ rely on depends on which build you're running, since this section has grown acro
 | v0.4.0 | WebSocket transport (same port as the raw-TCP REPL, auto-detected) plus the `Loader.WsSend` global — see [WebSocket Transport](websocket) |
 | v0.4.1 | Concurrent WebSocket clients (up to 16 at once) — same wire contract, no user-facing API change, no config change |
 | v0.5.0 | Reliability pass on the loader half: `OnBoot`/`OnLoad` now correctly re-run after a main-menu round trip (previously a startup script silently never ran again once you'd visited the main menu, until the game process restarted); two long-standing REPL correctness bugs fixed — a stack-frame corruption bug and the `[ok]`/`[runtime]` result-label bug (see [Getting Started](../getting-started#1-the-repl-fastest-for-iterating)); `Loader.GetLoadPhase()`/`Loader.LoadFile()` added (see [Loader](loader)); OnKey fixes for background-focus gating, modifier-key support (`ctrl+`/`shift+`/`alt+`), and many more bindable keys; `lua_loader.ini` no longer shipped — auto-generated on first run instead |
+| v0.5.1 | Two transport-layer correctness fixes, no API change and no config change: the raw-TCP result channel was **one execution behind** whenever a client disconnected before its result arrived — results are now tagged with the raw-TCP session that submitted them and dropped rather than misdelivered (see [Getting Started](../getting-started#if-youre-upgrading-from-before-v051-the-socket-result-channel-was-one-execution-behind)); and WebSocket TEXT frames could carry invalid UTF-8, because bytes `0x80`–`0xFF` were passed through unescaped — now emitted as `\uXXXX` using the real CP1252 mapping (see [Text frame encoding](websocket#text-frame-encoding)). **Behavior change:** OnKey/OnBoot/OnLoad results no longer reach the raw-TCP channel at all; they still go to the log and the WebSocket `{type:"log"}` feed |
+| v0.5.2 | Correctness fix, no API change and no config change: on v0.5.0/v0.5.1 the **first Lua chunk of a session could permanently halve the framerate** — 60 fps down to ~25 and never recovering, reproducible on `return 1+1`. Three chained defects, the first of which read an idle REPL as a 186-second stall (see [Loader](loader#the-first-lua-chunk-of-a-session-could-permanently-halve-the-framerate-v052)) |
+| v0.5.3 | Correctness fix, no API change and no config change: **`OnLoad` never fired at all if the player alt-tabbed during a level load** — a backgrounded game is throttled hard while the wall clock keeps running, so an ordinary load blew v0.5.2's 60-second milestone-scan ceiling, and the give-up was terminal for the rest of the session. The ceiling is now 300s and a new load cycle clears the give-up (see [Loader](loader#onload-never-fired-if-you-alt-tabbed-during-a-level-load-v053)) |
 
 If you're relying on anything past the keyboard API and basic trig, confirm you're on **v0.2.0 or later**;
 for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**; for the WebSocket
 transport, confirm **v0.4.0 or later** (**v0.4.1 or later** for more than one simultaneous client); and if
 you need the loader half to actually be reliable — `OnLoad`/`OnBoot` surviving a main-menu round-trip, or
-accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**. That last one is a correctness bar,
-not a feature bar: the bugs it fixes were silently wrong on every earlier version, not merely absent.
+accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**.
+
+The v0.5.x rows are where that framing stops being about features at all. **v0.5.1, v0.5.2 and v0.5.3 add
+no API and no config. They are correctness bars, and anyone on v0.5.0-v0.5.2 should update.** v0.5.2 fixes
+a framerate halving triggered by the *first Lua chunk of the session* — it affects v0.5.0 and v0.5.1, it
+reproduces on `return 1+1` (a chunk that touches no engine function at all), and once triggered the drop
+persists rather than settling back. v0.5.3 then fixes a defect introduced by v0.5.2's own fix: the
+60-second ceiling that release put on the load-milestone scan is wall-clock, and a backgrounded game is
+throttled hard, so alt-tabbing during a level load blew a budget an on-screen load would never approach —
+`OnLoad` never fired, the give-up was terminal, and a startup mod (Ess included) simply never loaded for
+the rest of that session. Neither of these was a missing feature on the earlier builds: both were silently
+wrong behavior you had no way to see from Lua.
 
 ## Available namespaces
 

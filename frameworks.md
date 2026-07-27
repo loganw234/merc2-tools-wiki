@@ -1,6 +1,6 @@
 ---
 title: Frameworks
-nav_order: 13
+nav_order: 15
 has_children: true
 has_toc: false
 ---
@@ -12,10 +12,12 @@ it never has to solve that problem themselves. Distinct from [Deep Dives](deep-d
 single investigation end to end; a framework here is an ongoing library with its own API surface, likely
 to keep growing.
 
-- **[Essentials (Ess)](ess/)** — the foundational library that now underpins everything: safe, one-line
-  wrappers around every hard-won engine pattern, shipped as one drop-in `1_Ess.lua`. It **absorbs three
-  earlier standalone libraries** as native code (`Ess.UI`, `Ess.Net`, `Ess.Contract`) — see
-  [Deprecated Frameworks](deprecated-frameworks) for those predecessors — new mods start here.
+> **Looking for Essentials (Ess)?** It now has its own top-level section — see
+> **[Essentials (Ess)](ess/)**. It outgrew this category: it's no longer one framework among several, it's
+> the recommended starting point for any new mod, and it absorbed three of the standalone libraries this
+> page used to list. Everything below is what remains here — an example gamemode, and a guide to writing
+> your own library.
+
 - **[WaveDefense](wave-defense)** — not a library but the worked example of gluing three of those
   predecessors together: a wave-survival gamemode where a Contract Framework contract is only the launcher,
   ModNet's authority model decides which machine runs the simulation, and UI Kit draws the entire HUD and

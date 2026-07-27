@@ -1584,7 +1584,7 @@ Three tiers, reach for the highest that fits:
   Builder -- Type
 
 ### Core Primitives
-This page covers the bottom of the Ess stack: the pieces every other namespace is built out of, rather than the ones you'd reach for to move an object or spawn a vehicle. Eight source files: `00_core.lua` (`Ess.Log`, `Ess.DEBUG`, `Ess.Safe`, `Ess.lastError`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `22_state.lua` (`Ess.State`, `Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/ `Ess.stopAll`/`Ess.Track:any`, covered below). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework depends on it; `98_stop.lua` is the last file in the whole build, for reasons covered in its own section below. `Ess.Safe`'s diagnostic layer (`Ess.DEBUG`, `Ess.Safe.reject`/`.named`,...
+This page covers the bottom of the Ess stack: the pieces every other namespace is built out of, rather than the ones you'd reach for to move an object or spawn a vehicle. Ten source files: `00_core.lua` (`Ess.Log`, `Ess.DEBUG`, `Ess.Safe`, `Ess.lastError`, `Ess.Table`, `Ess.Guid`/`Ess.Name`), `01_math.lua` (`Ess.Math`), `02_str.lua` (`Ess.Str`), `03_color.lua` (`Ess.Color`), `04_vec.lua` (`Ess.Vec`), `05_sys.lua` (`Ess.Sys`), `06_atmosphere.lua` (`Ess.Atmosphere`), `22_state.lua` (`Ess.State`, `Ess.SaveVar`), `53_rng.lua` (`Ess.RNG`), and `98_stop.lua` (`Ess.stop`/`Ess.stopAll`/`Ess.Track:any`, covered below). `00_core.lua` loads first (the `00_` prefix is deliberate) and has zero dependencies on the rest of Ess — literally everything else in the framework depends on it; `98_stop.lua` is the last file in the whole build, for reasons covered in its own section below. `Ess.Safe`'s...
   `Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f`  -- Wraps any engine call — a function reference plus its args, or a zero-arg closure for a multi-statement body. Logs once via `Ess.Log` on failure, `Ess.DEBUG` or not — for a call whose failure is genuinely abnormal.
   `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f`  -- Same shape, for calls expected to fail sometimes as part of normal control flow (e.g. probing whether an object has a label, reading a dead guid's position). As of v0.4.0 this means "quiet unless you asked to hear it,"...
   `Ess.Safe.named(sLabel, fn, ...) -> ok, a, b, c, d, e, f`  -- New in v0.4.0. `.quiet` with the label supplied up front — the only way to attribute a closure's failure, since a closure is a fresh function object every call and can never appear in the reverse name-map...
@@ -1653,6 +1653,28 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   `Ess.Math.dist3DSq(x1, y1, z1, x2, y2, z2) -> n`  -- Same, including the Y term.
   `Ess.Math.within2D(x1, z1, x2, z2, r) -> bool`  -- Is the second point within radius `r` of the first, on the ground plane? The `dx*dx + dz*dz <= r*r` range test, named — no `sqrt`, no chance to fumble the squaring. This is the check every proximity trigger / "reached...
   `Ess.Math.within3D(x1, y1, z1, x2, y2, z2, r) -> bool`  -- Same, including the height term.
+  `Ess.Sys.level() -> sLevel, sMasterScript`  -- Two values. Both read `"vz"` in freeplay. At the bare shell menu they can come back as empty strings rather than `nil`, so test with `~= ""` and not just for nil-ness.
+  `Ess.Sys.version() -> sCode, sData`  -- Two values, not one — a build code *and* a data version. The corpus reads it as `local sCode, sData = Sys.GetVersion()`; taking only the first is a common misread. Both come back `"100000"` on this build.
+  `Ess.Sys.platform() -> n \  -- nil`
+  `Ess.Sys.language() -> s \  -- nil`
+  `Ess.Sys.uptime() -> n`  -- Seconds of main-loop time since the process started (`Sys.MainTime` — 1354.7 in a session that had been up a while). `05_sys.lua`'s rationale for wrapping it is that it's the game's own clock and so doesn't advance...
+  `Ess.Sys.isLoading() -> bool`  -- Is the engine loading or streaming right now? Wait on it before spawning into a world mid-stream. The shipped scripts pair it with a character check — `not Player.GetLocalCharacter() or Sys.IsLoadingOrStreaming()` — as...
+  `Ess.Sys.settings() -> t`  -- The player's own option settings, in one table (below).
+  `Ess.Sys.build() -> t`  -- What *kind* of build this is (below).
+  Tutorial hints are enabled.
+  Subtitles are on — respect this one. A mod that shows custom dialogue and ignores it is a bug.
+  Controller rumble is enabled.
+  The player inverts the Y axis.
+  Confirm is bound to circle rather than cross — it changes how you should word a prompt.
+  The HUD is hidden, so don't draw HUD-anchored UI.
+  `Ess.Atmosphere.get(sKey) -> n \  -- nil`
+  `Ess.Atmosphere.set(tKeyToValue, nFadeSeconds) -> bool`  -- Sets one or many values in one transaction — which matters, because the fade duration is a property of `End()`, so separate transactions mean separate fades and a visibly staggered result. `nFadeSeconds` defaults to...
+  `Ess.Atmosphere.setColor(sKey, r, g, b, a, nFadeSeconds) -> bool`  -- Color channels are 0–255; each of `r`/`g`/`b`/`a` defaults to `255` and `nFadeSeconds` to `0.5`, matching every corpus call site. `sKey` may be a `COLOR_KEYS` alias.
+  `Ess.Atmosphere.setTime(n) -> bool`  -- Time of day as 0..1; `0.95` is night. Not a `SetValue` key — it has its own native and takes no part in the `Begin`/`End` transaction. Pair it with `setTimeSpeed(0)` or the cycle carries on from wherever you put it.
+  `Ess.Atmosphere.setTimeSpeed(n) -> bool`  -- The rate of the day/night cycle; `0` freezes it. There is no `GetTimeSpeed`, so the original rate cannot be read back or restored — record it yourself if you intend to put it back.
+  `Ess.Atmosphere.blending() -> bool`  -- Is a region blend running *right now*? The same guard the shipped scripts use (`bSafeToBegin = not Graphics.Atmosphere.IsInterpolating()`) before beginning their own changes. Read the same-frame trap below before using...
+  `Ess.Atmosphere.setting() -> uSetting \  -- nil`
+  `Ess.Atmosphere.region(sName) -> uGuid \  -- nil`
   `Ess.SaveVar.ns(prefix) -> ns object`  -- Every key gets stored as `_`, so two mods' saved values can never collide.
   `sv:get(key, default) -> v`  -- Returns `default` if the key was never set.
   `sv:set(key, value)`
@@ -1677,6 +1699,7 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   Ess.Table.compact(t) -> t
   Ess.Object.setPos(u, Ess.Vec.toward(px, py, pz, tx, ty, tz, 5)) -- move it 5 units toward the target
   Ess.Object.impulse(u, Ess.Vec.scale(dx, dy, dz, 8000))
+  Ess.Atmosphere.set({ lightIntensity = 0.2, bloomAmount = 2 }, 1.5) -- both keys, one 1.5s fade
   Ess.State(name, defaults) -> persistent table
   call -- `Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f`
   quiet -- `Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f`
@@ -1746,6 +1769,29 @@ This page covers the bottom of the Ess stack: the pieces every other namespace i
   dist3DSq -- `Ess.Math.dist3DSq(x1, y1, z1, x2, y2, z2) -> n`
   within2D -- `Ess.Math.within2D(x1, z1, x2, z2, r) -> bool`
   within3D -- `Ess.Math.within3D(x1, y1, z1, x2, y2, z2, r) -> bool`
+  level -- `Ess.Sys.level() -> sLevel, sMasterScript`
+  version -- `Ess.Sys.version() -> sCode, sData`
+  platform -- `Ess.Sys.platform() -> n \
+  language -- `Ess.Sys.language() -> s \
+  uptime -- `Ess.Sys.uptime() -> n`
+  isLoading -- `Ess.Sys.isLoading() -> bool`
+  settings -- `Ess.Sys.settings() -> t`
+  build -- `Ess.Sys.build() -> t`
+  Key -- Meaning
+  tutorials -- Tutorial hints are enabled.
+  subtitles -- Subtitles are on — respect this one. A mod that shows custom dialogue and ignores it is a bug.
+  rumble -- Controller rumble is enabled.
+  invertY -- The player inverts the Y axis.
+  confirmOnCircle -- Confirm is bound to circle rather than cross — it changes how you should word a prompt.
+  noHud -- The HUD is hidden, so don't draw HUD-anchored UI.
+  get -- `Ess.Atmosphere.get(sKey) -> n \
+  set -- `Ess.Atmosphere.set(tKeyToValue, nFadeSeconds) -> bool`
+  setColor -- `Ess.Atmosphere.setColor(sKey, r, g, b, a, nFadeSeconds) -> bool`
+  setTime -- `Ess.Atmosphere.setTime(n) -> bool`
+  setTimeSpeed -- `Ess.Atmosphere.setTimeSpeed(n) -> bool`
+  blending -- `Ess.Atmosphere.blending() -> bool`
+  setting -- `Ess.Atmosphere.setting() -> uSetting \
+  region -- `Ess.Atmosphere.region(sName) -> uGuid \
   Method -- Signature
   ns -- `Ess.SaveVar.ns(prefix) -> ns object`
   :get -- `sv:get(key, default) -> v`
@@ -2061,6 +2107,7 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Object.playerControlled(uGuid) -> bool`  -- Live discovery: despite the engine's own wiki page implying a boolean, `Object.IsPlayerControlled` actually returns the *controlling player's guid* (a userdata) when the object is player-controlled, and a falsy value...
   `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)`
   `Ess.Object.impulse(uGuid, x, y, z, bLocal)`  -- `Object.ApplyImpulse` — the confirmed launch/knock-around primitive; real call sites scale the impulse by the object's mass (e.g. `Object.ApplyImpulse(u, 0, 10000, 6 * mass, true)`), so heavier things need a bigger...
+  `Ess.Object.angularImpulse(uGuid, x, y, z, bLocal) -> bool`  -- New in 0.5.0. `Object.ApplyAngularImpulse` — spins an object where `impulse` shoves it. `y` is the yaw axis, so `angularImpulse(u, 0, 500, 0, true)` is a flat spin. Same argument shape as `impulse`: a vector plus a...
   `Ess.Object.velocity(uGuid) -> vx, vy, vz \  -- nil`
   `Ess.Object.speed(uGuid) -> n \  -- nil` / `Ess.Object.speedSq(uGuid) -> n \
   `Ess.Object.size(uGuid) -> ex, ey, ez \  -- nil`
@@ -2096,6 +2143,7 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `Ess.Human.setAllWeapons(uChar, tWeaponGuids) -> ok`  -- `Human.Inventory.SetAllWeapons`.
   `Ess.Human.reloadAll(uChar)`  -- `Human.Inventory.ReloadAll(uChar, false)`.
   `Ess.Human.doAction(uChar, sActionName)`  -- `Human.DoAction` — e.g. `"Cower"`/`"Stand"`/`"Proximity"`. No-ops on a blank/non-string action name.
+  `Ess.Human.setState(uChar, sPosture, sAnim) -> bool`  -- New in 0.5.0. `Human.SetState` — the character state machine, and the most-used mutator in this namespace. `sPosture` must be one of `"Upright"`, `"InVehicle"`, `"Subdued"`, `"Cower"` and is validated wrapper-side (see...
   `Ess.Human.disableWeapons(uChar)` / `.enableWeapons(uChar)`
   `Ess.Human.knockdown(uChar, nDuration)`  -- `Human.Knockdown`; `nDuration` defaults to 0.5.
   `Ess.Human.ammo(uWeapon) -> n` / `.setAmmo(uWeapon, n)` / `.maxAmmo(uWeapon) -> n`  -- `Weapon.GetReserveAmmo`/`SetReserveAmmo`/`GetMaxReserveAmmo`. `ammo`/`maxAmmo` return 0 rather than `nil` on failure.
@@ -2150,6 +2198,7 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   playerControlled -- `Ess.Object.playerControlled(uGuid) -> bool`
   enablePhysics -- `Ess.Object.enablePhysics(uGuid)` / `Ess.Object.disablePhysics(uGuid)`
   impulse -- `Ess.Object.impulse(uGuid, x, y, z, bLocal)`
+  angularImpulse -- `Ess.Object.angularImpulse(uGuid, x, y, z, bLocal) -> bool`
   velocity -- `Ess.Object.velocity(uGuid) -> vx, vy, vz \
   speed -- `Ess.Object.speed(uGuid) -> n \
   size -- `Ess.Object.size(uGuid) -> ex, ey, ez \
@@ -2185,11 +2234,17 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   setAllWeapons -- `Ess.Human.setAllWeapons(uChar, tWeaponGuids) -> ok`
   reloadAll -- `Ess.Human.reloadAll(uChar)`
   doAction -- `Ess.Human.doAction(uChar, sActionName)`
+  setState -- `Ess.Human.setState(uChar, sPosture, sAnim) -> bool`
   disableWeapons -- `Ess.Human.disableWeapons(uChar)` / `.enableWeapons(uChar)`
   knockdown -- `Ess.Human.knockdown(uChar, nDuration)`
   ammo -- `Ess.Human.ammo(uWeapon) -> n` / `.setAmmo(uWeapon, n)` / `.maxAmmo(uWeapon) -> n`
   refillAmmo -- `Ess.Human.refillAmmo(uWeapon)`
   setInfiniteAmmo -- `Ess.Human.setInfiniteAmmo(uChar, bOn)`
+  Posture -- Seen in
+  "Upright" -- 6
+  "InVehicle" -- 12
+  "Subdued" -- 1
+  "Cower" -- 1
   apply -- `Ess.Raw.Impulse.apply(uGuid, x, y, z, bLocal)`
   applyAtPoint -- `Ess.Raw.Impulse.applyAtPoint(uGuid, ix, iy, iz, px, py, pz, bLocal)`
   mass -- `Ess.Raw.Impulse.mass(uGuid) -> n \
@@ -2200,8 +2255,9 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   knockback -- `Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength)`
 
 ### Essentials (Ess)
-  `Mark` (`Raw`/Core/`Easy`)  -- Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets.
-  `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog`  -- The nine-widget kit, native port of UI Kit, on one input/focus/heartbeat engine.
+  `Mark` (`Raw`/Core/`Easy`)  -- Radar, PDA, ground ring, and floating icon — independent opts, tiered from four raw primitives up to one-call presets. 0.5.0 fixed the reason PDA blips were never visible: the default icon `icon_yellow_mc` is a...
+  `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `UI.Theme`, `Gfx`, `ScrollLog`  -- The nine-widget kit, native port of UI Kit, on one input/focus/heartbeat engine. Rewritten in 0.5.0 to draw at runtime from theme data: one movie replaces eight, so the 8-line panel / 3-toast / 5-chat-line caps are...
+  `Sound`, `Hud`, `Hud.Faction`  -- Cue/ambience/volume, native hint/banner/objective-tray/radio-subtitle popups. Substantially extended in 0.5.0: cue validation (`duration`/`isCue`/`isLooping` — a mistyped cue is otherwise completely silent) and the...
   `Support`, `Easy.Airstrike`  -- Combat call-ins (shell/artillery/airstrike/bombing run/gunship/reinforce) lifted out of `Ess.Contract` so they're callable anywhere, fire-and-forget. Confirmed live in 0.3.0 — all 7 call-ins (including...
   `Objective`, `Quest`, `Easy.Objective`, `Easy.Quest`  -- The middle tier between a bare `Ess.Hud.objective` line and a whole `Ess.Contract` — single goals and multi-step chains with reload-safe `id`-based construction. Confirmed live — per the CHANGELOG's 0.3.0 verification...
   `Easy.Debug`, `Easy.Console.play`  -- A live on-screen debug overlay (position, reticle target, health, nearby counts) and an in-game "run any Easy call and cycle its params" playground. Confirmed live — per the CHANGELOG's 0.3.0 verification entry,...
@@ -2215,7 +2271,7 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   Verb -- Does
   Page -- Namespaces
   Markers -- `Mark` (`Raw`/Core/`Easy`)
-  Ess.UI -- `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `Gfx`, `ScrollLog`
+  Ess.UI -- `UI.Menu/List/Panel/Bar/Toast/Confirm/Input/Chat/Board`, `UI.Theme`, `Gfx`, `ScrollLog`
   Cinematic -- `Cinematic`
   Networking -- `Net`
   Ess.Easy -- Every `Ess.Easy.*` namespace
@@ -2227,7 +2283,7 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
 `Ess.Mark` is, per its own source header, "the motivating example for the whole tiered design." There are four independent ways to draw attention to something on this engine — a round-radar objective, a PDA map blip, a floating in-world icon, and a ground ring — each with its own `Add.../Remove...` pair and its own argument shape. The real lesson the framework's source draws from two existing call sites (the Contract Framework marks all three surfaces unconditionally; WaveDefense deliberately marks radar+PDA only, skipping the world icon so not every enemy clutters the world with a floating icon) is that the correct primitive isn't "always mark all three" — it's **three independent opt-out toggles**, so one call covers any combination without ever having to hand-assemble a multi-surface marker from raw pieces. - **`Ess.Raw.Mark`** — the four marking surfaces as fully independent calls....
   `radar(uGuid, tex, rgb) -> sName \  -- nil`
   `removeRadar(sName)`  -- `Hud.Radar:RemoveObjective({sName=sName})`.
-  `pda(uGuid, tex) -> sName \  -- nil`
+  `pda(uGuid, tex, sLabel) -> sName \  -- nil`
   `removePda(sName)`  -- `Pda.Map:RemoveBlip({sName=sName})`.
   `world(uGuid, tex, rgb, size, dist) -> handle \  -- nil`
   `removeWorld(handle)`  -- `Marker.Remove(handle)`. Also used to remove a `worldDisc` handle (both are `Marker.Remove`-compatible).
@@ -2238,16 +2294,27 @@ This page covers the Ess namespaces you reach for once you know *what* you want 
   `object(uGuid, opts) -> handle`  -- Marks an existing object. Returns a compound handle table (`{uGuid, radarName?, pdaName?, worldHandle?, discHandle?}`) covering whichever surfaces were drawn.
   `zone(x, y, z, radius, opts) -> handle \  -- nil`
   `clear(handle)`  -- Tears down every surface a handle actually used, plus the zone anchor prop if there was one. Safe on a partial handle — any missing/nil field is just skipped.
+  Radar (`rdr`)  -- World (`wld`)
   `enemy(uGuid) -> handle`  -- Radar + PDA, no floating world icon. Kind `"action"`.
   `objective(uGuid) -> handle`  -- All three surfaces (radar, PDA, floating icon). Kind `"action"`.
   `zone(x, y, z, r) -> handle \  -- nil`
+  Ess.Mark.object(uGuid, { kind = "destroy", pdaIcon = "icon_gr_mc" })
   Ess.Mark.clear(mObj)
-  kind -- Radar texture
-  destroy -- `objective_destroy`
-  verify -- `objective_verify`
-  defend -- `objective_defend`
+  kind -- Radar (`rdr`)
   action -- `objective_action`
-  destination -- `objective_deliverable`
+  destroy -- `objective_destroy`
+  defend -- `objective_defend`
+  verify -- `objective_verify`
+  deliverable -- `objective_deliverable`
+  outpost -- `objective_outpost`
+  generic -- `MiniMap_Icon_Symbol_Yellow`
+  faction_gr -- `MiniMap_Icon_Faction_GR`
+  faction_oc -- `MiniMap_Icon_Faction_OC`
+  faction_pr -- `MiniMap_Icon_Faction_PR`
+  faction_an -- `MiniMap_Icon_Faction_AN`
+  faction_ch -- `MiniMap_Icon_Faction_CH`
+  faction_pmc -- `MiniMap_Icon_Faction_PMC`
+  faction_vz -- `MiniMap_Icon_Faction_VZ`
 
 ### Networking
 `Ess.Net` (`70_net.lua` + `71_net_wire.lua`) is the native port of `ModNet.lua` (`_G.ModNet`) — the co-op data-sync layer built on `Net.SendCustomEvent`. The wire protocol itself (serialization, chunking/reassembly, the last-writer-wins synced-state channel, the ready-gate handshake) is called out in the source comments as a "FAITHFUL, byte-for-byte port" of confirmed-working production co-op code — see ModNet for the deep mechanics writeup (the TLV serialization tags, LWW tie-breaking, the heartbeat's three jobs) this page doesn't repeat. What's genuinely new is the scaffolding around it: - The callback hijack now goes through the general-purpose `Ess.Net.hijackCallback` (below), built on `Ess.Override.wrap`, instead of a second hand-rolled copy of the same recipe. - The heartbeat runs on `Ess.Loop` instead of a raw self-rescheduling `Event.Create`. - Every wire packet now carries a...
@@ -2374,34 +2441,313 @@ Two namespaces for the other half of scripting a mod — not making something ha
   `vehicle(fn [,i]) -> stop()`  -- Repeats
   `tick(interval, fn) -> stop()`  -- Repeats
   `labeled(label, r, fn [,i]) -> stop()`  -- Once per object
+  `script(name, fn) -> stop()`  -- Repeats
+  `{nX = ..., nY = ...}` — the field named `nY` holds a Z coordinate  -- `resident/mrxguipda.lua:780`
+  `{uPlayer = ...}`  -- `resident/mrxguipda.lua:125`, and `:35` on the net path
+  `{uPlayer = ...}` at `:170`; an empty `{}` on the net path at `:39`  -- `resident/mrxguipda.lua:170`, `:39`
+  `{uPlayer = ...}`  -- `resident/mrxguihudsupportmenu.lua:259`, `:1740`
+  `{uPlayer = ...}`  -- `resident/mrxguihudsupportmenu.lua:327`
+  The support module object itself (`Event.Post("SupportUsed", self)`) — not a plain data table  -- `resident/mrxsupport.lua:215`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:47`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:600`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:61`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:522`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:639`
+  `{uPlayer = ...}`  -- `resident/mrxguisatellite.lua:657`
+  `{uPlayer = ...}`  -- `resident/mrxguipda.lua:819`
+  `{uPlayer = ...}`  -- `resident/mrxguipda.lua:905`
+  `{vStock, uGuid}` on the support-pickup path — but the fuel and cash paths post the literal strings `{"Fuel", uGuid}` (`:572`) and `{"Cash", uGuid}` (`:576`), so slot 1 is not always the same kind of value  -- `resident/munitions.lua:560`, `:572`, `:576`, `resident/laptop.lua:112`
+  `{uTarget = ..., uViewer = ..., bSniper = ...}` — `bSniper` is `false` from the binoculars, `true` from the sniper scope  -- `resident/mrxguibinoculars.lua:206`, `resident/mrxguisniperscope.lua:195`
+  `{sFactionTemplate, uGuid}` (array, faction template first)  -- `resident/mrxfactionmanager.lua:1236`
+  `Player.GetAllPlayers()` — a plain array of player guids, not a keyed table  -- `resident/mrxplayer.lua:517`
+  Two different shapes across four call sites: three positional guids (entrance, parking-lot point, heli point), or a bare `{false}`  -- Guids: `resident/mrxhq.lua:743`, `vz/wifpmcinterior.lua:2110`. `{false}`: `vz/wifpmcinterior.lua:2102`, `vz/xQ!L.lua:845`
   `on(key, fn)`  -- `key` is a Windows VK number (e.g. `0x74`) or a name string resolved via `Ess.Keys.vk` — `"F1"`..`"F12"`, `"a"`..`"z"`, `"0"`..`"9"`, and named keys (`space`, `enter`, `escape`/`esc`, `tab`, `backspace`,...
   `off(key)`  -- Unbinds that one key; no-op if it wasn't bound or doesn't resolve.
   `clear()`  -- Drops every binding at once (`Ess.Keys._map = {}`).
   `isBound(key) -> bool`
+  Ess.Log("PDA opened by " .. tostring(t and t.uPlayer))
+  "SupportUsed" -- The support module object itself (`Event.Post("SupportUsed", self)`) — not a plain data table
+  "transitStart" -- `{uHeli}`
+  "transitEnd" -- `{uHeli}`
+  "MunitionsPickup" -- `{vStock, uGuid}` on the support-pickup path — but the fuel and cash paths post the literal strings `{"Fuel", uGuid}` (`:572`) and `{"Cash", uGuid}`...
+  "NoMunitions" -- `{}` — nothing at all
+  "UntagMunitions" -- `{uGuid}`
+  "mpPlayerJoin" -- `{uPlayerGuid, uCharacterGuid}`
+  "mpPlayerLeft" -- `{uPlayerGuid, uCharacterGuid}`
+  "InFocus" -- `{uTarget = ..., uViewer = ..., bSniper = ...}` — `bSniper` is `false` from the binoculars, `true` from the sniper scope
+  "Airstrike" -- `{sStage = "DesignationComplete", sType = "None"}` — both call sites post exactly these values
+  "RecruitAvailable" -- `{sRecruit}`
+  "HeroReported" -- `{sFactionTemplate, uGuid}` (array, faction template first)
+  "MedevacComplete" -- `Player.GetAllPlayers()` — a plain array of player guids, not a keyed table
+  "SurvivalMode" -- `{uGuid}`
+  "SurvivalCooldownEnded" -- `{uGuid}`
+  "parkingLotStart" -- Two different shapes across four call sites: three positional guids (entrance, parking-lot point, heli point), or a bare `{false}`
+  "oilrigDestroyed" -- `{uiGuid}`
+
+### Player Screens & Map Surfaces
+Four namespaces, all new in **Ess 0.5.0**, all covering something the player actually looks at rather than something that happens in the world: | Namespace | Source | What it is | |---|---|---| | `Ess.Pda` | `src/58_pda.lua` | The mission log, the dossier database, the statistics screen, and the map layer underneath `Ess.Mark`'s blips. | | `Ess.Minimap` | `src/57_minimap.lua` | The minimap **widget** — range, rotation, visibility, border. Not the objectives drawn on it. | | `Ess.Gps` | `src/57_gps.lua` | The map beacon: the waypoint the player drops on the PDA map and drives towards. | | `Ess.Shop` | `src/58_shop.lua` | The game's own full-screen purchase UI, filled with your own items. | **The screen surfaces themselves are not engine natives.** `resident/mrxguiinterface.lua` sets `_G.Pda = PdaInterface` (and `_G.oPda` as a second name for the same table) and `_G.Hud = HudInterface`...
+  `src/58_pda.lua`  -- The mission log, the dossier database, the statistics screen, and the map layer underneath `Ess.Mark`'s blips.
+  `src/57_minimap.lua`  -- The minimap widget — range, rotation, visibility, border. Not the objectives drawn on it.
+  `src/57_gps.lua`  -- The map beacon: the waypoint the player drops on the PDA map and drives towards.
+  `src/58_shop.lua`  -- The game's own full-screen purchase UI, filled with your own items.
+  Measured live — `import()` namespaces it as `MrxGuiBase.MinimapDataUpdateHandler`
+  Full `pairs(_G)` walk of the running game
+  On screen, 2026-07-26. `HUD_ICON_support_crate` drew a placeholder box instead
+  `Ess.Pda.log(sMessage [,tOpts]) -> ok`  -- `Pda.Database:AddLogEntry`
+  `Ess.Pda.dossier(sTitle, sText [,sIcon]) -> ok`  -- `Pda.Database:AddDossierEntry`
+  `Ess.Pda.statCategory(sCategory [,sIcon]) -> ok`  -- `Pda.Database:AddStatisticCategory`
+  `Ess.Pda.stat(sCategory, sDesc, sData) -> ok`  -- `Pda.Database:AddStatisticEntry`
+  `Ess.Pda.blip(sName, tOpts) -> ok`  -- `Pda.Map:AddBlip`
+  `Ess.Pda.removeBlip(sName) -> ok`  -- `Pda.Map:RemoveBlip`
+  `Ess.Pda.selectedMission() -> sName \  -- nil`
+  `Ess.Pda.mission(sName, tOpts) -> ok`  -- `Pda.Map:AddMission`
+  `Ess.Pda.missionExists(sName) -> bool`  -- (composed — see below)
+  `Ess.Pda.removeMission(sName) -> ok`  -- `Pda.Map:RemoveMission`
+  `Ess.Pda.selectMission(sName) -> ok`  -- `Pda.Map:SetSelectedMission`
+  `Ess.Pda.trackable(sName, bOn) -> ok`  -- `Pda.Map:SetMissionTrackable`
+  `Ess.Pda.onMissionTrack(fn) -> ok`  -- `Pda.Map:SetMissionTrackCallback`
+  `Ess.Pda.allowMissionChange(bOn) -> ok`  -- `Pda.Map:SetMissionChangeAllowed`
+  `Ess.Pda.fakePlayerLocation(x, y, z) -> ok`  -- `Pda.Map:SetFakePlayerLocation`
+  `Ess.Pda.region(uGuid, tOpts) -> ok`  -- `Pda.Map:AddLineRegion`
+  `Ess.Pda.removeRegion(uGuid) -> ok`  -- `Pda.Map:RemoveLineRegion`
+  `Ess.Pda.beaconTutorial(bOn) -> ok`  -- `Pda.Map:SetBeaconTutorialMode`
+  `Ess.Pda.suppress(bOn) -> ok`  -- `Pda:SetSuppressed`
+  `Ess.Pda.attitude(sFaction, nAttitude [,sTexture]) -> ok`  -- `Pda.Database:SetFactionAttitude`
+  World coordinates. `nY` is world Z, not world Y.
+  Name and description in the PDA list. `sLabel` defaults to `sName`.
+  Attach to an object instead of to coordinates.
+  Icon name from `Ess.Pda.ICONS`. Defaults to `"icon_action_1_mc"`. Pass `false` to genuinely opt out.
+  Name a registered mission to make this a mission blip — see Missions.
+  Passed through, but apparently inert — see below.
+  Force sticky, overriding the mission-tracked default.
+  Renders the blip as its own pseudo-mission, using its own `sLabel`/`sFaction` in place of a mission's (`mrxguipda.lua:577-581`).
+  One of `Ess.Pda.FACTIONS`. Effectively defaults to `"PMC"` — see below.
+  Position in the list. Effectively defaults to `5` — see below.
+  Its description. Required for a new mission.
+  Default blip texture for its blips (`sDefaultBlipTexture`).
+  Default blip label for its blips (`sDefaultBlipLabel`).
+  Defaults to true for a new mission.
+  Hide it. Forces `bTrackable` false and blanks the faction.
+  `Ess.Minimap.widget() -> w \  -- nil`
+  `Ess.Minimap.range(n) -> ok`  -- One-shot. See below.
+  `Ess.Minimap.lockRange(n) -> ok`  -- Sets the range and keeps it.
+  `Ess.Minimap.unlockRange() -> ok`  -- Restores the game's speed-based auto-zoom.
+  `Ess.Minimap.autoZoom(tOpts) -> ok`  -- Retunes the auto-zoom instead of defeating it.
+  `Ess.Minimap.rotation(n) -> ok`  -- One-shot — see below.
+  `Ess.Minimap.show(bOn) -> ok`  -- `SetVisible(bOn ~= false)`, so a bare `show()` shows.
+  `Ess.Minimap.border(sTexture, nWidth, nHeight) -> ok`  -- Swaps the frame texture.
+  `Ess.Gps.set(x, z [,tOpts]) -> ok`  -- Places the marker at a world X/Z. Y is deliberately absent — the game's own handler passes `0`, because the minimap is top-down.
+  `Ess.Gps.clear() -> ok`  -- Clears both halves. Safe with no beacon set.
+  `Ess.Gps.get() -> x, z \  -- nil`
+  `Ess.Gps.distance([i]) -> n \  -- nil`
+  `Ess.Gps.onSet(fn) -> stop()`  -- `fn(x, z)` when the player sets a beacon.
+  `Ess.Gps.onClear(fn) -> stop()`  -- `fn()` when the player clears one.
+  `Ess.Shop.open(tItems [,tOpts]) -> ok`  -- Builds and shows a shop in one call. Returns `false` with a reject naming the failing step.
+  `Ess.Shop.close() -> ok`  -- Tears it down and repairs the player's input. Safe when nothing is open.
+  `Ess.Shop.isOpen() -> bool`  -- Whether a shop is registered for the local player (the wrapper's own flag).
+  `Ess.Shop.ICONS`  -- 12 known-good item icon names.
+  Namespace -- Source
+  Ess.Pda -- `src/58_pda.lua`
+  Ess.Minimap -- `src/57_minimap.lua`
+  Ess.Gps -- `src/57_gps.lua`
+  Ess.Shop -- `src/58_shop.lua`
+  Finding -- How it was established
+  sType -- On screen, 2026-07-26
+  sTitle -- On screen, 2026-07-26
+  icon_yellow_mc -- Four otherwise-identical blips side by side; `icon_action_1_mc` and `icon_deliverable_1_mc` rendered, `icon_yellow_mc` and a no-texture blip were...
+  SetRange -- Range 1500 while standing still visibly zoomed out and held, then snapped back the moment the map turned
+  _G.MinimapDataUpdateHandler -- Measured live — `import()` namespaces it as `MrxGuiBase.MinimapDataUpdateHandler`
+  nMarkerX -- Read `3008` after the player had cleared the beacon; correctly `nil` after a later cycle
+  Player.ClearGPS -- Full `pairs(_G)` walk of the running game
+  supplies_* -- On screen, 2026-07-26. `HUD_ICON_support_crate` drew a placeholder box instead
+  log -- `Ess.Pda.log(sMessage [,tOpts]) -> ok`
+  dossier -- `Ess.Pda.dossier(sTitle, sText [,sIcon]) -> ok`
+  statCategory -- `Ess.Pda.statCategory(sCategory [,sIcon]) -> ok`
+  stat -- `Ess.Pda.stat(sCategory, sDesc, sData) -> ok`
+  blip -- `Ess.Pda.blip(sName, tOpts) -> ok`
+  removeBlip -- `Ess.Pda.removeBlip(sName) -> ok`
+  selectedMission -- `Ess.Pda.selectedMission() -> sName \
+  mission -- `Ess.Pda.mission(sName, tOpts) -> ok`
+  missionExists -- `Ess.Pda.missionExists(sName) -> bool`
+  removeMission -- `Ess.Pda.removeMission(sName) -> ok`
+  selectMission -- `Ess.Pda.selectMission(sName) -> ok`
+  trackable -- `Ess.Pda.trackable(sName, bOn) -> ok`
+  onMissionTrack -- `Ess.Pda.onMissionTrack(fn) -> ok`
+  allowMissionChange -- `Ess.Pda.allowMissionChange(bOn) -> ok`
+  fakePlayerLocation -- `Ess.Pda.fakePlayerLocation(x, y, z) -> ok`
+  region -- `Ess.Pda.region(uGuid, tOpts) -> ok`
+  removeRegion -- `Ess.Pda.removeRegion(uGuid) -> ok`
+  beaconTutorial -- `Ess.Pda.beaconTutorial(bOn) -> ok`
+  suppress -- `Ess.Pda.suppress(bOn) -> ok`
+  attitude -- `Ess.Pda.attitude(sFaction, nAttitude [,sTexture]) -> ok`
+  Option -- Meaning
+  nX -- World coordinates. `nY` is world Z, not world Y.
+  sLabel -- Name and description in the PDA list. `sLabel` defaults to `sName`.
+  uGuid -- Attach to an object instead of to coordinates.
+  sTexture -- Icon name from `Ess.Pda.ICONS`. Defaults to `"icon_action_1_mc"`. Pass `false` to genuinely opt out.
+  sMission -- Name a registered mission to make this a mission blip — see Missions.
+  nMeter -- Passed through, but apparently inert — see below.
+  bSticky -- Force sticky, overriding the mission-tracked default.
+  bTodoList -- Renders the blip as its own pseudo-mission, using its own `sLabel`/`sFaction` in place of a mission's (`mrxguipda.lua:577-581`).
+  sFaction -- One of `Ess.Pda.FACTIONS`. Effectively defaults to `"PMC"` — see below.
+  nSortOrder -- Position in the list. Effectively defaults to `5` — see below.
+  sDesc -- Its description. Required for a new mission.
+  sIcon -- Default blip texture for its blips (`sDefaultBlipTexture`).
+  sBlipLabel -- Default blip label for its blips (`sDefaultBlipLabel`).
+  bTrackable -- Defaults to true for a new mission.
+  bSuppress -- Hide it. Forces `bTrackable` false and blanks the faction.
+  widget -- `Ess.Minimap.widget() -> w \
+  range -- `Ess.Minimap.range(n) -> ok`
+  lockRange -- `Ess.Minimap.lockRange(n) -> ok`
+  unlockRange -- `Ess.Minimap.unlockRange() -> ok`
+  autoZoom -- `Ess.Minimap.autoZoom(tOpts) -> ok`
+  rotation -- `Ess.Minimap.rotation(n) -> ok`
+  show -- `Ess.Minimap.show(bOn) -> ok`
+  border -- `Ess.Minimap.border(sTexture, nWidth, nHeight) -> ok`
+  nMinSpeed -- `10`
+  nMaxSpeed -- `50`
+  nMinRange -- `150`
+  nMaxRange -- `400`
+  set -- `Ess.Gps.set(x, z [,tOpts]) -> ok`
+  clear -- `Ess.Gps.clear() -> ok`
+  get -- `Ess.Gps.get() -> x, z \
+  distance -- `Ess.Gps.distance([i]) -> n \
+  onSet -- `Ess.Gps.onSet(fn) -> stop()`
+  onClear -- `Ess.Gps.onClear(fn) -> stop()`
+  open -- `Ess.Shop.open(tItems [,tOpts]) -> ok`
+  close -- `Ess.Shop.close() -> ok`
+  isOpen -- `Ess.Shop.isOpen() -> bool`
+  ICONS -- `Ess.Shop.ICONS`
+  sName -- `sName`
+  nCost -- `nCashCost`
+  sId -- `sId`
+  nOwned -- `nCurrentStock`
+  nCap -- `nMaxStock`
+  bUnlocked -- `bUnlocked`
+  bNew -- `bMarkAsNew`
+  bFuelTank -- `bFuelTank`
+  nFuelQuantity -- `nFuelQuantity`
+  sRawName -- `sRawName`
 
 ### Sound & HUD
-`Ess.Sound` and `Ess.Hud` cover getting the player's attention: a direct one-shot sound/ambience cueing layer, and native HUD popups (hint, banner, objective tray, radio subtitle) built on confirmed-working resident-module patterns instead of a hand-rolled custom widget. Part of Essentials (Ess).
+`Ess.Sound` and `Ess.Hud` cover getting the player's attention. `Ess.Sound` is a direct one-shot sound/ambience cueing layer, plus (new in 0.5.0) cue validation and the category mixer. `Ess.Hud` drives the game's *own* native chrome — the tutorial-hint popup, the centered banner, the stylised animated title, the region card, the message box, the objective tray, the resource readouts and the faction meters — built on confirmed-working resident-module patterns instead of a hand-rolled custom widget. Part of Essentials (Ess). `Ess.Hud` is deliberately distinct from `Ess.UI.Toast` (a custom `.gfx` movie widget, see Ess.UI): everything here renders in the game's real HUD, with the game's real fonts, animation and sound. **`Hud.*` is readable Lua, not a black box.** It was catalogued as an engine native for a long time and it isn't one: `resident/mrxguiinterface.lua` opens with `_G.Hud =...
   `Ess.Sound.cue(uGuidOrNil, sCueName)`  -- `Sound.CueSound` — attach a sound to an object, or `nil`/0 for a UI/HUD one-shot.
   `Ess.Sound.stop(uGuidOrNil, sCueName)`  -- `Sound.StopSound` — must match the `(uGuid, sCueName)` pair a prior `cue` used.
   `Ess.Sound.ambience(sStreamName)`  -- `Sound.CueAmbience`.
   `Ess.Sound.stopAmbience(sStreamName)`  -- `Sound.StopAmbience`.
   `Ess.Sound.volume(nLevel, nFadeTime)`  -- `Sound.SetMasterVolume`.
+  `Ess.Sound.duration(sCue)`  -- `Sound.GetMaxDuration`, normalised. Returns seconds, `-1`, or `nil`.
+  `Ess.Sound.isCue(sCue)`  -- `duration(sCue) ~= nil` — can the engine resolve this name *right now*.
+  `Ess.Sound.isLooping(sCue)`  -- `duration(sCue) == -1` — a cue with no fixed length.
+  A real, currently-resolvable cue, and this is its length in seconds.
+  A real cue with no fixed length — a loop. Measured on an alarm cue.
+  Not resolvable: either the name is wrong, or its bank is not loaded right now.
+  `Ess.Sound.CATEGORIES`  -- The four real categories: `sfx`, `music`, `ambience`, `vo`.
+  `Ess.Sound.categoryVolume(sCat)`  -- `Sound.GetCategoryVolume` — the effective volume (own level × parent), or `nil`.
+  `Ess.Sound.setCategoryVolume(sCat, nLevel)`  -- `Sound.SetCategoryVolume` — sets the category's own level, 0..1.
+  `Ess.Sound.categoryPitch(sCat)`  -- `Sound.GetCategoryPitch`.
+  `Ess.Sound.setCategoryPitch(sCat, nPitch)`  -- `Sound.SetCategoryPitch`; `1` = normal.
+  `Ess.Sound.duck(sCat, nLevel, nFade)`  -- `Sound.FadeCategoryDown`; `nLevel` defaults to 0.2, `nFade` to 0.5 s.
+  `Ess.Sound.unduck(sCat, nFade)`  -- `Sound.FadeCategoryUp`; `nFade` defaults to 0.5 s.
+  `Ess.Sound.clearDucking()`  -- `Sound.ClearFadeCategories` and `Sound.ClearPitchCategories`.
+  `Ess.Sound.info()`  -- A snapshot table: lib version, audio dir, music flags, and all four category volumes.
   `Ess.Hud.hint(sMsg, sId, bBroadcast)`  -- The native tutorial-style hint popup (icon + sound); stays up until hidden.
   `Ess.Hud.hideHint(sId, bBroadcast)`  -- Clears a hint shown with a matching `sId`.
   `Ess.Hud.banner(sMsg)`  -- A clean, icon-free, centered text banner.
-  `Ess.Hud.objective(sText, nSlot=1)`  -- Sets the objective-tray line at `nSlot`; `nil` `sText` clears that slot.
-  `Ess.Hud.radio(sText, nHold)`  -- A transient radio-chatter subtitle, self-clearing after `nHold` s (default 5).
+  `Ess.Hud.title(sText, nDur, tOpts)`  -- The stylised animated title overlay (`text_effect.swf`). `nDur` in s, default 3.
+  `Ess.Hud.location(sText, nDur)`  -- The region-name card ("Playa del Este"-style). `nDur` in s, default 10.
+  `Ess.Hud.message(sText, tOpts)`  -- Adds a line to the message box; returns a handle. Negative duration = permanent.
+  `Ess.Hud.updateMessage(handle, sText)`  -- Edits a message that is still queued — see the caveat below.
+  `Ess.Hud.removeMessage(handle)`  -- Removes a still-queued message.
+  `Ess.Hud.clearMessages()`  -- Wipes the message box, visible and queued.
+  `Ess.Hud.tutorial(sText)`  -- The bare tutorial text strip. Sticky — pass `nil` to clear.
+  `Ess.Hud.objective(sText, nSlot)`  -- Sets the objective-tray line at `nSlot` (default 1); `nil` `sText` clears that slot.
+  `Ess.Hud.radio(sText, nHold)`  -- A transient radio-chatter subtitle in slot 3, self-clearing after `nHold` s (default 5).
+  `Ess.Hud.image(sTexture, nSlot, nW, nH)`  -- Puts an image in an objective-tray slot instead of text (`nSlot` default 1).
+  `Ess.Hud.cash(nValue, tOpts)`  -- Moves the on-screen cash readout. Display only.
+  `Ess.Hud.fuel(nValue, nMax)`  -- Moves the on-screen fuel readout. Display only.
+  `Ess.Hud.resources(bShow, nDur)`  -- Shows (for `nDur` s, default 3) or hides the cash+fuel readouts.
+  `Ess.Hud.suppressResources(bCash, bFuel)`  -- The game's own "hide these during a cutscene" switch, per counter.
+  `240` (middle)  -- 0..450 in the 640×480 virtual space. Small numbers are near the top.
+  `0.25` s  -- Fade time.
+  `tOpts.sReason` shows the game's own "+$500 (reason)" annotation; `tOpts.nIncrement` drives the roll-up animation.
+  `nMax` is an undocumented extra the corpus never used: it appends `"/max"` to the readout.
+  Shows for `nDur` seconds (default 3), or hides indefinitely.
+  The cutscene-suppression switch, independently settable per counter and separate from show/hide.
+  `Ess.Hud.Faction.add(sFaction, sTexture)`  -- Puts a meter on screen for that faction. `sTexture` is the marker icon beside it.
+  `Ess.Hud.Faction.set(sFaction, nValue, bInit)`  -- Sets the meter, 0..100. `bInit` snaps instead of animating.
+  `Ess.Hud.Faction.timer(sFaction, nSeconds, fn)`  -- The on-screen countdown. `fn()` fires once on expiry.
+  `Ess.Hud.Faction.pursuit(sFaction, nSeconds, fn)`  -- The red "you are being hunted" gauge. `fn()` on completion.
+  `Ess.Hud.Faction.inZone(sFaction, bInside, bInit)`  -- Marks the player as inside that faction's territory (how the game highlights the relevant meter at a border).
+  `Ess.Hud.Faction.hide(sFaction)`  -- Hides one meter. The real teardown, since `RemoveMeter` is a no-op.
+  `Ess.Hud.Faction.levels(tThresholds, tNames, sPursuitName, bShow)`  -- Redefines the level bands. Global and destructive — see below.
+  `Ess.Hud.Faction.restoreLevels()`  -- Puts the game's own level vocabulary back.
+  Ess.Log("no such cue (or its bank isn't loaded): " .. sCue)
+  Ess.Sound.cue(uBuilding, sCue) -- remember to stop it later
+  Ess.Hud.clearMessages()
   Ess.Hud.objective("Objective: reach the LZ") -- the persistent objective-tray line (the current task)
+  Ess.Hud.Faction.add("PMC")
+  Ess.Hud.Faction.timer("PMC", 30, function()
+  Ess.Hud.banner("Out of time")
+  Ess.Hud.Faction.pursuit("AN", 20, function()
+  Ess.Hud.radio("\"They've got a fix on us.\"", 4)
   cue -- `Ess.Sound.cue(uGuidOrNil, sCueName)`
   stop -- `Ess.Sound.stop(uGuidOrNil, sCueName)`
   ambience -- `Ess.Sound.ambience(sStreamName)`
   stopAmbience -- `Ess.Sound.stopAmbience(sStreamName)`
   volume -- `Ess.Sound.volume(nLevel, nFadeTime)`
+  duration -- `Ess.Sound.duration(sCue)`
+  isCue -- `Ess.Sound.isCue(sCue)`
+  isLooping -- `Ess.Sound.isLooping(sCue)`
+  Return -- Meaning
+  -1 -- A real cue with no fixed length — a loop. Measured on an alarm cue.
+  nil -- Not resolvable: either the name is wrong, or its bank is not loaded right now.
+  CATEGORIES -- `Ess.Sound.CATEGORIES`
+  categoryVolume -- `Ess.Sound.categoryVolume(sCat)`
+  setCategoryVolume -- `Ess.Sound.setCategoryVolume(sCat, nLevel)`
+  categoryPitch -- `Ess.Sound.categoryPitch(sCat)`
+  setCategoryPitch -- `Ess.Sound.setCategoryPitch(sCat, nPitch)`
+  duck -- `Ess.Sound.duck(sCat, nLevel, nFade)`
+  unduck -- `Ess.Sound.unduck(sCat, nFade)`
+  clearDucking -- `Ess.Sound.clearDucking()`
+  info -- `Ess.Sound.info()`
   hint -- `Ess.Hud.hint(sMsg, sId, bBroadcast)`
   hideHint -- `Ess.Hud.hideHint(sId, bBroadcast)`
   banner -- `Ess.Hud.banner(sMsg)`
-  objective -- `Ess.Hud.objective(sText, nSlot=1)`
+  title -- `Ess.Hud.title(sText, nDur, tOpts)`
+  location -- `Ess.Hud.location(sText, nDur)`
+  message -- `Ess.Hud.message(sText, tOpts)`
+  updateMessage -- `Ess.Hud.updateMessage(handle, sText)`
+  removeMessage -- `Ess.Hud.removeMessage(handle)`
+  clearMessages -- `Ess.Hud.clearMessages()`
+  tutorial -- `Ess.Hud.tutorial(sText)`
+  objective -- `Ess.Hud.objective(sText, nSlot)`
   radio -- `Ess.Hud.radio(sText, nHold)`
+  image -- `Ess.Hud.image(sTexture, nSlot, nW, nH)`
+  cash -- `Ess.Hud.cash(nValue, tOpts)`
+  fuel -- `Ess.Hud.fuel(nValue, nMax)`
+  resources -- `Ess.Hud.resources(bShow, nDur)`
+  suppressResources -- `Ess.Hud.suppressResources(bCash, bFuel)`
+  tOpts -- Default
+  nY -- `240` (middle)
+  sJustify -- `"center"`
+  sVertAnchor -- `"center"`
+  bExpand -- `false`
+  nDuration -- `2` s
+  nPriority -- `5`
+  nFade -- `0.25` s
+  bClearBuffer -- off
+  bAppends -- `true`
+  fCallback -- none
+  Call -- Effect
+  add -- `Ess.Hud.Faction.add(sFaction, sTexture)`
+  set -- `Ess.Hud.Faction.set(sFaction, nValue, bInit)`
+  timer -- `Ess.Hud.Faction.timer(sFaction, nSeconds, fn)`
+  pursuit -- `Ess.Hud.Faction.pursuit(sFaction, nSeconds, fn)`
+  inZone -- `Ess.Hud.Faction.inZone(sFaction, bInside, bInit)`
+  hide -- `Ess.Hud.Faction.hide(sFaction)`
+  levels -- `Ess.Hud.Faction.levels(tThresholds, tNames, sPursuitName, bShow)`
+  restoreLevels -- `Ess.Hud.Faction.restoreLevels()`
 
 ### Squad — Team & Tactics Layer
 `Ess.Squad` (`src/67_squad.lua`, plus `67_squad_easy.lua`/`67_squad_formation.lua`/`67_squad_queue.lua`/ `67_squad_tactics.lua`) is an opt-in team/role layer over `Ess.Followers`, for a script managing enough followers that "the whole roster" stops being the right unit of command. New in **v0.3.4**, which `CHANGELOG.md` headlines as **"the `Ess.Squad` team/orchestration pass."** `Ess.Squad` is two layers removed from the native engine: it wraps `Ess.Followers`, and `Ess.Followers` itself wraps `Ess.AIOrders` (see that page's AIOrders section for the actual `Ai.Goal`/`Ai.Anchor`/`Ai.Deploy` primitives underneath). `Ess.Squad` adds no new native calls of its own and keeps no separate roster — a "team" is just a named, ordered subset of guids that are already `Ess.Followers` members, and every order Squad issues ultimately flows through the same `Ess.Followers` machinery a plain...
@@ -2503,40 +2849,81 @@ Three namespaces united by one problem: this engine is full of `Add.../Remove...
   Method -- Signature
 
 ### Ess.UI
-This page covers `Ess.Gfx` (the raw FlashWidget primitives), `Ess.ScrollLog`, and `Ess.UI` — the native `Ess` port of **UI Kit** (`uilib.lua`'s `_G.UI`), absorbed as a full source port rather than an alias to an external `uilib.lua` deployment. Same nine widgets, same shared input/focus/heartbeat engine, same declarative `UI.Menu` builder — `Ess.UI.VERSION` is `"1.0"`, labelled in the source itself as "Ess's port of uilib v2.2." Where the port is a faithful, line-for-line carry-over this page says so and links back to UI Kit for the full design reasoning instead of re-deriving it; where the native port genuinely behaves differently, it's called out explicitly, widget by widget, and summarized below. Fits into the three tiers like this: `Ess.Gfx` **is** the Raw tier for widget work — the primitives every one of `uilib.lua`, `contracts.lua`, ForgeCam, and ForgeMenu used to hand-roll...
+This page covers `Ess.Gfx` (the raw FlashWidget primitives), `Ess.ScrollLog`, and `Ess.UI` — the native `Ess` port of **UI Kit** (`uilib.lua`'s `_G.UI`), absorbed as a full source port rather than an alias to an external `uilib.lua` deployment. Same nine widgets, same shared input/focus/heartbeat engine, same declarative `UI.Menu` builder — `Ess.UI.VERSION` is `"1.0"`, labelled in the source itself as "Ess's port of uilib v2.2." **As of Ess 0.5.0 the kit no longer draws the way `uilib.lua` did.** Every widget is now a clip inside **one** Scaleform movie (`ess_ui.gfx`) that builds its own chrome at runtime from a table of plain numbers (`Ess.UI.Theme`), instead of eight per-widget movies with their layouts baked into the artwork. The public API is unchanged — every call below behaves as it did — but the fixed capacities that came with the old movies are gone, and there are two new...
+  Fine — pre-rewrite, eight per-widget movies, all present in the wad.
+  Fine on a *dev* install with the movie hand-injected; the released wad was already stale.
+  Broken. No `ess_ui` asset in the wad. Nothing draws.
+  Fixed. The wad carries 12 assets and the build gate enforces it.
+  `measure(cb) -> self`  -- Asynchronous. `cb(w, h, all)` fires when the movie replies through the `essuiMetrics` channel; `all` also carries `x`, `y`, `rows` and `kind`.
+  Applies a named preset. Clears every previous override first, so two looks can never blend. An unknown name is *reported* via `Ess.Log` and leaves the current theme alone — a typo'd preset would otherwise look exactly like "theming doesn't work".
+  The effective value: your override if set, else the default. Reading `Ess.UI.Theme[k]` directly gives `nil` for anything you haven't personally set, since the defaults live behind the table.
+  Re-push all keys and redraw what's on screen. Pushes all keys, not just changed ones, so the movie can never be half-way between two themes.
+  Drop every override, back to stock. Same result as `preset("classic")`.
+  The stock table. `DEFAULTS` mirrors `ess_ui.gfx`'s own `ThemeDefaults()` exactly, so adopting the runtime changed nothing visually until someone asked.
+  The preset table — writable, see the worked example below.
+  The stock look — and deliberately an empty table: every key falls through to its default. That's the point. It means the defaults *are* a theme rather than something privileged, and it's always the way back.
+  Seven keys: an ice-blue accent (`0x59D0FF`), matching selection, `radius = 8`, `rowHeight = 22`.
+  Desaturated grey-blue, `radius = 2`, higher `panelAlpha` (96).
+  Warm gold accent (`0xFFC448`), header text tinted to match.
+  Magenta/teal, `borderWidth = 2`, `radius = 0`. Labelled in source as "deliberately loud, for showing the range rather than for daily use".
+  Pure black/white, `panelAlpha = 100`, `rowHeight = 22`, larger type. Labelled "high contrast, chunky rows — also a legibility option, not only a look".
+  Soft violet, low contrast, `radius = 10`.
+  Keys (default)
+  `accent` (`0xE88C18`), `accentText` (`0x191919`)
+  `panelFill` (`0x181A1F`), `panelAlpha` (`92`), `panelBorder` (`0x2A2E37`), `borderWidth` (`1`)
+  `rowFill` (`0x1E2127`), `rowFillAlt` (`0x22252C`), `rowHover` (`0x2E333C`), `rowSelected` (`0x59D0FF`), `rowSelectedText` (`0x10151A`)
+  `textPrimary` (`0xE1E5EC`), `textDim` (`0x969CA8`), `textAccent` (`0x78D2FF`), `textHeader` (`0xE1E5EC`)
+  `barFill` (`0x5AD078`), `barTrack` (`0x282C34`)
+  `warn` (`0xFFC448`), `danger` (`0xE05252`)
+  `radius` (`4`), `rowHeight` (`18`), `titleHeight` (`26`), `padding` (`8`), `scrollbarWidth` (`4`), `crumbHeight` (`14`), `hintHeight` (`14`)
+  `font` (`"_normal_Font"`), `sizeTitle` (`13`), `sizeBody` (`11`), `sizeSmall` (`10`)
+  `easing` (`0.35`), `hoverEnabled` (`0`)
+  `gradientHeader` (`0`), `gradientAngle` (`1.5707963`)
+  The engine's fixed virtual screen. Resolution-independent — the same numbers land in the same relative place at 1080p, 1440p or 4K.  -- 480 tall, `480 × aspect` wide: 853 on 16:9, 640 on 4:3.
+  `ess_ui.gfx`'s own stage, fixed at build time.  -- `Ess.UI.STAGE_W` = 853, `Ess.UI.STAGE_H` = 480.
+  What your layout code should use: the stage divided by the global scale.  -- `Ess.UI.CANVAS_W`/`CANVAS_H` — 1137 × 640 at the default scale of 75.
+  `Ess.UI.setScale(pct) -> pct, CANVAS_W, CANVAS_H`  -- Sets the global scale and re-derives the canvas. Clamped 25–200; a non-number becomes 100. Takes effect immediately, safe to call repeatedly while tuning.
+  `Ess.UI.isWide() -> bool`  -- True when `Graphics.GetScreenRatio()` reports widescreen.
+  `Ess.UI.widgetRect() -> w, h`  -- The host widget's rectangle in widget space. `853, 480` on widescreen (1:1 with the stage); `640, 360` on 4:3, so the 16:9 stage is letterboxed rather than squeezed.
+  `Ess.UI.canvasW() -> n`  -- `Ess.UI.CANVAS_W`.
+  `Ess.UI.screen() -> w, h, ratio`  -- Canvas width/height plus the game's own category string, not a number.
+  `Ess.UI.anchor(a) -> x, y, w, h`  -- Resolves an edge-relative box against the measured canvas.
   A ForgeMenu-style declarative drill-down: `:entry`/`:category`/`:header`/`:switch`, nests as deep as you like.
-  The raw scrolling list every other multi-row widget here is built on — 10 visible rows, section headers, a scrollbar, auto-resize.
-  A title bar plus up to 8 lines, body auto-resizing to fit.
+  The raw scrolling list every other multi-row widget here is built on — a configurable row window, section headers, a scrollbar, auto-resize.
+  A title bar plus body lines, body auto-resizing to fit. No line cap.
   A label plus a progress bar.
-  A transient notification, 3 stacked slots, auto-hiding.
+  A transient notification, stacked slots, auto-hiding.
   A modal yes/no dialog.
   A one-shot typed prompt.
   A scrolling message log with an optional typed input line.
-  A two-pane list-plus-details view, driving `contracts.gfx` — the same widget `Ess.Contract`'s own board UI (contract selection, intermission shops) is built on.
-  `Ess.Gfx.widget(file, x, y, w, h) -> widget \  -- nil`
+  A two-pane list-plus-details view — since 0.5.0 a composition of List + Panel + Bar, not its own movie.
+  `Ess.Gfx.widget(file, x, y, w, h, onLoad?) -> widget \  -- nil`
   `Ess.Gfx.call(widget, fn, args) -> ok`  -- `pcall`-wrapped `CallActionScriptCallback(fn, args)`. `args` defaults to `{}`.
   `Ess.Gfx.onEvent(widget, name, cb) -> ok`  -- `pcall`-wrapped `SetFlashEventHandler`. The native shape needs a mandatory `(_, v)` two-arg callback plus a mandatory trailing `{}` third argument to the call itself — both easy to get subtly wrong by hand. This hides...
   `Ess.Gfx.setVisible(widget, bool)`  -- Works around a confirmed real bug: the getter is `GetVisible()` (not `IsVisible()`, which silently nil-calls), and it returns `1`/`0` — `not 0` is `false` in Lua, so a naive `SetVisible(not w:GetVisible())` toggle never...
-  `Ess.Gfx.warmupRerender(rt, ticks = 8)`  -- Re-runs a zero-arg repaint thunk `rt` every 0.05s for `ticks` ticks, so at least one repaint lands after `SetSwfFile`'s async movie load actually finishes. The same `WARMUP = 8` idea baked into `Ess.UI`'s own engine...
+  `Ess.Gfx.warmupRerender(rt, ticks = 8)`  -- Re-runs a zero-arg repaint thunk `rt` every 0.05s for `ticks` ticks, so at least one repaint lands after `SetSwfFile`'s async movie load actually finishes. Superseded by `onLoad` for new code — that fires exactly once,...
   `Ess.Gfx.menuNav(widget, keys) -> stop()`  -- Polls `Ess.Input` for up/down/enter (default VK_UP/VK_DOWN/VK_RETURN, matching `Ess.UI.KEYS` if remapped) and forwards `Move`/`Choose` calls into a movie's own compiled AS2 menu logic — a HUD `FlashWidget` gets no...
   A leaf. `action` is `function(ctx) ... end`.
   A submenu; `buildFn` receives a child builder, nests freely, also returned.
   A non-selectable section divider.
   A ready-made ON/OFF toggle entry: renders `": ON/OFF"` from `get()`, calls `set(newBool, ctx)` when picked.
   Lifecycle.
-  `items(t) -> self`  -- Flat array of headers (`{header="TEXT"}`) and rows (`{label=..., ...}`). 10 rows visible; more scrolls.
+  `items(t) -> self`  -- Flat array of headers (`{ header = "TEXT" }`) and rows (`{ label = ..., ... }`).
   `selected() -> item, i`
   `select(i) -> self`  -- No-op if `i` isn't selectable.
-  `paint() -> self`  -- Re-sends rows/scrollbar/size to the movie; called internally by `:items()`.
+  `paint() -> self`  -- Re-sends rows/selection/scroll offsets to the movie; called internally by `:items()`.
   Sets the header.
-  Sets line `i` (0-indexed, 0–7). A non-empty line past the current `:fit()` count auto-grows it.
-  Explicitly sets visible line count (clamped 0–8), eases the body height toward it.
-  Blanks all 8 lines, fits back to 0.
-  Clamps `0..1`, sends as a whole-number percent.
+  Sets line `i` (0-indexed). No upper bound — `:line(20, s)` works. A non-empty line past the current `:fit()` count auto-grows it. Negative `i` is a no-op.
+  Sets the visible line count. Clamps only at 0, no ceiling.
+  Blanks every line, fits back to 0.
+  Clamps `0..1`.
   Updates the text.
-  Word-wraps (52 chars, `Ess.UI.wrap`) and appends; trims oldest past `max`. Only the last 5 lines show at once; body auto-resizes to fit.
-  Enters typed-input mode; Enter pushes the text and fires `onSubmit`, Esc cancels.
-  `{ category=, rewards={} (up to 4), objectives={} (up to 8), progress=0..1, progressText= }`.
+  Word-wraps (52 chars, `Ess.UI.wrap`) and appends; trims oldest past `max`. The last `lines` lines show; body auto-resizes to fit.
+  Enters typed-input mode; Enter pushes the text and fires `onSubmit`, Esc cancels. Typed text is capped at 200 characters, echoed tail-anchored past 44.
+  `{ title=, category=, rewards={}, objectives={}, progress=0..1, progressText= }`. No caps on `rewards` or `objectives` any more.
+  Not forwarded to the owned list. Set it on a list you build yourself if you need it.
+  Not forwarded either.
+  Not read at construction. Nor does `:items()` fire `onSelect` — `Ess.UI.List`'s `onSelect` only fires on a cursor *move* — so a freshly-opened board shows an empty detail pane until the user presses a key. Call `:detail(d)` yourself right after `:items(...)` if you want it populated on open.
   `Ess.ScrollLog.new(name, x, y, w, h) -> scrollLog \  -- nil`
   `add(msg, duration = 1)`  -- Shows the box and queues `msg`. `duration` defaults to a deliberately short 1s.
   `setVisible(bool)`
@@ -2545,25 +2932,67 @@ This page covers `Ess.Gfx` (the raw FlashWidget primitives), `Ess.ScrollLog`, an
   Positional-callback wrapper over `Ess.UI.Confirm`; `onNo` optional.
   Opens immediately, one flat level — no `:category` nesting or `:switch`. `entries` accepts an ordered `{ {label, fn}, ... }` array or a `{ [label] = fn }` map. Use `Ess.UI.Menu` directly for the full nested builder.
   Browses the whole `Ess.Easy.*` surface in-game, searchable — built on `Ess.UI.Board` for the list+detail view and `Ess.TextConsole` for the search box.
+  Ess.UI.Theme.preset("cyan") -- a whole look at once
   Ess.UI.Toast("Wardrobe Unlocked!")
-  Widget -- What it is
+  0.5.0 -- Fine on a *dev* install with the movie hand-injected; the released wad was already stale.
+  0.5.1 -- Broken. No `ess_ui` asset in the wad. Nothing draws.
+  0.5.2+ -- Fixed. The wad carries 12 assets and the build gate enforces it.
+  Widget -- Old cap
+  Panel -- 8 lines
+  Toast -- 3 stacked
+  Chat -- 5 visible lines
+  Confirm -- 2 message lines
+  Board -- 4 rewards, 8 objectives
+  List -- fixed 10 visible rows
+  Call -- Signature
+  Ess.UI.Theme.DEFAULTS -- The stock table. `DEFAULTS` mirrors `ess_ui.gfx`'s own `ThemeDefaults()` exactly, so adopting the runtime changed nothing visually until someone...
+  Ess.UI.Theme.PRESETS -- The preset table — writable, see the worked example below.
+  Preset -- What it is
+  classic -- The stock look — and deliberately an empty table: every key falls through to its default. That's the point. It means the defaults *are* a theme...
+  cyan -- Seven keys: an ice-blue accent (`0x59D0FF`), matching selection, `radius = 8`, `rowHeight = 22`.
+  slate -- Desaturated grey-blue, `radius = 2`, higher `panelAlpha` (96).
+  amber -- Warm gold accent (`0xFFC448`), header text tinted to match.
+  neon -- Magenta/teal, `borderWidth = 2`, `radius = 0`. Labelled in source as "deliberately loud, for showing the range rather than for daily use".
+  mono -- Pure black/white, `panelAlpha = 100`, `rowHeight = 22`, larger type. Labelled "high contrast, chunky rows — also a legibility option, not only a...
+  dusk -- Soft violet, low contrast, `radius = 10`.
+  Group -- Keys (default)
+  Accent -- `accent` (`0xE88C18`), `accentText` (`0x191919`)
+  Rows -- `rowFill` (`0x1E2127`), `rowFillAlt` (`0x22252C`), `rowHover` (`0x2E333C`), `rowSelected` (`0x59D0FF`), `rowSelectedText` (`0x10151A`)
+  Text -- `textPrimary` (`0xE1E5EC`), `textDim` (`0x969CA8`), `textAccent` (`0x78D2FF`), `textHeader` (`0xE1E5EC`)
+  Bar -- `barFill` (`0x5AD078`), `barTrack` (`0x282C34`)
+  Metrics -- `radius` (`4`), `rowHeight` (`18`), `titleHeight` (`26`), `padding` (`8`), `scrollbarWidth` (`4`), `crumbHeight` (`14`), `hintHeight` (`14`)
+  Type -- `font` (`"_normal_Font"`), `sizeTitle` (`13`), `sizeBody` (`11`), `sizeSmall` (`10`)
+  Feel -- `easing` (`0.35`), `hoverEnabled` (`0`)
+  Gradient -- `gradientHeader` (`0`), `gradientAngle` (`1.5707963`)
+  setScale -- `Ess.UI.setScale(pct) -> pct, CANVAS_W, CANVAS_H`
+  isWide -- `Ess.UI.isWide() -> bool`
+  widgetRect -- `Ess.UI.widgetRect() -> w, h`
+  canvasW -- `Ess.UI.canvasW() -> n`
+  screen -- `Ess.UI.screen() -> w, h, ratio`
+  anchor -- `Ess.UI.anchor(a) -> x, y, w, h`
   Ess.UI.Menu -- A ForgeMenu-style declarative drill-down: `:entry`/`:category`/`:header`/`:switch`, nests as deep as you like.
-  Ess.UI.List -- The raw scrolling list every other multi-row widget here is built on — 10 visible rows, section headers, a scrollbar, auto-resize.
-  Ess.UI.Panel -- A title bar plus up to 8 lines, body auto-resizing to fit.
+  Ess.UI.List -- The raw scrolling list every other multi-row widget here is built on — a configurable row window, section headers, a scrollbar, auto-resize.
+  Ess.UI.Panel -- A title bar plus body lines, body auto-resizing to fit. No line cap.
   Ess.UI.Bar -- A label plus a progress bar.
-  Ess.UI.Toast -- A transient notification, 3 stacked slots, auto-hiding.
+  Ess.UI.Toast -- A transient notification, stacked slots, auto-hiding.
   Ess.UI.Confirm -- A modal yes/no dialog.
   Ess.UI.Input -- A one-shot typed prompt.
   Ess.UI.Chat -- A scrolling message log with an optional typed input line.
-  Ess.UI.Board -- A two-pane list-plus-details view, driving `contracts.gfx` — the same widget `Ess.Contract`'s own board UI (contract selection, intermission shops)...
-  widget -- `Ess.Gfx.widget(file, x, y, w, h) -> widget \
+  Ess.UI.Board -- A two-pane list-plus-details view — since 0.5.0 a composition of List + Panel + Bar, not its own movie.
+  widget -- `Ess.Gfx.widget(file, x, y, w, h, onLoad?) -> widget \
   call -- `Ess.Gfx.call(widget, fn, args) -> ok`
   onEvent -- `Ess.Gfx.onEvent(widget, name, cb) -> ok`
   setVisible -- `Ess.Gfx.setVisible(widget, bool)`
   warmupRerender -- `Ess.Gfx.warmupRerender(rt, ticks = 8)`
   menuNav -- `Ess.Gfx.menuNav(widget, keys) -> stop()`
-  Call -- Adds / does
+  X -- `640 - 320 - 8` = 312
   Y -- 150
+  Slots -- 3, a hard ceiling
+  Lifetime -- 4s
+  Option -- Status
+  empty -- Not forwarded to the owned list. Set it on a list you build yourself if you need it.
+  crumb -- Not forwarded either.
+  detail -- Not read at construction. Nor does `:items()` fire `onSelect` — `Ess.UI.List`'s `onSelect` only fires on a cursor *move* — so a freshly-opened board...
   new -- `Ess.ScrollLog.new(name, x, y, w, h) -> scrollLog \
   :add -- `add(msg, duration = 1)`
   :setVisible -- `setVisible(bool)`
@@ -2844,13 +3273,26 @@ rely on depends on which build you're running, since this section has grown acro
 | v0.4.0 | WebSocket transport (same port as the raw-TCP REPL, auto-detected) plus the `Loader.WsSend` global — see WebSocket Transport |
 | v0.4.1 | Concurrent WebSocket clients (up to 16 at once) — same wire contract, no user-facing API change, no config change |
 | v0.5.0 | Reliability pass on the loader half: `OnBoot`/`OnLoad` now correctly re-run after a main-menu round trip (previously a startup script silently never ran again once you'd visited the main menu, until the game process restarted); two long-standing REPL correctness bugs fixed — a stack-frame corruption bug and the `[ok]`/`[runtime]` result-label bug (see Getting Started); `Loader.GetLoadPhase()`/`Loader.LoadFile()` added (see Loader); OnKey fixes for background-focus gating, modifier-key support (`ctrl+`/`shift+`/`alt+`), and many more bindable keys; `lua_loader.ini` no longer shipped — auto-generated on first run instead |
+| v0.5.1 | Two transport-layer correctness fixes, no API change and no config change: the raw-TCP result channel was **one execution behind** whenever a client disconnected before its result arrived — results are now tagged with the raw-TCP session that submitted them and dropped rather than misdelivered (see Getting Started); and WebSocket TEXT frames could carry invalid UTF-8, because bytes `0x80`–`0xFF` were passed through unescaped — now emitted as `\uXXXX` using the real CP1252 mapping (see Text frame encoding). **Behavior change:** OnKey/OnBoot/OnLoad results no longer reach the raw-TCP channel at all; they still go to the log and the WebSocket `{type:"log"}` feed |
+| v0.5.2 | Correctness fix, no API change and no config change: on v0.5.0/v0.5.1 the **first Lua chunk of a session could permanently halve the framerate** — 60 fps down to ~25 and never recovering, reproducible on `return 1+1`. Three chained defects, the first of which read an idle REPL as a 186-second stall (see Loader) |
+| v0.5.3 | Correctness fix, no API change and no config change: **`OnLoad` never fired at all if the player alt-tabbed during a level load** — a backgrounded game is throttled hard while the wall clock keeps running, so an ordinary load blew v0.5.2's 60-second milestone-scan ceiling, and the give-up was terminal for the rest of the session. The ceiling is now 300s and a new load cycle clears the give-up (see Loader) |
 
 If you're relying on anything past the keyboard API and basic trig, confirm you're on **v0.2.0 or later**;
 for persistence or the hot-loop performance guarantee, confirm **v0.3.0 or later**; for the WebSocket
 transport, confirm **v0.4.0 or later** (**v0.4.1 or later** for more than one simultaneous client); and if
 you need the loader half to actually be reliable — `OnLoad`/`OnBoot` surviving a main-menu round-trip, or
-accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**. That last one is a correctness bar,
-not a feature bar: the bugs it fixes were silently wrong on every earlier version, not merely absent.
+accurate REPL `[ok]`/`[runtime]` results — confirm **v0.5.0 or later**.
+
+The v0.5.x rows are where that framing stops being about features at all. **v0.5.1, v0.5.2 and v0.5.3 add
+no API and no config. They are correctness bars, and anyone on v0.5.0-v0.5.2 should update.** v0.5.2 fixes
+a framerate halving triggered by the *first Lua chunk of the session* — it affects v0.5.0 and v0.5.1, it
+reproduces on `return 1+1` (a chunk that touches no engine function at all), and once triggered the drop
+persists rather than settling back. v0.5.3 then fixes a defect introduced by v0.5.2's own fix: the
+60-second ceiling that release put on the load-milestone scan is wall-clock, and a backgrounded game is
+throttled hard, so alt-tabbing during a level load blew a budget an on-screen load would never approach —
+`OnLoad` never fired, the give-up was terminal, and a startup mod (Ess included) simply never loaded for
+the rest of that session. Neither of these was a missing feature on the earlier builds: both were silently
+wrong behavior you had no way to see from Lua.
 
 ## Available namespaces
 
@@ -2909,7 +3351,7 @@ function wouldn't have provided on its own.
 | `IsGameFocused` | `b = Loader.IsGameFocused()` | Returns whether the foreground window belongs to the game's own process, via process-ID match rather than window-handle/style checks — so it stays correct regardless of borderless/fullscreen/multi-window setups. This is the same check gating `PopKeyEvents` internally, exposed directly in case a script wants to branch on focus state itself (e.g. pause a typing UI rather than silently losing keystrokes). |
 | `SaveVar` | `Loader.SaveVar(sKey, xValue)` | **New in v0.3.0.** Persists a number, string, or boolean under `sKey`, surviving a full game restart. See Persistence below. |
 | `LoadVar` | `x = Loader.LoadVar(sKey)` | **New in v0.3.0.** Reads back a value saved with `SaveVar`, preserving its original type. Returns `nil` for a key that was never saved. |
-| `GetLoadPhase` | `nIndex, sName = Loader.GetLoadPhase()` | **New in v0.5.0.** Where the current world load has gotten to on loadprobe's 0..20 phase ladder — e.g. `11` is `"Player spawn"`, `20` is `"World fully loaded (GlobalExit)"` — so a script can confirm it's actually in a world before touching entities, instead of inferring that from whether an `OnLoad` hook has fired. Returns `-1, "none"` before any load has been observed, or whenever tracking is off, and resets at the start of each new load so it tracks the *current* load rather than a process-wide high-water mark. The scan feeding this is confined to the duration of an actual load — it stops once the fully-loaded phase is reached and re-arms for the next load — so the cost sits inside a loading screen, not the steady-state per-frame loop. Ini lever: `loader_track_phase = 0` disables tracking (and this then always reports `-1`). |
+| `GetLoadPhase` | `nIndex, sName = Loader.GetLoadPhase()` | **New in v0.5.0.** Where the current world load has gotten to on loadprobe's 0..20 phase ladder — e.g. `11` is `"Player spawn"`, `20` is `"World fully loaded (GlobalExit)"` — so a script can confirm it's actually in a world before touching entities, instead of inferring that from whether an `OnLoad` hook has fired. Returns `-1, "none"` before any load has been observed, or whenever tracking is off, and resets at the start of each new load so it tracks the *current* load rather than a process-wide high-water mark. The scan feeding this is confined to the duration of an actual load — it stops once the fully-loaded phase is reached and re-arms for the next load — so the cost sits inside a loading screen, not the steady-state per-frame loop. As of v0.5.2 that scan also carries a wall-clock backstop (60 s, raised to 300 s in v0.5.3) — if it ever trips, phase tracking stops advancing along with the `OnLoad` trigger until the next load cycle clears it; see the alt-tab fix below for why that backstop needs both a generous budget and a recovery path. Ini lever: `loader_track_phase = 0` disables tracking (and this then always reports `-1`). |
 | `LoadFile` | `bLoaded = Loader.LoadFile(sRelPath)` | **New in v0.5.0.** Executes another `.lua` file, resolved relative to `<game>/scripts/`, synchronously, on the calling VM — a way for two scripts to share library code, previously only possible via `_G` pollution from an `OnBoot` script (see the re-arm fix below for why that's fragile). Rejects absolute paths and any `..` segment, and refuses to run while another `LoadFile` is already in progress — which also stops a file from loading itself. Pairs with `_`-prefixed directories (below): put shared helpers somewhere like `scripts/OnLoad/_lib/`, which the folder scanner skips, then pull one in with `Loader.LoadFile("OnLoad/_lib/util.lua")`. Returns `true` once the file is found and handed to the executor — a runtime error *inside* the loaded file doesn't make this `false`; that error is logged and reaches the same live Printf/WebSocket feed as `OnBoot`/`OnLoad` (see below), through its own separate 4 KB result buffer. |
 
 ## OnBoot and OnLoad re-arm after a menu round-trip
@@ -2922,7 +3364,7 @@ This is a different mechanism from the `Loader` table's own re-registration desc
 
 **Practical effect: this means any framework or mod relying on `OnLoad` to install itself — including Ess itself — was silently non-functional after the player returned to the main menu even once, on any lua-bridge build before v0.5.0.** If a mod or framework "just stopped working" mid-session with nothing obviously wrong and no error, a main-menu trip is the first thing to suspect on a pre-0.5.0 build.
 
-**The fix:** both `OnBoot` and `OnLoad` now re-arm correctly. Detection hangs off `CaptureL` (the function that validates and registers a Lua VM the first time lua-bridge sees it) noticing a genuinely fresh `lua_State`: since a menu round-trip demonstrably builds new VMs, a previously-unseen `L` arriving after a load cycle has already completed *is* the "we started over" signal, and checking...
+**The fix:** both `OnBoot` and `OnLoad` now re-arm correctly. Detection hangs off...
 
 ### Stdlib Additions
 # Stdlib Additions
@@ -6739,8 +7181,8 @@ Once `pmc_bb.dll` is in place:
 2. Drop both into your game's `scripts/` folder (next to `Mercenaries2.exe`).
 3. Launch the game — `pmc_bb.dll`'s ASI loader picks up `lua_bridge.asi` automatically.
 4. On first successful launch, lua-bridge auto-creates `scripts/OnBoot/`, `scripts/OnLoad/`, and
-   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file next to the exe — as of v0.5.0, that
-   file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
+   `scripts/OnKey/`. It also generates a `lua_loader.ini` config file in `scripts/`, next to the `.asi` — as
+   of v0.5.0, that file is no longer shipped in the release zip. The generator itself isn't new (it only runs when no ini
    is present yet), but shipping a stub ini alongside it used to silently suppress that check, so a fresh
    install previously got a stripped ini referencing sample scripts that weren't even in the zip, and never
    showed the generator's commented VK-code reference. A fresh v0.5.0 install now gets that full,
@@ -6759,20 +7201,33 @@ loopback connections — this is a hard security restriction, not just a default
 reach it from another machine.
 
 **Protocol:** open a TCP connection, write your Lua chunk, then write the literal line `<<<RUN>>>` to
-mark the end of the chunk. The bridge queues it, runs it on the next engine frame it gets a pump
-opportunity on, and writes the result back followed by a literal `<<<END>>>` line.
+mark the end of the chunk. The bridge answers `[queued]` straight away, runs the chunk on the next engine
+frame it gets a pump opportunity on, and writes the result back followed by a literal `<<<END>>>` line.
+Those two replies come from different threads — the acknowledgement from the socket thread, the result from
+the game thread once the chunk actually executes — which is what made the pre-v0.5.1 transport bug
+described below possible.
 
 You don't need to hand-roll this — use `tools/lua_console.py` (interactive) or `tools/lua_repl.py`
 (scriptable) from the parent project. But it's worth knowing the wire format if you're writing your own
 tooling (e.g. driving the game from a build script or a bot).
 
 If you're working in the `Ess`/lua-bridge ecosystem specifically, `mercs2-lua-essentials/tools/lua_repl.py`
-is a separate, newer script with the same name but a more reliable design: rather than trusting whatever
-comes back immediately on the raw socket (which can be one execution behind — it flushes chunk N's result
-on the *next* connection), it treats `lua_loader_printf.log` as the authoritative result channel, tags each
-chunk with a random nonce, and polls the log for that tag. It also adds `--probe` (bridge up/down) and
-`--wait-log TEXT` (block until a string like `"[Ess]"` appears, to confirm `OnLoad` actually ran). See that
-repo's own `tools/README.md` for the full flag list.
+is a separate, newer script with the same name and a different design: instead of reading the answer off
+the socket, it wraps your chunk in a `pcall` that reports its own result through `Loader.Printf` tagged
+with a per-call random nonce, then polls `lua_loader_printf.log` for that tag. The socket is used only to
+*send* the code; whatever comes back on it immediately is surfaced as advisory. It also adds `--probe`
+(bridge up/down), `--log-size`, and `--wait-log TEXT` (block until a string like `"[Ess]"` appears, to
+confirm `OnLoad` actually ran). See that repo's own `tools/README.md` for the full flag list.
+
+That design was a response to a real bug — the tool's own header calls anything read off the socket
+"advisory, possibly-stale" because, on the builds it was written against, it genuinely was. **On lua-bridge
+v0.5.1 and later that rationale is historical**: the socket is a trustworthy result channel again (see
+the upgrade note below).
+The tool still works and is still worth using — `--probe` reports whether the bridge is accepting
+connections at all without running a chunk, `--wait-log` reports whether `OnLoad` has actually finished
+(something no reply on the result channel could ever have told you), and a chunk's own `Loader.Printf`
+output lands in that log regardless — but read its log-polling as a deliberate feature now rather than as
+a workaround for a live defect.
 
 That same repo's `tools/webrepl.py` + `tools/webrepl.html` turn this raw-TCP protocol into a **browser**
 tool: since a browser page can't open a raw TCP socket itself, `webrepl.py` runs a tiny local HTTP relay
@@ -6868,59 +7323,31 @@ this is usually why.
 | `chunk too large` | Your chunk is at or past the 1MB buffer limit. Split it up. |
 | `executor fn pointers not resolved` | The bridge couldn't resolve the engine's internal Lua exec functions for this game binary — a build-compatibility problem, not something you can fix from Lua. |
 
-### 2. The script loader (for anything that should run automatically)
+#### If you're upgrading from before v0.5.1: the socket result channel was one execution behind
 
-Drop `.lua` files into one of three folders under `scripts/`:
+On every build before lua-bridge v0.5.1, a result read straight off the raw socket could belong to the
+*previous* chunk — and once a connection was one behind, it stayed one behind for every request it made
+after that. This is the bug `mercs2-lua-essentials`' `lua_repl.py` was rewritten around.
 
-- **`scripts/OnBoot/`** — runs once, as early as possible, the moment the bridge captures a live Lua
-  state. Good for one-time global overrides, injecting your own helper functions into `_G`, etc.
-- **`scripts/OnLoad/`** — runs once **per level load**, at the point the game reaches the
-  `GlobalExit - Complete` milestone (control has returned to the player). Good for HUD tweaks, spawning
-  things, starting per-level logic.
-- **`scripts/OnKey/`** — not run automatically; each script is bound to a hotkey and runs (once,
-  edge-triggered) every time you press it. Good for debug toggles and manual triggers.
+The cause is the thread split described under **Protocol** above. `g_outBuf`, the bridge's single raw-TCP
+output buffer, carried no association between a result and the connection that asked for it, and results
+are produced asynchronously, later, on the game thread. v0.4.0 added a buffer clear at accept time, which
+could not fix it — the race isn't stale data sitting in the buffer when a client connects, it's a result
+arriving *after* the next client has already connected:
 
-Scripts in `OnBoot`/`OnLoad` run in an order controlled by `lua_loader.ini`, auto-populated (in
-increments of 10, alphabetical by default) the first time the loader sees a new script — edit the
-numbers in that file to reorder. `scripts/OnKey/*.lua = <keyname>` in the same file binds hotkeys; a
-script can also declare its own default by putting `local KEYVAL = "keyname"` somewhere in its
-**first 10 lines**, which the loader reads before ever running it.
-
-`OnKey` scripts are re-read from disk on every keypress (via a dedicated background thread polling at
-30Hz, so it doesn't stall the game's main thread) — edit-and-repress works without restarting.
-
-As of lua-bridge v0.2.1, rapid double-presses of the same hotkey (within 250ms by default) are
-automatically throttled to one run instead of queuing two back-to-back — see
-Loader: OnKey dispatch behavior for the full mechanics
-and how to disable it.
-
-### `Loader.Printf` — debug output that doesn't get lost
-
-Don't reach for the engine's own `Debug.Printf` to print your own debug messages. It's the game's
-original debug-print function, called thousands of times a second from all over the base game's own
-scripts — and it's also the exact function lua-bridge itself hooks into as one of its capture points.
-Anything you print through it is buried in that noise with no clean way to filter it back out.
-
-Every script instead has access to a global:
-
-```lua
-Loader.Printf(message)
+```
+conn A submits chunk N, reads [queued], disconnects
+conn B is accepted        -> g_outBuf cleared (nothing pending yet)
+the pump finally runs N   -> result_N appended to g_outBuf
+conn B's flush            -> B receives A's result, then its own
 ```
 
-Same idea as `Debug.Printf`, but it writes only to its own dedicated file — `lua_loader_printf.log`, next
-to the game exe — instead of the shared, noisy engine log. Everything in that file is something a script
-explicitly asked to log; nothing from the base game leaks in. Use this for anything you actually want to
-find again later.
+B reads to the first `<<<END>>>`, takes A's answer as its own, and is one execution behind from then on.
 
-### `Tcp.Send` — fire-and-forget telemetry
-
-Every script (REPL or loader) has access to a global:
-
-```lua
-Tcp.Send(host, port, message)
-```
-
-Fires a one-way TCP message....
+**v0.5.1 fixes it at the source.** Each queued chunk is now tagged with the raw-TCP *session id* of the
+connection that submitted it — a counter incremented on every `accept`. The pump writes a result to the
+socket only if that session is still the current one (i.e. no newer connection has been accepted since);
+a result whose requester has gone is dropped and logged — `dropped...
 
 ### Your First Mod
 # Your First Mod
@@ -9250,10 +9677,12 @@ it never has to solve that problem themselves. Distinct from Deep Dives, which d
 single investigation end to end; a framework here is an ongoing library with its own API surface, likely
 to keep growing.
 
-- **Essentials (Ess)** — the foundational library that now underpins everything: safe, one-line
-  wrappers around every hard-won engine pattern, shipped as one drop-in `1_Ess.lua`. It **absorbs three
-  earlier standalone libraries** as native code (`Ess.UI`, `Ess.Net`, `Ess.Contract`) — see
-  Deprecated Frameworks for those predecessors — new mods start here.
+> **Looking for Essentials (Ess)?** It now has its own top-level section — see
+> **Essentials (Ess)**. It outgrew this category: it's no longer one framework among several, it's
+> the recommended starting point for any new mod, and it absorbed three of the standalone libraries this
+> page used to list. Everything below is what remains here — an example gamemode, and a guide to writing
+> your own library.
+
 - **WaveDefense** — not a library but the worked example of gluing three of those
   predecessors together: a wave-survival gamemode where a Contract Framework contract is only the launcher,
   ModNet's authority model decides which machine runs the simulation, and UI Kit draws the entire HUD and
